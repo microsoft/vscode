@@ -5,23 +5,26 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue, observableContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkbenchMode, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchWorkspaceContextService } from '../../../../services/workspaces/common/workbenchWorkspaceContextService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { SESSIONS_LIST_WORKSPACES_FILTER_SETTING } from '../../common/chatConstants.js';
-import { SessionsListFilters } from './sessionsListFilters.js';
+import { IInboxWorkspaceFilter, SessionsListFilters } from './sessionsListFilters.js';
 
 /**
  * Decides whether the Sessions view shows its workspace and environment bar, and scopes the window to the workspace picked in
- * it while it shows: All Workspaces scopes it to no workspace. A window has one Sessions view, which creates this. On dispose,
- * or once the bar no longer shows, it scopes the window back, unless something else changed the scope since.
+ * it while the bar shows and while a window with folders of its own is in Agents mode: All Workspaces scopes it to no
+ * workspace. A window has one Sessions view, which creates this. On dispose, or once the pick no longer scopes the window,
+ * it scopes the window back, unless something else changed the scope since. When the window enters Agents mode, it starts
+ * the pick on the window's own folder.
  */
 export class SessionsWindowScopeController extends Disposable {
 
@@ -38,6 +41,24 @@ export class SessionsWindowScopeController extends Disposable {
 	 */
 	readonly barShown: IObservable<boolean>;
 
+	/**
+	 * Whether the bar's workspace pick scopes the window and the view's lists in every grouping: while {@link barShown}, and
+	 * while a window with folders of its own is in Agents mode, which starts it on its folder, also with the bar hidden.
+	 */
+	readonly scopesWindow: IObservable<boolean>;
+
+	/**
+	 * Whether the pick is fixed: it {@link scopesWindow scopes the window} while the bar is not {@link barShown shown}, so
+	 * the user cannot change it. The Inbox bar shows it read-only and Reset Filters keeps it.
+	 */
+	readonly scopePickFixed: IObservable<boolean>;
+
+	/**
+	 * The window's own folders while the pick {@link scopesWindow scopes the window}, which the bar offers also before they
+	 * have sessions; empty otherwise.
+	 */
+	readonly windowWorkspaces: IObservable<readonly IInboxWorkspaceFilter[]>;
+
 	private readonly scopeBarFilters = observableValue<SessionsListFilters | undefined>(this, undefined);
 	private readonly scopeBarPickChanged = observableSignal(this);
 	private readonly scopeBarFiltersListener = this._register(new MutableDisposable());
@@ -48,19 +69,51 @@ export class SessionsWindowScopeController extends Disposable {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super();
 		const enabled = observableConfigValue<boolean>(SESSIONS_LIST_WORKSPACES_FILTER_SETTING, false, configurationService);
 		const chatEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
-		this.isScopeBarWindow = observableFromEvent(this, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchState, workspaceContextService.onDidChangeWorkbenchMode),
-			() => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents || workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY);
-		this.barShown = derived(this, reader => enabled.read(reader) && this.isScopeBarWindow.read(reader) && !!chatEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		// One signal for every switch of the window, so its state is read live and consistently: switching delegates fires
+		// several events, and state derived from each of them separately would be stale while the others are delivered.
+		const windowChanged = observableSignalFromEvent(this, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchState, workspaceContextService.onDidChangeWorkbenchMode, agentsModeService.onDidChange));
+		this.isScopeBarWindow = derived(this, reader => {
+			windowChanged.read(reader);
+			return workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents || workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		});
+		const aiAvailable = derived(this, reader => !!chatEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this.barShown = derived(this, reader => enabled.read(reader) && this.isScopeBarWindow.read(reader) && aiAvailable.read(reader));
+		const inFolderAgentsMode = derived(this, reader => {
+			windowChanged.read(reader);
+			return agentsModeService.isActive && agentsModeService.windowFolders.length > 0;
+		});
+		this.scopesWindow = derived(this, reader => this.barShown.read(reader) || (inFolderAgentsMode.read(reader) && aiAvailable.read(reader)));
+		this.scopePickFixed = derived(this, reader => this.scopesWindow.read(reader) && !this.barShown.read(reader));
+		this.windowWorkspaces = derived(this, reader => this.scopesWindow.read(reader) ? agentsModeService.windowFolders.map(folder => SessionsListFilters.toLocalInboxWorkspace(folder)) : []);
+
+		// Seeds the pick before the scope below applies it, so the window is not scoped to a stale pick first.
+		// Agents mode starts the bar on the window's own folder. A fixed pick stays on it: also after a restore in the mode or
+		// the setting turning off, as the pick may have been widened while the bar showed.
+		this._register(autorun(reader => {
+			const filters = this.scopeBarFilters.read(reader);
+			if (!filters) {
+				return;
+			}
+			const fixed = this.scopePickFixed.read(reader);
+			filters.setInboxScopeFixed(fixed);
+			reader.store.add(toDisposable(() => filters.setInboxScopeFixed(false)));
+			if (fixed) {
+				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
+			}
+		}));
 
 		let owned = false;
 		let lastScope: URI | undefined;
+		let written: { readonly mode: WorkbenchMode; readonly scope: URI | undefined } | undefined;
 		const reset = () => {
 			if (owned) {
 				owned = false;
+				written = undefined;
 				if (uriIdentityService.extUri.isEqual(workspaceContextService.getWorkbenchScope(), lastScope)) {
 					workspaceContextService.resetWorkbenchScope();
 				}
@@ -68,20 +121,47 @@ export class SessionsWindowScopeController extends Disposable {
 		};
 		this._register(autorun(reader => {
 			const filters = this.scopeBarFilters.read(reader);
-			if (!filters || !this.barShown.read(reader)) {
+			if (!filters || !this.scopesWindow.read(reader)) {
 				reset();
 				return;
 			}
 			this.scopeBarPickChanged.read(reader);
+			// Each mode has its own scope, so the pick applies again to the mode the window switched to
+			windowChanged.read(reader);
 			const workspace = filters.inboxScope.workspace;
 			lastScope = workspace && workspace !== 'none' ? URI.parse(workspace.resource) : undefined;
+			const mode = workspaceContextService.getWorkbenchMode();
+			// Skips only a write this controller already made in this mode: a pick equal to the mode's default scope is still set explicitly
+			const unchanged = owned && written?.mode === mode && uriIdentityService.extUri.isEqual(written.scope, lastScope)
+				&& uriIdentityService.extUri.isEqual(workspaceContextService.getWorkbenchScope(), lastScope);
 			owned = true;
-			workspaceContextService.setWorkbenchScope(lastScope);
+			if (!unchanged) {
+				written = { mode, scope: lastScope };
+				workspaceContextService.setWorkbenchScope(lastScope);
+			}
 		}));
 		this._register(toDisposable(reset));
+
+		this._register(agentsModeService.onDidChange(active => {
+			const filters = this.scopeBarFilters.get();
+			if (active && filters && this.barShown.get()) {
+				filters.pickInboxWorkspace(this.getAgentsModeStartWorkspace());
+			}
+		}));
 	}
 
-	/** Sets the filters of the view's bar, whose workspace pick scopes the window while {@link barShown}. */
+	/**
+	 * Where the bar starts when the window enters Agents mode: the first folder of the window's own workspace, also of a
+	 * multi-root workspace, or All Workspaces in an empty window.
+	 */
+	private getAgentsModeStartWorkspace(): IInboxWorkspaceFilter | undefined {
+		// TEMPORARY: a multi-root workspace starts on its first folder, as the Agents window has no multi-root workspaces
+		// to pick yet. Revisit once it has them; starting on All Workspaces for more than one folder is the alternative.
+		const folder = this.agentsModeService.windowFolders.at(0);
+		return folder && SessionsListFilters.toLocalInboxWorkspace(folder);
+	}
+
+	/** Sets the filters of the view's bar, whose workspace pick scopes the window while {@link scopesWindow}. */
 	setScopeBarFilters(filters: SessionsListFilters): void {
 		this.scopeBarFiltersListener.value = filters.onDidChange(() => this.scopeBarPickChanged.trigger(undefined));
 		this.scopeBarFilters.set(filters, undefined);

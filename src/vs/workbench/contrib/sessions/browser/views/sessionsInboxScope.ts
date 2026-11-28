@@ -20,8 +20,8 @@ import { getNoWorkspaceChoicePresentation } from '../chat/noWorkspaceChoice.js';
 import { ENVIRONMENT_PICKER_LIST_OPTIONS } from '../chat/sessionEnvironmentPicker.js';
 import { createSessionPickerToolbar } from '../chat/sessionPickerToolbar.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from '../chat/sessionWorkspacePicker.js';
-import { getInboxWorkspaceOptions, getSessionEnvironments, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { getInboxWorkspaceOptions, getSessionEnvironments, IInboxWorkspaceFilter, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
 
 interface IInboxScopePickerItem {
 	readonly checked: boolean;
@@ -32,6 +32,10 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 	return environment === LOCAL_SESSIONS_ENVIRONMENT ? Codicon.deviceDesktop : environment === 'cloud' ? Codicon.cloud : Codicon.remote;
 }
 
+/**
+ * The workspace and environment pickers of the Sessions list, which show only the sessions of the picks: of Inbox Mode,
+ * and, where the bar shows in every grouping, of the list, whose picked workspace also scopes the window.
+ */
 export class SessionsInboxScope extends Disposable {
 	private static readonly PICKER_USER = 'sessionsInboxScope';
 
@@ -44,7 +48,15 @@ export class SessionsInboxScope extends Disposable {
 		sessions: IObservable<readonly ISession[]>,
 		environments: IObservable<readonly ISessionEnvironment[]>,
 		localEnvironmentIds: IObservable<ReadonlySet<string>>,
+		/** Whether the bar scopes Inbox Mode, rather than the list in another grouping; only its labels differ. */
 		inbox: IObservable<boolean>,
+		/** The window's own folders, which the bar offers also before they have sessions. */
+		windowWorkspaces: IObservable<readonly IInboxWorkspaceFilter[]>,
+		/**
+		 * Whether the picks are fixed, such as while a window with a folder is in Agents mode without the bar in its other
+		 * groupings: the bar then shows them without letting the user change them.
+		 */
+		private readonly fixed: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -87,7 +99,7 @@ export class SessionsInboxScope extends Disposable {
 					isConnected: environment.isConnected?.read(reader),
 					unavailable: !availableEnvironments.has(environment.id),
 				})),
-				workspaces: getInboxWorkspaceOptions(catalog, uriIdentityService.extUri, scope.environment?.id, reader),
+				workspaces: filters.withWindowWorkspaces(getInboxWorkspaceOptions(catalog, uriIdentityService.extUri, scope.environment?.id, reader), windowWorkspaces.read(reader), scope.environment?.id),
 				hasQuickChats: catalog.some(session => (!scope.environment || scope.environment.id === session.environment) && session.isQuickChat?.read(reader)),
 			};
 		});
@@ -156,10 +168,24 @@ export class SessionsInboxScope extends Disposable {
 			const scope = options.read(reader).scope;
 			workspaceIcon.className = ThemeIcon.asClassName(getCompactCodicon(scope.workspace === 'none' ? getNoWorkspaceChoicePresentation(undefined).icon : Codicon.folder));
 			environmentIcon.className = ThemeIcon.asClassName(getCompactCodicon(scope.environment ? getEnvironmentIcon(scope.environment.id) : Codicon.globe));
-			workspace.action.tooltip = scope.workspace && scope.workspace !== 'none'
+			const workspaceTooltip = scope.workspace && scope.workspace !== 'none'
 				? localize('workspaceScopeDescription', "{0}: {1}", workspaceText, scope.workspace.description ?? scope.workspace.resource)
 				: workspaceText;
-			environment.action.tooltip = environmentText;
+			const isFixed = fixed.read(reader);
+			for (const [picker, tooltip] of [[workspace, workspaceTooltip], [environment, environmentText]] as const) {
+				picker.action.enabled = !isFixed;
+				picker.action.tooltip = isFixed ? localize('fixedScope', "{0} (fixed while this window is in Agents mode)", tooltip) : tooltip;
+				if (isFixed) {
+					picker.trigger.removeAttribute('aria-haspopup');
+					picker.trigger.removeAttribute('aria-expanded');
+				} else {
+					picker.trigger.setAttribute('aria-haspopup', 'listbox');
+					picker.trigger.setAttribute('aria-expanded', String(this.activeTrigger === picker.trigger));
+				}
+			}
+			if (isFixed) {
+				this.hidePicker();
+			}
 		}));
 
 		const pickWorkspace = () => {
@@ -228,7 +254,7 @@ export class SessionsInboxScope extends Disposable {
 	}
 
 	private showPicker(trigger: HTMLElement, items: IActionListItem<IInboxScopePickerItem>[], label: string, options: IActionListOptions, onSelect?: () => void): void {
-		if (this._store.isDisposed || this.element.hidden || this.actionWidgetService.isVisible) {
+		if (this._store.isDisposed || this.element.hidden || this.fixed.get() || this.actionWidgetService.isVisible) {
 			return;
 		}
 		this.activeTrigger = trigger;

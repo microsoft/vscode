@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -19,13 +20,36 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewGroupingStorageKeys, ISessionsViewLocator, ISessionsViewOptions, SessionsView, SessionsViewGroupingState } from '../views/sessionsView.js';
+import { EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, ISessionsViewGroupings, ISessionsViewGroupingStorageKeys, ISessionsViewLocator, ISessionsViewOptions, SessionsView, SessionsViewGroupingState } from '../views/sessionsView.js';
 
 /** The editor window's Sessions view groups only by time or environment, by time until one is chosen. */
-export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
+
+/**
+ * While the editor window is in Agents mode ({@link WorkbenchMode.Agents}), its Sessions view also groups by workspace, as its
+ * sessions open their folders in the window: by time, environment or workspace, by workspace until one is chosen, as the
+ * Agents window does.
+ */
+export const ALL_SESSIONS_GROUPINGS: ISessionsViewGroupings = {
+	offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Workspace],
+	default: SessionsGrouping.Workspace,
+};
 
 /** The Chat view's sessions list also offers Inbox, while the Inbox setting is on, by time until a grouping is chosen. */
-const CHAT_VIEW_SESSIONS_GROUPINGS = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
+const CHAT_VIEW_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: SessionsGrouping.Date };
+
+/** In Agents mode, the Chat view's sessions list offers Inbox besides {@link ALL_SESSIONS_GROUPINGS}. */
+const CHAT_VIEW_ALL_SESSIONS_GROUPINGS: ISessionsViewGroupings = { offered: [...ALL_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox], default: ALL_SESSIONS_GROUPINGS.default };
+
+/**
+ * The groupings of the editor window's Sessions view, as the window is in the Agents mode or not; with `inbox`, as the Chat
+ * view's sessions list, they offer Inbox too.
+ */
+export function createEditorWindowSessionsGroupings(owner: object, workspaceContextService: IWorkspaceContextService, inbox = false): IObservable<ISessionsViewGroupings> {
+	return observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents
+		? inbox ? CHAT_VIEW_ALL_SESSIONS_GROUPINGS : ALL_SESSIONS_GROUPINGS
+		: inbox ? CHAT_VIEW_SESSIONS_GROUPINGS : EDITOR_WINDOW_SESSIONS_GROUPINGS);
+}
 
 /**
  * Where the Chat view's sessions list remembers its grouping and the grouping Inbox returns to: apart from
@@ -67,31 +91,33 @@ export type EditorWindowSessionsHeader = 'title' | 'section';
 /**
  * The options of the Sessions view in an editor window, wherever it shows: the actions of its header in its title or in its
  * section header (`header`), without the customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
- * {@link EDITOR_WINDOW_SESSIONS_GROUPINGS} says, with the "Chats" section also under time grouping. With `inbox`, as the Chat
- * view's sessions list, it also offers Inbox ({@link CHAT_VIEW_SESSIONS_GROUPINGS}), remembers its grouping apart from the
- * Agents window ({@link ChatViewSessionsGroupingState}) and keeps replies and approvals in the current chat.
+ * `groupings` says ({@link createEditorWindowSessionsGroupings}), with the "Chats" section also under time grouping. With `inbox`,
+ * as the Chat view's sessions list, whose `groupings` then offer Inbox too, it remembers its grouping apart from the Agents window
+ * ({@link ChatViewSessionsGroupingState}) and keeps replies and approvals in the current chat.
  */
-export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title', inbox = false): IViewletViewOptions & ISessionsViewOptions {
-	const view: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
-	return inbox ? { ...view, groupings: CHAT_VIEW_SESSIONS_GROUPINGS, groupingState: new SyncDescriptor(ChatViewSessionsGroupingState), inboxAutoAdvance: false, leaveInboxWithoutChat: true } : view;
+export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, groupings: IObservable<ISessionsViewGroupings>, header: EditorWindowSessionsHeader = 'title', inbox = false): IViewletViewOptions & ISessionsViewOptions {
+	const view: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings, quickChatsInTimeGrouping: true };
+	return inbox ? { ...view, groupingState: new SyncDescriptor(ChatViewSessionsGroupingState), inboxAutoAdvance: false, leaveInboxWithoutChat: true } : view;
 }
 
 /** The Sessions view of an editor window, with {@link createEditorWindowSessionsViewOptions}. */
-export function createEditorWindowSessionsView(scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title', inbox = false): typeof SessionsView {
+export function createEditorWindowSessionsView(scoped: IObservable<boolean>, groupings: IObservable<ISessionsViewGroupings>, header: EditorWindowSessionsHeader = 'title', inbox = false): typeof SessionsView {
 	return class EditorWindowSessionsView extends SessionsView {
 		constructor(options: IViewletViewOptions, ...services: SessionsViewServices) {
-			super(createEditorWindowSessionsViewOptions(options, scoped, header, inbox), ...services);
+			super(createEditorWindowSessionsViewOptions(options, scoped, groupings, header, inbox), ...services);
 		}
 	};
 }
 
 /**
  * Whether the window has folders, whose sessions the providers then list only; not in an empty window, and not while the
- * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}), which lists every session.
+ * window is about all sessions (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}, or it is in the Agents mode,
+ * whose folders follow the focused session), which lists every session.
  */
 export function createEditorWindowSessionsScope(owner: object, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
 	const hasFolders = observableFromEvent(owner, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
-	const allSessions = observableFromEvent(owner, workspaceContextService.onDidChangeWorkbenchScope, () => !workspaceContextService.getWorkbenchScope());
+	const allSessions = observableFromEvent(owner, Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchScope, workspaceContextService.onDidChangeWorkbenchMode),
+		() => !workspaceContextService.getWorkbenchScope() || workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
 	return derived(owner, reader => hasFolders.read(reader) && !allSessions.read(reader));
 }
 

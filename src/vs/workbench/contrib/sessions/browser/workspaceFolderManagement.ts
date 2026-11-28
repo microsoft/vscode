@@ -3,52 +3,84 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Queue } from '../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
-import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { URI } from '../../../../base/common/uri.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { Queue } from '../../../../base/common/async.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
-import { IHistoryService } from '../../../services/history/common/history.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.workspaceFolderManagement';
-	private queue = this._register(new Queue<void>());
 
 	constructor(
-		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		// The window's folders follow the focused session only in the Agents mode, as in the Agents window and in Agents mode
+		const isActive = () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents;
+		const active = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchMode, isActive);
+		this._register(autorun(reader => {
+			if (active.read(reader)) {
+				reader.store.add(instantiationService.createInstance(SessionWorkspaceFolderMount, isActive));
+			}
+		}));
+	}
+}
+
+class SessionWorkspaceFolderMount extends Disposable {
+
+	private readonly queue = this._register(new Queue<void>());
+
+	/** Whether this mount is replacing or removing the window's folders because the focused session changed. */
+	private switchingFolders = false;
+
+	constructor(
+		isActive: () => boolean,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
-		@IHistoryService private readonly historyService: IHistoryService,
+		@IHistoryService historyService: IHistoryService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(event => {
-			if (event.removed.length > 0) {
-				this.historyService.clearRecentlyOpened();
+			// Only a switch to another session's folders clears the history: entering or leaving Agents mode also changes the
+			// window's folders
+			if (event.removed.length > 0 && isActive() && this.switchingFolders) {
+				historyService.clearRecentlyOpened();
 			}
 		}));
 		this._register(autorun(reader => {
-			const activeChat = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
+			const activeChat = focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
 			const workspace = activeChat?.workspace.read(reader);
-			this.queue.queue(() => this.updateWorkspaceFolders(workspace));
+			const token = cancelOnDispose(reader.store);
+			this.queue.queue(() => this.updateWorkspaceFolders(workspace, () => !token.isCancellationRequested && isActive())).catch(onUnexpectedError);
 		}));
 	}
 
-	private async updateWorkspaceFolders(workspace: ISessionWorkspace | undefined): Promise<void> {
+	private async updateWorkspaceFolders(workspace: ISessionWorkspace | undefined, isCurrent: () => boolean): Promise<void> {
+		if (!isCurrent()) {
+			return;
+		}
 		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
 		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
@@ -56,23 +88,20 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		// A folder this window can't read, such as the web address of a session's repository, is no folder to mount.
 		const readable = await Promise.all(sessionFolders.map(folder => this.fileService.canHandleResource(folder.uri)));
 		const activeSessionFolders = sessionFolders.filter((_, index) => readable[index]);
-		const currentFolders = this.workspaceContextService.getWorkspace().folders;
 
 		// Never mount untrusted folders: mounting one would flip the whole Agents
 		// Window into Restricted Mode. Sessions opened from the list are already
 		// gated on trust (see `ISessionsService.canOpenSession`); this backstop
 		// keeps paths that bypass that gate (e.g. startup restore) safe too.
 		const mountable = await Promise.all(activeSessionFolders.map(folder => this.isFolderMountable(workspace, folder.uri)));
-		if (mountable.some(isMountable => !isMountable)) {
-			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
-			}
+		if (!isCurrent()) {
 			return;
 		}
 
-		if (activeSessionFolders.length === 0) {
+		const currentFolders = this.workspaceContextService.getWorkspace().folders;
+		if (activeSessionFolders.length === 0 || mountable.some(isMountable => !isMountable)) {
 			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
+				await this.switchFolders(() => this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true }));
 			}
 			return;
 		}
@@ -90,7 +119,16 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return;
 		}
 
-		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, { donotNotifyError: true, force: true });
+		await this.switchFolders(() => this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, { donotNotifyError: true, force: true }));
+	}
+
+	private async switchFolders(update: () => Promise<void>): Promise<void> {
+		this.switchingFolders = true;
+		try {
+			await update();
+		} finally {
+			this.switchingFolders = false;
+		}
 	}
 
 	private getWorkspaceFolderData(workspace: ISessionWorkspace | undefined): IWorkspaceFolderCreationData[] {

@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -42,7 +42,7 @@ import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../.
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IsSessionsWindowContext, WorkbenchModeContext } from '../../../../../workbench/common/contextkeys.js';
-import { WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -68,10 +68,10 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getInboxWorkspaceFilter, getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListChange, ISessionsListUndoService } from '../../../../../workbench/contrib/sessions/browser/sessionsListUndoService.js';
-import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { createOffersWorktreeFilter, IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSeparateGroupsAndWorkspacesContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
+import { ALL_SESSIONS_GROUPINGS, createEditorWindowSessionsGroupings, EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { SessionWorkspacesContextKeys } from '../../../../../workbench/contrib/sessions/browser/sessionWorkspacesContextKeys.js';
@@ -86,7 +86,7 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 		providers?: readonly ISessionsProvider[],
-		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean; readonly workspacesFilter?: { readonly enabled: boolean; readonly barShown: boolean } },
+		windowOptions?: { readonly sessionsWindow?: boolean; readonly emptyWindow?: boolean; readonly offersWorktreeFilter?: IObservable<boolean>; readonly scopesWindow?: IObservable<boolean>; readonly barShown?: IObservable<boolean> },
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			readonly updates: unknown[][] = [];
@@ -157,10 +157,12 @@ suite('Sessions - View Menu', () => {
 				openSession: async (resource: URI) => { opened.push(sessions.find(session => session.resource.toString() === resource.toString())?.sessionId ?? resource.toString()); },
 			},
 			_handleSessionOpened: () => { },
+			// As the view offers it: with worktree grouping, which the Agents window doesn't offer
+			offersWorktreeFilter: windowOptions?.offersWorktreeFilter ?? constObservable(!windowOptions?.sessionsWindow),
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
-			windowScope: { isScopeBarWindow: constObservable(true), barShown: constObservable(windowOptions?.workspacesFilter?.barShown ?? false) },
+			windowScope: { isScopeBarWindow: constObservable(true), barShown: windowOptions?.barShown ?? windowOptions?.scopesWindow ?? constObservable(false), scopesWindow: windowOptions?.scopesWindow ?? constObservable(false) },
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
 			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow || windowOptions?.emptyWindow ? undefined : URI.file('/workspace'), getWorkbenchMode: () => windowOptions?.sessionsWindow ? WorkbenchMode.Agents : WorkbenchMode.Editor },
@@ -252,7 +254,7 @@ suite('Sessions - View Menu', () => {
 		list.setItemCollapsed({ section: 'pinned' }, false);
 		const connected = observableValue('connected', true);
 		const environments = observableValue<readonly ISessionEnvironment[]>('environments', [{ id: 'ssh:work', label: 'Workstation', isConnected: connected }]);
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>()), constObservable(true)));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>()), constObservable(true), constObservable([]), constObservable(false)));
 		const workspace = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const environment = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const icons = () => [workspace, environment].map(trigger => {
@@ -341,7 +343,7 @@ suite('Sessions - View Menu', () => {
 		];
 		const environments = getSessionFilterEnvironments(providers);
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
-			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds), constObservable(true)));
+			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds), constObservable(true), constObservable([]), constObservable(false)));
 		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const snapshot = () => {
 			trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -407,7 +409,7 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const environmentOptions = derived(reader => getSessionFilterEnvironments(providers, reader));
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), menu.filters,
-			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true)));
+			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true), constObservable([]), constObservable(false)));
 		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const snapshot = () => {
 			trigger.click();
@@ -480,7 +482,7 @@ suite('Sessions - View Menu', () => {
 			}
 			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
 				constObservable([localSession, registrationSession]),
-				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true)));
+				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds), constObservable(true), constObservable([]), constObservable(false)));
 			const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 			if (!restored) {
 				trigger.click();
@@ -526,7 +528,7 @@ suite('Sessions - View Menu', () => {
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
 		const container = harness.createContainer();
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true)));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true), constObservable([]), constObservable(false)));
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		open();
@@ -559,7 +561,7 @@ suite('Sessions - View Menu', () => {
 		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
 		const container = harness.createContainer();
 		const elsewhere = container.appendChild(document.createElement('button'));
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true)));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true), constObservable([]), constObservable(false)));
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		const hide = () => {
@@ -593,6 +595,36 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('Inbox scope shows fixed picks without letting the user change them, and offers them again once they are not fixed', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const repo = getInboxWorkspaceFilter(buildTestSession({ id: 'repo', title: 'repo', workspace: 'repo' }).session);
+		filters.setInboxWorkspace(repo);
+		const fixed = observableValue('fixed', true);
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters, constObservable([]), constObservable([]), constObservable(new Set<string>()), constObservable(true), constObservable([]), fixed));
+		const triggers = ['workspace', 'environment'].map(kind => scope.element.querySelector<HTMLElement>(`.${kind}-picker .action-label`)!);
+		const state = () => ({
+			workspace: filters.inboxScope.workspace !== undefined && filters.inboxScope.workspace !== 'none' ? filters.inboxScope.workspace.label : filters.inboxScope.workspace,
+			opened: triggers.map(trigger => {
+				trigger.click();
+				trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+				const visible = actionWidgetService.isVisible;
+				actionWidgetService.hide(true);
+				return visible;
+			}),
+			disabled: triggers.map(trigger => trigger.getAttribute('aria-disabled')),
+			popup: triggers.map(trigger => trigger.getAttribute('aria-haspopup')),
+		});
+		const whileFixed = state();
+		fixed.set(false, undefined);
+		assert.deepStrictEqual({ whileFixed, unfixed: state() }, {
+			whileFixed: { workspace: 'repo', opened: [false, false], disabled: ['true', 'true'], popup: [null, null] },
+			unfixed: { workspace: 'repo', opened: [true, true], disabled: [null, null], popup: ['listbox', 'listbox'] },
+		});
+	});
+
 	test('the shared bar labels its controls for the current grouping', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
@@ -601,7 +633,7 @@ suite('Sessions - View Menu', () => {
 		const inbox = observableValue('inbox', false);
 		const session = buildTestSession({ id: 'repo', title: 'Repo', workspace: 'repo' }).session;
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
-			constObservable([session]), constObservable([]), constObservable(new Set<string>()), inbox));
+			constObservable([session]), constObservable([]), constObservable(new Set<string>()), inbox, constObservable([]), constObservable(false)));
 		filters.setInboxWorkspace(getInboxWorkspaceFilter(session)!);
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const label = trigger.getAttribute('aria-label');
@@ -634,6 +666,38 @@ suite('Sessions - View Menu', () => {
 			inbox: { environmentMenu: false, sources: ['VS Code (This Computer)'] },
 			restored: ['VS Code (Cloud)', 'VS Code (Workstation)'],
 		});
+	});
+
+	test('the workspace scope bar replaces the environment submenu in every grouping while it shows, and scopes applications to its environment', () => {
+		const sessions = [buildTestSession({ id: 'remote', title: 'Remote', environment: 'ssh:work' }).session];
+		const scopesWindow = observableValue('scopesWindow', false);
+		const menu = createMenu(sessions, [{ id: 'ssh:work', label: 'Workstation' }], undefined, undefined, { sessionsWindow: true, scopesWindow });
+		menu.grouping.set(SessionsGrouping.Workspace);
+		menu.filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+		const state = () => ({
+			environmentMenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Environment'),
+			sources: menu.snapshot(Menus.SessionsViewSource).map(item => item.title),
+		});
+		const off = state();
+		scopesWindow.set(true, undefined);
+		const on = state();
+		scopesWindow.set(false, undefined);
+		assert.deepStrictEqual({ off, on, offAgain: state() }, {
+			off: { environmentMenu: true, sources: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (Workstation)'] },
+			on: { environmentMenu: false, sources: ['VS Code (This Computer)'] },
+			offAgain: { environmentMenu: true, sources: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (Workstation)'] },
+		});
+	});
+
+	test('a window scoped to a fixed pick without the bar keeps the environment submenu and its environment filtering', () => {
+		const sessions = [buildTestSession({ id: 'remote', title: 'Remote', environment: 'ssh:work' }).session];
+		const menu = createMenu(sessions, [{ id: 'ssh:work', label: 'Workstation' }], undefined, undefined, { scopesWindow: constObservable(true), barShown: constObservable(false) });
+		menu.grouping.set(SessionsGrouping.Workspace);
+		menu.filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+		assert.deepStrictEqual({
+			environmentMenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Environment'),
+			sources: menu.snapshot(Menus.SessionsViewSource).map(item => item.title),
+		}, { environmentMenu: true, sources: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (Workstation)'] });
 	});
 
 	test('keeps Open to the Side without Open in Grid in the session context menu', () => {
@@ -740,7 +804,7 @@ suite('Sessions - View Menu', () => {
 		assert.strictEqual(await isSeparateGroupsAndWorkspacesOffered('insider'), true);
 	});
 
-	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window', () => {
+	test('the Grouping menu offers the groupings of its view: Time and Environment in the editor window, and also Workspace while it is about all sessions', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
 		const workbenchMode = WorkbenchModeContext.bindTo(contextKeyService);
@@ -754,10 +818,12 @@ suite('Sessions - View Menu', () => {
 			agentsWindow: offered(true, DEFAULT_SESSIONS_GROUPINGS),
 			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+			allSessions: offered(false, ALL_SESSIONS_GROUPINGS.offered),
 		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment'],
 			editorWindow: ['Time', 'Environment'],
 			sessionsWindowOffering: ['Time', 'Environment'],
+			allSessions: ['Time', 'Workspace', 'Environment'],
 		});
 	});
 
@@ -1827,6 +1893,45 @@ suite('Sessions - View Menu', () => {
 		}, { submenu: false, entries: 0 });
 	});
 
+	test('offers the Worktrees filter and groups as an editor window outside the Agents mode, following the mode as the window enters and leaves Agents mode', () => {
+		const inFolder = (id: string, path: string): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const sessions = [inFolder('main', '/work/vscode'), inFolder('first', '/work/vscode.worktrees/first')];
+		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
+		let mode = WorkbenchMode.Editor;
+		// A plain empty window, which has no scope in both modes
+		const window = upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkbenchMode: onDidChangeWorkbenchMode.event,
+			getWorkbenchMode: () => mode,
+			onDidChangeWorkbenchScope: Event.None,
+			getWorkbenchScope: () => undefined,
+		});
+		const setMode = (value: WorkbenchMode) => { mode = value; onDidChangeWorkbenchMode.fire(value); };
+		const groupings = createEditorWindowSessionsGroupings({}, window);
+		const menu = createMenu(sessions, [], undefined, undefined, { emptyWindow: true, offersWorktreeFilter: createOffersWorktreeFilter({}, window) });
+		const state = () => ({
+			worktreeFilter: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),
+			offered: groupings.get().offered,
+		});
+
+		const editor = state();
+		setMode(WorkbenchMode.Agents);
+		const agents = state();
+		setMode(WorkbenchMode.Editor);
+
+		assert.deepStrictEqual({ editor, agents, back: state() }, {
+			editor: { worktreeFilter: true, offered: EDITOR_WINDOW_SESSIONS_GROUPINGS.offered },
+			agents: { worktreeFilter: false, offered: ALL_SESSIONS_GROUPINGS.offered },
+			back: { worktreeFilter: true, offered: EDITOR_WINDOW_SESSIONS_GROUPINGS.offered },
+		});
+	});
+
 	test('Show lists Show Automations, Show Done and Show Only Scheduled below Recent and All, and Show Automations chooses the setting', async () => {
 		const { snapshot, run, grouping, contextKeyService, configurationService } = createMenu();
 		const disabled = snapshot(Menus.SessionsViewShow);
@@ -2157,7 +2262,7 @@ suite('Sessions - View Menu', () => {
 			buildTestSession({ id: 'local', title: 'Local' }).session,
 			buildTestSession({ id: 'cloud', title: 'Cloud', environment: 'cloud' }).session,
 		];
-		const { snapshot, filters } = createMenu(sessions, [], undefined, undefined, { workspacesFilter: { enabled: true, barShown: false } });
+		const { snapshot, filters } = createMenu(sessions, [], undefined, undefined, { scopesWindow: constObservable(false) });
 		filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
 		assert.deepStrictEqual({
 			environment: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewEnvironment.id)?.title,

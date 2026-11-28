@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkbenchMode } from '../../../../../platform/workspace/common/workspace.js';
 import { WorkspaceFolderRepositories } from '../../browser/workspaceFolderRepositories.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -280,7 +280,11 @@ suite('WorkspaceFolderRepositories', () => {
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
+			onDidChangeWorkbenchScope: Event.None,
+			onDidChangeWorkbenchMode: Event.None,
+			getWorkbenchMode: () => WorkbenchMode.Editor,
 			getWorkbenchState: () => state,
+			getWorkbenchScope: () => URI.file('/workspace'),
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: state === WorkbenchState.FOLDER ? repository : URI.file('/work/repo.code-workspace'), folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }),
 		}));
 		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
@@ -303,6 +307,53 @@ suite('WorkspaceFolderRepositories', () => {
 			atRepository: ['followed', 'main', 'sibling'],
 			atWorktree: ['followed', 'main', 'sibling'],
 			savedAsWorkspace: ['followed'],
+		});
+	});
+
+	test('lists every session while the workbench is about all sessions or in the Agents mode, such as in Agents mode, and only its folders\' sessions again after', async () => {
+		let scope: URI | undefined = URI.file('/workspace');
+		let mode = WorkbenchMode.Editor;
+		const onDidChangeWorkbenchScope = store.add(new Emitter<URI | undefined>());
+		const onDidChangeWorkbenchMode = store.add(new Emitter<WorkbenchMode>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, createFileService({}).fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: Event.None,
+			onDidChangeWorkbenchState: Event.None,
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
+			onDidChangeWorkbenchMode: onDidChangeWorkbenchMode.event,
+			getWorkbenchMode: () => mode,
+			getWorkbenchState: () => WorkbenchState.WORKSPACE,
+			getWorkbenchScope: () => scope,
+			// The folders of the focused session, as mounted in Agents mode
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/repo') })] }),
+		}));
+		const listingScope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const sessionOf = (id: string, folder: string): ISession => ({ ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [{ root: URI.file(folder), workingDirectory: URI.file(folder), name: id, description: undefined, gitRepository: undefined }] }) });
+		const sessions = [sessionOf('focused', '/work/repo'), sessionOf('other', '/work/other')];
+		const filter = store.add(new SessionsListingScopeFilter(listingScope, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const setScope = (value: URI | undefined) => { scope = value; onDidChangeWorkbenchScope.fire(value); };
+
+		const setMode = (value: WorkbenchMode) => { mode = value; onDidChangeWorkbenchMode.fire(value); };
+
+		const workspace = listed();
+		setScope(undefined);
+		const all = listed();
+		setScope(URI.file('/workspace'));
+		const workspaceAgain = listed();
+		// Scoped in the Agents mode, whose Sessions list filters by the scope it picked itself
+		setMode(WorkbenchMode.Agents);
+		const agentsMode = listed();
+		setMode(WorkbenchMode.Editor);
+
+		assert.deepStrictEqual({ workspace, all, workspaceAgain, agentsMode, editorMode: listed() }, {
+			workspace: ['focused'],
+			all: ['focused', 'other'],
+			workspaceAgain: ['focused'],
+			agentsMode: ['focused', 'other'],
+			editorMode: ['focused'],
 		});
 	});
 });

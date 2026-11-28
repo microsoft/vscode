@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchMode, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
 import { parseGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
 
@@ -44,7 +44,8 @@ export interface IWorkspaceFolderRepositories extends ISessionsListingScope {
  * sessions it lists stay as they were; and the GitHub repositories of the `origin` of its local folders' git repositories,
  * read from their `.git` and `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
  * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
- * watchers. A folder that leaves the workspace stops counting at once.
+ * watchers. A folder that leaves the workspace stops counting at once. A workbench about all sessions
+ * (it has no {@link IWorkspaceContextService.getWorkbenchScope scope}) has no folders in the scope, so its providers list every session.
  */
 export class WorkspaceFolderRepositories extends Disposable implements IWorkspaceFolderRepositories {
 
@@ -71,14 +72,23 @@ export class WorkspaceFolderRepositories extends Disposable implements IWorkspac
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders
-		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
+		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders,
+		// and as the workbench scope or mode changes: a workbench about all sessions has no scope or is in the Agents mode, its
+		// folders follow the focused session
+		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState, _workspaceContextService.onDidChangeWorkbenchScope, _workspaceContextService.onDidChangeWorkbenchMode), () => this._getScopeFolders());
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
 		void this._update();
 	}
 
-	/** The folders of the workspace where they are now, and the folder's own location while it is at another. */
+	/**
+	 * The folders of the workspace where they are now, and the folder's own location while it is at another; none while the
+	 * workbench is about all sessions (it has no scope, or it is in the Agents mode, whose Sessions list shows only the sessions
+	 * of the scope it picked), so that every session is listed.
+	 */
 	private _getScopeFolders(): readonly URI[] {
+		if (!this._workspaceContextService.getWorkbenchScope() || this._workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents) {
+			return [];
+		}
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 		const own = this._workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.uri : undefined;

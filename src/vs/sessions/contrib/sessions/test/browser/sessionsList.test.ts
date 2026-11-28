@@ -4807,7 +4807,7 @@ suite('Sessions - SessionsList', () => {
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
 					grouping: () => SessionsGrouping.Workspace,
 					sorting: () => SessionsSorting.Updated,
-					offersWorktreeFilter,
+					offersWorktreeFilter: offersWorktreeFilter === undefined ? undefined : constObservable(offersWorktreeFilter),
 					onSessionOpen: () => { },
 				}));
 				list.layout(1400, 400);

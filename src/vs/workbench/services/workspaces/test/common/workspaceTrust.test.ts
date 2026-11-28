@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -33,6 +33,7 @@ import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementSer
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICanonicalUriService } from '../../../../../platform/workspace/common/canonicalUri.js';
 import { CanonicalUriService } from '../../common/canonicalUriService.js';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
@@ -40,6 +41,32 @@ import { INotificationService, NotificationMessage } from '../../../../../platfo
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+
+/**
+ * A workspace that changes from empty to a workspace without folders or a workspace file, like Agents mode does.
+ */
+class AgentsModeTestContextService extends TestContextService implements IDisposable {
+
+	private readonly workbenchStateEmitter = new Emitter<WorkbenchState>();
+	override get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this.workbenchStateEmitter.event; }
+
+	private inMode = false;
+
+	override getWorkbenchState(): WorkbenchState {
+		return this.inMode ? WorkbenchState.WORKSPACE : super.getWorkbenchState();
+	}
+
+	/** Switches to the mode's workspace, which has neither folders nor a workspace file. */
+	enterAgentsMode(): void {
+		this.inMode = true;
+		this.setWorkspace(new Workspace('agents-mode-workspace'));
+		this.workbenchStateEmitter.fire(WorkbenchState.WORKSPACE);
+	}
+
+	dispose(): void {
+		this.workbenchStateEmitter.dispose();
+	}
+}
 
 suite('Workspace Trust', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,6 +215,20 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('entering Agents mode from a saved workspace without folders - trusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			const modeWorkspaceService = store.add(new AgentsModeTestContextService(new Workspace('saved-workspace', [], URI.file('/saved.code-workspace'))));
+			instantiationService.stub(IWorkspaceContextService, modeWorkspaceService);
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, untitledWorkspacesHome: URI.file('/untitled-workspaces') });
+			const testObject = await initializeTestObject();
+			const isTrustedBefore = testObject.isWorkspaceTrusted();
+			const trusted = Event.toPromise(testObject.onDidChangeTrust);
+
+			modeWorkspaceService.enterAgentsMode();
+
+			assert.deepStrictEqual({ isTrustedBefore, trusted: await trusted, isTrusted: testObject.isWorkspaceTrusted() }, { isTrustedBefore: false, trusted: true, isTrusted: true });
 		});
 
 		suite('virtual repository source trust', () => {

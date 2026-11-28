@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -14,17 +15,17 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchMode, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../browser/sessionsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostContent } from '../../../../services/sessions/browser/sessionHost.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { FocusedSessionHostService } from '../../browser/sessionHostService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from './sessionHostTestUtils.js';
@@ -127,20 +128,29 @@ class TestWorkspaceEditing extends mock<IWorkspaceEditingService>() {
 	readonly updateFoldersCalls: IWorkspaceFolderCreationData[][] = [];
 	/** The currently-mounted folders, read back by the context service. */
 	folders: IWorkspaceFolderCreationData[] = [];
+	/** Called while a folder update is still running, like the folders change event of the context service. */
+	onDidUpdateFolders: ((added: IWorkspaceFolderCreationData[], removed: IWorkspaceFolderCreationData[]) => void) | undefined;
 
 	override async addFolders(folders: IWorkspaceFolderCreationData[]): Promise<void> {
 		this.addFoldersCalls.push([...folders]);
-		this.folders = [...folders];
+		this.replaceFolders([...folders]);
 	}
 
 	override async removeFolders(folders: URI[]): Promise<void> {
 		this.removeFoldersCalls.push([...folders]);
-		this.folders = [];
+		this.replaceFolders([]);
 	}
 
 	override async updateFolders(_index: number, _deleteCount: number, folders: IWorkspaceFolderCreationData[] | undefined): Promise<void> {
 		this.updateFoldersCalls.push(folders ? [...folders] : []);
-		this.folders = [...(folders ?? [])];
+		this.replaceFolders([...(folders ?? [])]);
+	}
+
+	private replaceFolders(folders: IWorkspaceFolderCreationData[]): void {
+		const removed = this.folders.filter(folder => !folders.some(other => extUri.isEqual(other.uri, folder.uri)));
+		const added = folders.filter(folder => !this.folders.some(other => extUri.isEqual(other.uri, folder.uri)));
+		this.folders = folders;
+		this.onDidUpdateFolders?.(added, removed);
 	}
 }
 
@@ -170,26 +180,35 @@ suite('WorkspaceFolderManagementContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(createFocusedSessionHostService?: () => IFocusedSessionHostService) {
+	function createContribution(options: {
+		mode?: WorkbenchMode;
+		createFocusedSessionHostService?: () => IFocusedSessionHostService;
+		canHandleResource?: IFileService['canHandleResource'];
+	} = {}) {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
 		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const toWorkspaceFolders = (folders: IWorkspaceFolderCreationData[]) => folders.map((folder, index) => new WorkspaceFolder({ uri: folder.uri, name: folder.name ?? folder.uri.path, index }));
+		workspaceEditing.onDidUpdateFolders = (added, removed) => workspaceFoldersChanged.fire({ added: toWorkspaceFolders(added), removed: toWorkspaceFolders(removed), changed: [] });
+		const modeChanged = disposables.add(new Emitter<WorkbenchMode>());
+		let mode = options.mode ?? WorkbenchMode.Agents;
 		const historyService = new class extends mock<IHistoryService>() {
 			clearRecentlyOpenedCalls = 0;
 			override clearRecentlyOpened(): void { this.clearRecentlyOpenedCalls++; }
 		};
 
-		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = activeSession;
-		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
+			override readonly onDidChangeWorkbenchMode = modeChanged.event;
+			override getWorkbenchMode(): WorkbenchMode { return mode; }
 			override getWorkspace(): IWorkspace {
 				return {
+					id: 'test',
+					uri: undefined,
 					folders: workspaceEditing.folders.map((folder, index) =>
 						new WorkspaceFolder({ uri: folder.uri, name: folder.name ?? folder.uri.path, index }))
-				} as unknown as IWorkspace;
+				};
 			}
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -203,18 +222,26 @@ suite('WorkspaceFolderManagementContribution', () => {
 			}
 		};
 
-		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			createFocusedSessionHostService?.() ?? focusedSessionHostServiceOf(sessionsService.activeSession),
-			uriIdentityService,
-			workspaceContextService,
-			workspaceEditing,
-			workspaceTrust,
-			folderLabel,
-			historyService,
-			upcastPartial<IFileService>({ canHandleResource: async resource => resource.scheme === Schemas.file }),
-		));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFocusedSessionHostService, options.createFocusedSessionHostService?.() ?? focusedSessionHostServiceOf(activeSession));
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IWorkspaceEditingService, workspaceEditing);
+		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
+		instantiationService.stub(IWorkspaceFolderLabelService, folderLabel);
+		instantiationService.stub(IHistoryService, historyService);
+		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			canHandleResource: options.canHandleResource ?? (async resource => resource.scheme === Schemas.file),
+		}));
+		const contribution = disposables.add(instantiationService.createInstance(WorkspaceFolderManagementContribution));
 
-		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged };
+		// Mirrors the facade: the workspace switches, then the mode change is announced
+		const setMode = (newMode: WorkbenchMode, switchWorkspace?: () => void) => {
+			mode = newMode;
+			switchWorkspace?.();
+			modeChanged.fire(newMode);
+		};
+		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged, setMode, workspaceContextService };
 	}
 
 	// Lets the reactive autorun's queued folder-management work run to completion.
@@ -224,18 +251,92 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}
 	}
 
-	test('clears recently opened editors when a previous workspace folder is removed', () => {
-		const { historyService, workspaceFoldersChanged } = createContribution();
-		const previous = new WorkspaceFolder({ uri: URI.file('/previous'), name: 'previous', index: 0 });
-		const current = new WorkspaceFolder({ uri: URI.file('/current'), name: 'current', index: 0 });
+	test('clears recently opened editors only when the focused session replaces the window\'s folders, not when entering Agents mode from a folder window', async () => {
+		const { activeSession, historyService, workspaceEditing, workspaceFoldersChanged, setMode } = createContribution({ mode: WorkbenchMode.Editor });
+		const windowFolder = new WorkspaceFolder({ uri: URI.file('/window'), name: 'window', index: 0 });
 
-		workspaceFoldersChanged.fire({ added: [previous], removed: [], changed: [] });
-		const afterAdd = historyService.clearRecentlyOpenedCalls;
-		workspaceFoldersChanged.fire({ added: [], removed: [], changed: [previous] });
-		const afterChange = historyService.clearRecentlyOpenedCalls;
-		workspaceFoldersChanged.fire({ added: [current], removed: [previous], changed: [] });
+		// The facade announces the mode before the window's own folder goes away
+		setMode(WorkbenchMode.Agents);
+		workspaceFoldersChanged.fire({ added: [], removed: [windowFolder], changed: [] });
+		const onEntry = historyService.clearRecentlyOpenedCalls;
+		activeSession.set(makeActiveSession('first', makeWorkspace(localFolder('/first'), false)), undefined);
+		await settle();
+		const onFirstMount = historyService.clearRecentlyOpenedCalls;
+		activeSession.set(makeActiveSession('second', makeWorkspace(localFolder('/second'), false)), undefined);
+		await settle();
 
-		assert.deepStrictEqual([afterAdd, afterChange, historyService.clearRecentlyOpenedCalls], [0, 0, 1]);
+		assert.deepStrictEqual({
+			onEntry,
+			onFirstMount,
+			onSwitch: historyService.clearRecentlyOpenedCalls,
+			mounted: workspaceEditing.folders.map(folder => folder.uri.path),
+		}, { onEntry: 0, onFirstMount: 0, onSwitch: 1, mounted: ['/second'] });
+	});
+
+	test('mounts the focused chat only in the Agents mode and drops an update that outlives the mode', async () => {
+		const slowFolder = localFolder('/slow');
+		const probeStarted = new DeferredPromise<void>();
+		const probeResult = new DeferredPromise<boolean>();
+		const { activeSession, workspaceEditing, workspaceFoldersChanged, historyService, setMode } = createContribution({
+			mode: WorkbenchMode.Editor,
+			canHandleResource: async uri => {
+				if (extUri.isEqual(uri, slowFolder.workingDirectory)) {
+					await probeStarted.complete();
+					return probeResult.p;
+				}
+				return true;
+			},
+		});
+		const first = localFolder('/first');
+		activeSession.set(makeActiveSession('first', makeWorkspace(first, false)), undefined);
+		await settle();
+		const beforeEntry = workspaceEditing.folders.map(folder => folder.uri.path);
+		setMode(WorkbenchMode.Agents);
+		await settle();
+		const inMode = workspaceEditing.folders.map(folder => folder.uri.path);
+
+		activeSession.set(makeActiveSession('slow', makeWorkspace(slowFolder, false)), undefined);
+		await probeStarted.p;
+		setMode(WorkbenchMode.Editor, () => {
+			workspaceEditing.folders = [];
+			workspaceFoldersChanged.fire({ added: [], removed: [new WorkspaceFolder({ uri: first.workingDirectory, name: 'first', index: 0 })], changed: [] });
+		});
+		await probeResult.complete(true);
+		await settle();
+
+		assert.deepStrictEqual({
+			beforeEntry,
+			inMode,
+			afterExit: workspaceEditing.folders.map(folder => folder.uri.path),
+			clearedHistory: historyService.clearRecentlyOpenedCalls,
+		}, { beforeEntry: [], inMode: ['/first'], afterExit: [], clearedHistory: 0 });
+	});
+
+	test('does not mount a previous focus while its folders are still being checked', async () => {
+		const previous = localFolder('/previous');
+		const current = localFolder('/current');
+		const probeStarted = new DeferredPromise<void>();
+		const probeResult = new DeferredPromise<boolean>();
+		const { activeSession, workspaceEditing } = createContribution({
+			canHandleResource: async uri => {
+				if (extUri.isEqual(uri, previous.workingDirectory)) {
+					await probeStarted.complete();
+					return probeResult.p;
+				}
+				return true;
+			},
+		});
+
+		activeSession.set(makeActiveSession('previous', makeWorkspace(previous, false)), undefined);
+		await probeStarted.p;
+		activeSession.set(makeActiveSession('current', makeWorkspace(current, false)), undefined);
+		await probeResult.complete(true);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(folders => folders.map(folder => folder.uri.path)),
+			updated: workspaceEditing.updateFoldersCalls,
+		}, { added: [['/current']], updated: [] });
 	});
 
 	test('mounts a session that does not require workspace trust without granting trust', async () => {
@@ -578,7 +679,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 			getHostOfWindow: (windowId: number) => windowId === chatWindowId ? chatWindowHost : mainHost,
 		});
 		const hostService = upcastPartial<IHostService>({ onDidChangeActiveWindow: onDidChangeActiveWindow.event });
-		const { workspaceEditing } = createContribution(() => disposables.add(new FocusedSessionHostService(sessionHostService, hostService)));
+		const { workspaceEditing } = createContribution({ createFocusedSessionHostService: () => disposables.add(new FocusedSessionHostService(sessionHostService, hostService)) });
 		const chatOf = (path: string): IChat => ({ ...stubChat, workspace: constObservable(makeWorkspace(localFolder(path), false)) });
 
 		windowChat.set(chatOf('/alpha'), undefined);

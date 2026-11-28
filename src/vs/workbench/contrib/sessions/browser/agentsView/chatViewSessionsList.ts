@@ -14,7 +14,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IAgentSession } from '../../../chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListProvider } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { SessionsView } from '../views/sessionsView.js';
-import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
+import { createEditorWindowSessionsGroupings, createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
 import { NEW_CHAT_ICON_VARIANTS } from '../../../chat/browser/actions/chatNewActions.js';
@@ -91,7 +91,7 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 		// The Sessions view of an editor window, as the Agents viewlet shows it, with the actions of its header in the title of the
 		// Chat view: embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with.
 		// It offers Inbox, which it remembers apart from the Agents window
-		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'title', true), {
+		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), createEditorWindowSessionsGroupings(this, this._workspaceContextService, true), 'title', true), {
 			id: ChatViewId,
 			title: localize('chatViewSessions.title', "Sessions"),
 			expanded: true,
