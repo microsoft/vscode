@@ -21,6 +21,7 @@ import './nullInlineChatSessionService.js';
 import './modelPicker.js';
 import './newSessionOnboardingTargets.js';
 import './newSessionPickerTryout.js';
+import './sessionReferenceContextPicker.js';
 import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
