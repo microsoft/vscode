@@ -21,7 +21,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -43,7 +43,7 @@ import { IChatRespondent, IChatWidget, isResponseSelectionSupported, setModelPre
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatSendResult, ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
-import { ChatModel, IChatModel, IChatProgressResponseContent, IInputModel } from '../../../chat/common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatProgressResponseContent, IChatResponseModel, IInputModel } from '../../../chat/common/model/chatModel.js';
 import { isCarouselToolConfirmation } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isInConversationModelChoice } from '../../../chat/common/modelSelection.js';
 import { ChatRequestTextPart } from '../../../chat/common/requestParser/chatParserTypes.js';
@@ -623,8 +623,7 @@ export class ChatView extends AbstractChatView {
 			}
 			return this._inputOnlyInputHeight === 0 ? 0 : INPUT_ONLY_TOP_PADDING + this._inputOnlyInputHeight + (this._inputOnlyStatus.read(reader).request ? INPUT_ONLY_STATUS_HEIGHT : 0);
 		});
-		const needsConversation = derived(this, reader => this._inputOnlyEnabled.read(reader)
-			&& needsConversationForInput(chatModel.read(reader), this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel), reader));
+		const needsConversation: IObservable<boolean> = this._createInputOnlyNeedsConversation(chatModel);
 		this.canShowInputOnly = derived(this, reader => this._inputOnlyEnabled.read(reader) && !needsConversation.read(reader));
 		this._register(autorun(reader => {
 			this._inputOnly.read(reader);
@@ -1332,6 +1331,24 @@ export class ChatView extends AbstractChatView {
 		this._layoutChatWidget();
 	}
 
+	private _createInputOnlyNeedsConversation(chatModel: IObservable<IChatModel | undefined>): IObservable<boolean> {
+		const response: IObservable<{ model: IChatResponseModel; changed: IObservable<void> } | undefined> = derived(this, (reader: IReader) => {
+			if (!this._inputOnlyEnabled.read(reader)) {
+				return undefined;
+			}
+			const model: IChatResponseModel | undefined = chatModel.read(reader)?.lastRequestObs.read(reader)?.response;
+			return model ? { model, changed: observableSignalFromEvent(this, model.onDidChange) } : undefined;
+		});
+		const confirmationCarouselEnabled: IObservable<boolean> = observableFromEvent(this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, (event: IConfigurationChangeEvent): boolean => event.affectsConfiguration(ChatConfiguration.ToolConfirmationCarousel)),
+			(): boolean => this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel));
+		return derived(this, (reader: IReader): boolean => {
+			const current: { model: IChatResponseModel; changed: IObservable<void> } | undefined = response.read(reader);
+			current?.changed.read(reader);
+			return !!current && needsConversationForInput(current.model, confirmationCarouselEnabled.read(reader), reader);
+		});
+	}
+
 	private _createInputOnlyStatus(chatModel: IObservable<IChatModel | undefined>): IObservable<IInputOnlyStatus> {
 		// Until input-only is enabled, nothing is read from the chat, so streaming responses cost nothing here.
 		const lastRequest = derived(this, reader => {
@@ -1661,15 +1678,20 @@ export function getInputOnlyResponseText(finalResponse: string): string | undefi
 
 /**
  * Whether the chat waits for input that only its conversation shows. The input shows questions, and tool approvals in
- * its confirmation carousel when that is enabled; other approvals, confirmations, plan reviews and elicitations show
- * only in the conversation.
+ * its confirmation carousel when that is enabled. Keep other actionable response content visible in the conversation.
  */
-export function needsConversationForInput(model: IChatModel | undefined, confirmationCarouselEnabled: boolean, reader: IReader | undefined): boolean {
-	const response = model?.lastRequestObs.read(reader)?.response;
-	if (!response?.isPendingConfirmation.read(reader)) {
+function needsConversationForInput(response: IChatResponseModel, confirmationCarouselEnabled: boolean, reader: IReader): boolean {
+	if (response.result?.errorDetails?.confirmationButtons?.length) {
+		return true;
+	}
+	// Authentication actions can remain usable after a response completes.
+	if (response.response.value.some((part: IChatProgressResponseContent): boolean => part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.read(reader).length > 0)) {
+		return true;
+	}
+	if (response.isComplete || response.isCanceled) {
 		return false;
 	}
-	if (response.pendingToolInvocations.read(reader).some(tool => !confirmationCarouselEnabled || !isCarouselToolConfirmation(tool, tool.state.read(reader)))) {
+	if (response.pendingToolInvocations.read(reader).some((tool: IChatToolInvocation): boolean => !confirmationCarouselEnabled || !isCarouselToolConfirmation(tool, tool.state.read(reader)))) {
 		return true;
 	}
 	return response.response.value.some(part => {
@@ -1678,7 +1700,7 @@ export function needsConversationForInput(model: IChatModel | undefined, confirm
 			case 'planReview':
 				return !part.isUsed;
 			case 'elicitation2':
-				return part.state.read(reader) === ElicitationState.Pending;
+				return !part.isHidden?.read(reader) && part.state.read(reader) === ElicitationState.Pending;
 			default:
 				return false;
 		}
