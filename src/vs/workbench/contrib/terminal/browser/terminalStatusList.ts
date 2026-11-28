@@ -113,6 +113,12 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	remove(status: ITerminalStatus): void;
 	remove(statusId: string): void;
 	remove(statusOrId: ITerminalStatus | string): void {
+		const id = isString(statusOrId) ? statusOrId : statusOrId.id;
+		const outTimeout = this._statusTimeouts.get(id);
+		if (outTimeout) {
+			mainWindow.clearTimeout(outTimeout);
+			this._statusTimeouts.delete(id);
+		}
 		const status = isString(statusOrId) ? this._statuses.get(statusOrId) : statusOrId;
 		// Verify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
@@ -123,6 +129,15 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 				this._onDidChangePrimaryStatus.fire(this.primary);
 			}
 		}
+	}
+
+	override dispose(): void {
+		for (const timeout of this._statusTimeouts.values()) {
+			mainWindow.clearTimeout(timeout);
+		}
+		this._statusTimeouts.clear();
+		this._statuses.clear();
+		super.dispose();
 	}
 
 	toggle(status: ITerminalStatus, value: boolean) {

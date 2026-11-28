@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { spy } from 'sinon';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -175,5 +178,25 @@ suite('Workbench - TerminalStatusList', () => {
 		]);
 		list.toggle(status, false);
 		statusesEqual(list, []);
+	});
+
+	test('remove should cancel duration timeout', async () => {
+		const removeSpy = spy(list, 'remove');
+		store.add(toDisposable(() => removeSpy.restore()));
+		list.add({ id: 'test', severity: Severity.Info }, 10);
+		list.remove('test');
+		strictEqual(removeSpy.callCount, 1);
+		await timeout(20);
+		strictEqual(removeSpy.callCount, 1, 'timeout should have been cancelled and not fire remove again');
+	});
+
+	test('dispose should clear all pending duration timeouts', async () => {
+		const removeSpy = spy(list, 'remove');
+		store.add(toDisposable(() => removeSpy.restore()));
+		list.add({ id: 'test1', severity: Severity.Info }, 10);
+		list.add({ id: 'test2', severity: Severity.Info }, 10);
+		list.dispose();
+		await timeout(20);
+		strictEqual(removeSpy.callCount, 0, 'no remove calls should fire after disposal');
 	});
 });
