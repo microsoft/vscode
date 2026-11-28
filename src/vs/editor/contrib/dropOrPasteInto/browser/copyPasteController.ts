@@ -28,6 +28,7 @@ import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { Handler, IEditorContribution } from '../../../common/editorCommon.js';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
@@ -130,7 +131,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		this._postPasteWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'pasteIntoEditor', editor, pasteWidgetVisibleCtx,
 			{ id: changePasteTypeCommandId, label: localize('postPasteWidgetTitle', "Show paste options...") },
-			() => CopyPasteController._configureDefaultAction ? [CopyPasteController._configureDefaultAction] : []
+			() => CopyPasteController._configureDefaultAction ? [CopyPasteController._configureDefaultAction] : [],
+			EditSources.cursor({ kind: 'paste', detailedSource: 'pasteEdit' })
 		));
 	}
 
@@ -509,7 +511,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, selections, pickedEdit);
-				const result = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
+				const result = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor, reason: EditSources.cursor({ kind: 'paste', detailedSource: 'pasteEdit' }) });
 				return result.isApplied;
 			} finally {
 				disposables.dispose();

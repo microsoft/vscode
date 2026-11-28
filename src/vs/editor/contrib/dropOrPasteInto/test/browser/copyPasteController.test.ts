@@ -14,14 +14,16 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
+import { IBulkEditOptions, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
 import { DocumentPasteEditProvider, WorkspaceEdit } from '../../../../common/languages.js';
+import { ITextModelEditSourceMetadata } from '../../../../common/textModelEditSource.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { SnippetParser } from '../../../snippet/browser/snippetParser.js';
 import { CopyPasteController } from '../../browser/copyPasteController.js';
 
 suite('CopyPasteController - paste edit session', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const pasteReason = { source: 'cursor', kind: 'paste', detailedSource: 'pasteEdit' };
 
 	for (const endInteraction of ['dismiss', 'cursor', 'content', 'model', 'dispose', 'noSelector', 'singleEdit', 'cancelReplacement', 'failedUndo'] as const) {
 		let name = `resolves alternatives after the initial paste and releases edits on ${endInteraction}`;
@@ -41,8 +43,11 @@ suite('CopyPasteController - paste edit session', () => {
 					};
 					override hide() { }
 				});
+				const reasons: ITextModelEditSourceMetadata[] = [];
 				instantiationService.stub(IBulkEditService, new class extends mock<IBulkEditService>() {
-					override async apply(edit: ResourceEdit[] | WorkspaceEdit) {
+					override async apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions) {
+						assert.ok(options?.reason);
+						reasons.push(options.reason.metadata);
 						const textEdits = (Array.isArray(edit) ? edit : edit.edits).map(edit => {
 							assert.ok(ResourceTextEdit.is(edit));
 							return { range: edit.textEdit.range, text: new SnippetParser().parse(edit.textEdit.text).toString() };
@@ -92,10 +97,10 @@ suite('CopyPasteController - paste edit session', () => {
 				controller['doPasteInline']([provider], editor.getSelections(), dataTransfer, undefined, undefined);
 				const applied = await controller.finishedPaste();
 				if (endInteraction === 'noSelector' || endInteraction === 'singleEdit') {
-					assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied }, { text: 'PLAIN', released: 1, resolves: 1, applied: true });
+					assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied, reasons }, { text: 'PLAIN', released: 1, resolves: 1, applied: true, reasons: [pasteReason] });
 					return;
 				}
-				assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied }, { text: 'PLAIN', released: 0, resolves: 1, applied: true });
+				assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied, reasons }, { text: 'PLAIN', released: 0, resolves: 1, applied: true, reasons: [pasteReason] });
 
 				controller.changePasteType();
 				assert.ok(selectEdit);
@@ -121,7 +126,7 @@ suite('CopyPasteController - paste edit session', () => {
 					return;
 				}
 				await selectEdit(1);
-				assert.deepStrictEqual({ text: editor.getValue(), released, resolves }, { text: 'RESOLVED', released: 0, resolves: 2 });
+				assert.deepStrictEqual({ text: editor.getValue(), released, resolves, reasons }, { text: 'RESOLVED', released: 0, resolves: 2, reasons: [pasteReason, pasteReason] });
 
 				controller.changePasteType();
 				await selectEdit(0);
@@ -139,6 +144,38 @@ suite('CopyPasteController - paste edit session', () => {
 			});
 		});
 	}
+
+	test('applies an explicit paste with the paste edit source', async () => {
+		await withAsyncTestCodeEditor('', {}, async (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(createDecorator<{ add(): () => void }>('IEditorCancelService'), { add: () => () => { } });
+			const reasons: ITextModelEditSourceMetadata[] = [];
+			instantiationService.stub(IBulkEditService, new class extends mock<IBulkEditService>() {
+				override async apply(_edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions) {
+					assert.ok(options?.reason);
+					reasons.push(options.reason.metadata);
+					return { isApplied: true, ariaSummary: '' };
+				}
+			});
+			instantiationService.stub(IQuickInputService, {});
+			instantiationService.stub(IProgressService, { withProgress: async (_options, task) => task({ report: () => { } }) });
+			const controller = disposables.add(instantiationService.createInstance(CopyPasteController, editor));
+			const provider: DocumentPasteEditProvider = {
+				id: 'test',
+				copyMimeTypes: [],
+				pasteMimeTypes: ['text/plain'],
+				providedPasteEditKinds: [],
+				async provideDocumentPasteEdits() {
+					return { edits: [{ title: 'Plain text', insertText: 'PLAIN', kind: new HierarchicalKind('text.plain') }], dispose: () => { } };
+				},
+			};
+			const dataTransfer = new VSDataTransfer();
+			dataTransfer.append('text/plain', createStringDataTransferItem('PLAIN'));
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			controller['showPasteAsPick']({ providerId: provider.id! }, [provider], editor.getSelections(), dataTransfer, undefined);
+
+			assert.deepStrictEqual({ applied: await controller.finishedPaste(), reasons }, { applied: true, reasons: [pasteReason] });
+		});
+	});
 
 	test('finishedPaste reports cancellation of an explicit paste', async () => {
 		await withAsyncTestCodeEditor('', {}, async (editor, _viewModel, instantiationService) => {

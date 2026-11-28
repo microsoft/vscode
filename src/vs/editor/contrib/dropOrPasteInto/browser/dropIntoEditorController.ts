@@ -21,6 +21,7 @@ import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { DocumentDropEdit, DocumentDropEditProvider } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
@@ -77,7 +78,8 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		this._dropProgressManager = this._register(instantiationService.createInstance(InlineProgressManager, 'dropIntoEditor', editor));
 		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'dropIntoEditor', editor, dropWidgetVisibleCtx,
 			{ id: changeDropTypeCommandId, label: localize('postDropWidgetTitle', "Show drop options...") },
-			() => DropIntoEditorController._configureDefaultAction ? [DropIntoEditorController._configureDefaultAction] : []));
+			() => DropIntoEditorController._configureDefaultAction ? [DropIntoEditorController._configureDefaultAction] : [],
+			EditSources.drop()));
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 	}

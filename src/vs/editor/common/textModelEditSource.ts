@@ -215,6 +215,7 @@ export const EditSources = {
 	eolChange: () => createEditSource({ source: 'eolChange' } as const),
 	applyEdits: () => createEditSource({ source: 'applyEdits' } as const),
 	snippet: () => createEditSource({ source: 'snippet' } as const),
+	drop: () => createEditSource({ source: 'drop' } as const),
 	suggest: (data: { providerId: ProviderId | undefined }) => createEditSource({ source: 'suggest', ...toProperties(data.providerId) } as const),
 
 	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const)
