@@ -78,11 +78,11 @@ suite('Agents Window workspace handoff', () => {
 		const knownWorkspaces: IRecentSessionWorkspace[] = [];
 		const openedWorkspaceFiles: URI[] = [];
 		let openWorkspace = async (file: URI): Promise<IRecentSessionWorkspace> => { throw new Error(`Cannot read ${file.path}`); };
-		let refreshWorkspaces = async () => { };
 		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
 			enabled: workspacesEnabled,
-			getWorkspace: uri => knownWorkspaces.find(workspace => workspace.uri.toString() === uri.toString()),
-			refresh: () => refreshWorkspaces(),
+			getWorkspace: uri => knownWorkspaces.find(workspace => [workspace.uri, ...workspace.previousUris ?? []].some(candidate => candidate.toString() === uri.toString())),
+			// Rereads the managed workspaces only, which leaves a VS Code recent as it was
+			refresh: async () => { },
 			openWorkspace: file => {
 				openedWorkspaceFiles.push(file);
 				return openWorkspace(file);
@@ -179,7 +179,6 @@ suite('Agents Window workspace handoff', () => {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
 			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests, workspacesEnabled, knownWorkspaces, openedWorkspaceFiles,
 			set openWorkspaceResult(value: (file: URI) => Promise<IRecentSessionWorkspace>) { openWorkspace = value; },
-			set refreshWorkspaces(value: () => Promise<void>) { refreshWorkspaces = value; },
 			set providerReady(value: boolean) { providerReady = value; },
 			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
@@ -802,32 +801,36 @@ suite('Agents Window workspace handoff', () => {
 			};
 		};
 		const appConfig = { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/client', '/work/server'] };
+		const renamed = URI.file('/work/app-renamed.code-workspace');
 		const results = [
-			await run('known file', harness => harness.knownWorkspaces.push(workspace), { file, folders }),
-			await run('unknown file is added', harness => harness.openWorkspaceResult = async () => workspace, { file, folders }),
-			await run('missing file is read again', harness => {
-				harness.knownWorkspaces.push({ ...workspace, missing: true });
+			await run('known file is read as it is now', harness => {
+				harness.knownWorkspaces.push(workspace);
 				harness.openWorkspaceResult = async () => workspace;
 			}, { file, folders }),
+			await run('unknown file is added', harness => harness.openWorkspaceResult = async () => workspace, { file, folders }),
 			await run('unreadable file selects its folders', () => { }, { file, folders }),
 			await run('untitled workspace selects its folders', () => { }, { folders }),
-			await run('known workspace file of one folder', harness => harness.knownWorkspaces.push({ uri: file, name: 'App', folders: [folders[1]], owned: false }), { file, folders: [folders[1]] }),
-			await run('known workspace whose folders changed while the Agents window was closed', harness => {
+			await run('workspace file of one folder', harness => harness.openWorkspaceResult = async () => ({ uri: file, name: 'App', folders: [folders[1]], owned: false }), { file, folders: [folders[1]] }),
+			await run('known workspace, also a VS Code recent, whose file changed while the Agents window was closed', harness => {
+				// The catalogue still has the folders as the file had them, which the file no longer does
 				harness.knownWorkspaces.push(workspace);
-				// The startup refresh reads the file as it is now
-				harness.refreshWorkspaces = async () => { harness.knownWorkspaces[0] = { ...workspace, folders: [folders[1], folders[0]] }; };
+				harness.openWorkspaceResult = async () => ({ ...workspace, folders: [folders[1], folders[0]] });
 			}, { file, folders: [folders[1], folders[0]] }),
+			await run('workspace known by its earlier file is read under its current one', harness => {
+				harness.knownWorkspaces.push({ ...workspace, uri: renamed, previousUris: [file] });
+				harness.openWorkspaceResult = async uri => ({ ...workspace, uri });
+			}, { file, folders }),
 			await run('workspaces disabled', harness => harness.workspacesEnabled.set(false, undefined), { file, folders }),
 			await run('draft keeps its folder', harness => harness.knownWorkspaces.push(workspace), { file, folders }, { inputText: 'Continue here', attachments: [] }),
 		];
 		assert.deepStrictEqual(results, [
-			{ name: 'known file', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'known file is read as it is now', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
 			{ name: 'unknown file is added', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
-			{ name: 'missing file is read again', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
 			{ name: 'unreadable file selects its folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
 			{ name: 'untitled workspace selects its folders', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
-			{ name: 'known workspace file of one folder', state: 'applied', opened: [], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server'] }, folders: undefined },
-			{ name: 'known workspace whose folders changed while the Agents window was closed', state: 'applied', opened: [], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server', '/work/client'] }, folders: undefined },
+			{ name: 'workspace file of one folder', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server'] }, folders: undefined },
+			{ name: 'known workspace, also a VS Code recent, whose file changed while the Agents window was closed', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server', '/work/client'] }, folders: undefined },
+			{ name: 'workspace known by its earlier file is read under its current one', state: 'applied', opened: ['/work/app-renamed.code-workspace'], folder: '/work/client', workspaceConfig: { ...appConfig, uri: '/work/app-renamed.code-workspace' }, folders: undefined },
 			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
 		]);

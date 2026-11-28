@@ -31,7 +31,7 @@ import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/co
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
 import { ISessionWorkspaceConfig, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
-import { ISessionWorkspacesService } from '../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -357,8 +357,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 
 	/**
 	 * What to select for the editor window's workspace where workspaces are enabled: the workspace of its file, also of
-	 * one folder, added to the known workspaces when it isn't one yet, with its first folder as the selected one; the
-	 * folders of an untitled workspace, or of a workspace file that can't be added.
+	 * one folder, as the file is now and kept as a known workspace, with its first folder as the selected one; the
+	 * folders of an untitled workspace, or of a workspace file that can't be read.
 	 */
 	private async _resolveWorkspaceSelection(workspace: IAgentsWindowWorkspaceFolders, token: CancellationToken): Promise<IWorkspaceSelection | undefined> {
 		if (!this.sessionWorkspacesService.enabled.get() || workspace.folders.length === 0) {
@@ -368,26 +368,21 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		if (!workspace.file) {
 			return folders;
 		}
-		// The known workspaces as their files are now, which may have changed while the Agents window was closed
-		await this.sessionWorkspacesService.refresh();
+		// A superseded handoff adds nothing. Once started, adding the workspace is the effect of opening the Agents
+		// window on it, even when a newer intent supersedes the handoff while the file is read.
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		let known = this.sessionWorkspacesService.getWorkspace(workspace.file);
-		if (!known || known.missing) {
-			// A superseded handoff adds nothing. Once started, adding the workspace is the effect of opening the Agents
-			// window on it, even when a newer intent supersedes the handoff while the file is read.
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-			try {
-				known = await this.sessionWorkspacesService.openWorkspace(workspace.file);
-			} catch (error) {
-				this.logService.warn('[AgentsHandoff] Could not add the editor window\'s workspace; selecting its folders', error);
-				return folders;
-			}
+		// Read from its file as it is now, which may have changed while the Agents window was closed, under its current
+		// URI when it is known by an earlier one, and kept as a known workspace
+		let known: IRecentSessionWorkspace;
+		try {
+			known = await this.sessionWorkspacesService.openWorkspace(this.sessionWorkspacesService.getWorkspace(workspace.file)?.uri ?? workspace.file);
+		} catch (error) {
+			this.logService.warn('[AgentsHandoff] Could not add the editor window\'s workspace; selecting its folders', error);
+			return folders;
 		}
-		if (known.missing || known.folders.length === 0) {
+		if (known.folders.length === 0) {
 			return folders;
 		}
 		return { folderUri: known.folders[0], workspaceConfig: { uri: known.uri, name: known.name, folders: known.folders } };
