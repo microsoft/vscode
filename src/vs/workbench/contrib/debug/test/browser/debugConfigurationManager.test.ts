@@ -261,7 +261,7 @@ suite('debugConfigurationManager', () => {
 			const afterSwitch = getLaunchState();
 
 			// A selection stored before must not break restoring it after a reload
-			instantiationService.get(IStorageService).store('debug.selectedroot', URI.file('/stale.code-workspace').toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			instantiationService.invokeFunction(accessor => accessor.get(IStorageService)).store('debug.selectedroot', URI.file('/stale.code-workspace').toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			disposables.delete(_debugConfigurationManager);
 			_debugConfigurationManager = createConfigurationManager();
 			const afterReload = getLaunchState();
