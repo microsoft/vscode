@@ -586,6 +586,35 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, GeneralShellType.CommandCode);
 		});
 
+		for (const { bracketedPasteMode, ignoreBracketedPasteMode, expectedBracketedPaste } of [
+			{ bracketedPasteMode: false, ignoreBracketedPasteMode: false, expectedBracketedPaste: false },
+			{ bracketedPasteMode: false, ignoreBracketedPasteMode: true, expectedBracketedPaste: false },
+			{ bracketedPasteMode: true, ignoreBracketedPasteMode: false, expectedBracketedPaste: true },
+			{ bracketedPasteMode: true, ignoreBracketedPasteMode: true, expectedBracketedPaste: false }
+		]) {
+			test(`sendPath handles inserted and executed paths with bracketedPasteMode=${bracketedPasteMode}, ignoreBracketedPasteMode=${ignoreBracketedPasteMode}`, async () => {
+				const instance = await createTerminalInstance();
+				instance.xterm!.raw.options.ignoreBracketedPasteMode = ignoreBracketedPasteMode;
+				const sandbox = createSandbox();
+				store.add(toDisposable(() => sandbox.restore()));
+				const preparedPath = `'/test/file with spaces.png'`;
+				// Bypass process readiness while exercising sendText and xterm's real paste mode.
+				sandbox.stub(instance, 'preparePathForShell').resolves(preparedPath);
+				const write = sandbox.stub(instance['_processManager'], 'write').resolves();
+				if (bracketedPasteMode) {
+					await writeP(instance.xterm!.raw, '\x1b[?2004h');
+				}
+
+				await instance.sendPath('/test/file with spaces.png', false);
+				await instance.sendPath('/test/file with spaces.png', true);
+
+				deepStrictEqual(write.args, [
+					[expectedBracketedPaste ? `\x1b[200~${preparedPath}\x1b[201~` : preparedPath],
+					[`${preparedPath}\r`]
+				]);
+			});
+		}
+
 		test('runCommand should wait for prompt input when command detection already exists', async () => {
 			const instance = await createTerminalInstance();
 			await writeP(instance.xterm!.raw, '\x1b]633;A\x07');
