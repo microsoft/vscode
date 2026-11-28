@@ -27,7 +27,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -3077,6 +3077,89 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({ running, needsInput, collapsedAfterCompletion, expanded, completed }, {
 			running: 20, needsInput: 20, collapsedAfterCompletion: 10, expanded: 40, completed: 40,
 		});
+	});
+
+	test('automation history surfaces older local and cloud prompts before recent completed runs', (): void => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history: IAutomationRun[] = createHistoryRuns(sessionsManagementService, 12);
+		const localStatus: ISettableObservable<SessionStatus> = observableValue('localAutomationStatus', SessionStatus.NeedsInput);
+		history[10] = { ...history[10], externalResource: URI.parse('https://github.com/owner/repo/tasks/hydrated') };
+		sessionsManagementService.addSession(history[10].sessionResource!, 'History 10', localStatus);
+		sessionsManagementService.addSession(history[11].sessionResource!, 'History 11', localStatus);
+		const cloud: IAutomationRun = run({
+			id: 'cloud-prompt', status: 'running', needsInput: true, sessionResource: undefined,
+			startedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+			externalResource: URI.parse('https://github.com/owner/repo/tasks/cloud-prompt'),
+		});
+		automationService.setRuns([...history, cloud]);
+		const snapshot = (): { heading: string | null | undefined; titles: (string | null)[] } => {
+			const group: Element | null = widget.element.querySelector('.automations-history-group');
+			return {
+				heading: group?.querySelector('.automations-history-group-header')?.textContent,
+				titles: Array.from(group?.querySelectorAll('.session-item') ?? [], (row: Element): string | null =>
+					row.querySelector('.monaco-highlighted-label, .session-title')?.textContent ?? null),
+			};
+		};
+		const waiting: ReturnType<typeof snapshot> = snapshot();
+		localStatus.set(SessionStatus.Completed, undefined);
+		const cloudOnly: ReturnType<typeof snapshot> = snapshot();
+		automationService.setRuns([...history, { ...cloud, status: 'completed', needsInput: false }]);
+		assert.deepStrictEqual({ waiting, cloudOnly, afterCompletion: snapshot().heading }, {
+			waiting: { heading: 'Needs Attention', titles: ['History 10', 'History 11', 'Daily review'] },
+			cloudOnly: { heading: 'Needs Attention', titles: ['Daily review'] },
+			afterCompletion: 'Today',
+		});
+	});
+
+	test('automation history leaves Needs Attention when local progress supersedes a stale cloud prompt', (): void => {
+		const { automationService, widget, chatModels } = setup();
+		automationService.setAutomations([automation()]);
+		const needsInput: ISettableObservable<{ title: string } | undefined> = observableValue<{ title: string } | undefined>('cloudApproval', { title: 'Approval needed' });
+		const running: ISettableObservable<boolean> = observableValue('cloudRunning', false);
+		chatModels.set([upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: needsInput,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp: Date.now() })),
+			onDidChange: Event.None, getRequests: () => [],
+		})], undefined);
+		automationService.setRuns([run({
+			status: 'running', needsInput: true, externalResource: URI.parse('https://github.com/owner/repo/tasks/resuming'),
+		})]);
+		const heading = (): string | null | undefined => widget.element.querySelector('.automations-history-group-header')?.textContent;
+		const waiting: ReturnType<typeof heading> = heading();
+		needsInput.set(undefined, undefined);
+		running.set(true, undefined);
+		assert.deepStrictEqual({
+			waiting, resumed: heading(), inProgress: !!widget.element.querySelector('.session-item.in-progress'),
+		}, { waiting: 'Needs Attention', resumed: 'Today', inProgress: true });
+	});
+
+	test('automation prompt regrouping preserves keyboard focus on an existing external run', (): void => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const cloud: IAutomationRun = run({
+			id: 'cloud-focus', status: 'running', sessionResource: undefined,
+			startedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+			externalResource: URI.parse('https://github.com/owner/repo/tasks/cloud-focus'),
+		});
+		automationService.setRuns([run(), cloud]);
+		const row: HTMLElement = widget.element.querySelector<HTMLElement>('.automations-temporary-run')!;
+		const action: HTMLElement = row.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!;
+		const dateHeading: string | null | undefined = row.closest('.automations-history-group')?.querySelector('.automations-history-group-header')?.textContent;
+		action.focus();
+		for (let turn: number = 0; turn < 100; turn++) {
+			const needsInput: boolean = turn % 2 === 0;
+			automationService.setRuns([run(), { ...cloud, needsInput }]);
+			assert.deepStrictEqual({
+				heading: row.closest('.automations-history-group')?.querySelector('.automations-history-group-header')?.textContent,
+				focused: document.activeElement === action,
+			}, { heading: needsInput ? 'Needs Attention' : dateHeading, focused: true });
+		}
+		automationService.setRuns([run(), { ...cloud, needsInput: false, status: 'completed' }]);
+		assert.deepStrictEqual({
+			heading: row.closest('.automations-history-group')?.querySelector('.automations-history-group-header')?.textContent,
+			focused: row.contains(document.activeElement),
+		}, { heading: dateHeading, focused: true });
 	});
 
 	test('history pagination preserves bulk mark-read and resets for a new view', async () => {
