@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery, scoreItemFuzzy } from '../../../base/common/fuzzyScorer.js';
 import { shorten } from '../../../base/common/labels.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -74,6 +74,7 @@ interface IFileCompletionCandidate {
 	readonly owner: URI;
 	readonly ownerIndex: number;
 	readonly relativePath: string;
+	readonly isDirectory: boolean;
 }
 
 class FileCompletionCandidateAccessor implements IItemAccessor<IFileCompletionCandidate> {
@@ -163,9 +164,27 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 				if (relativePath === undefined) {
 					continue;
 				}
+				const outermostRoot = roots.logicalRoots
+					.filter(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root))
+					.reduce((outer, root) => extUriBiasedIgnorePathCase.isEqualOrParent(outer, root) ? root : outer);
+				const segments = (extUriBiasedIgnorePathCase.relativePath(outermostRoot, uri) ?? relativePath).split('/');
+				for (let i = 1; i < segments.length; i++) {
+					const directory = joinPath(outermostRoot, segments.slice(0, i).join('/'));
+					const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+					if (seen.has(directoryKey)) {
+						continue;
+					}
+					const directoryOwner = findDeepestContainingWorkingDirectory(directory, roots.logicalRoots.filter(root => !extUriBiasedIgnorePathCase.isEqual(root, directory)));
+					const directoryRelativePath = directoryOwner && extUriBiasedIgnorePathCase.relativePath(directoryOwner, directory);
+					if (!directoryOwner || !directoryRelativePath) {
+						continue;
+					}
+					seen.add(directoryKey);
+					candidates.push({ uri: directory, owner: directoryOwner, ownerIndex: roots.logicalRoots.indexOf(directoryOwner), relativePath: directoryRelativePath, isDirectory: true });
+				}
 				seen.add(key);
 				candidateCountByOwner[ownerIndex]++;
-				candidates.push({ uri, owner, ownerIndex, relativePath });
+				candidates.push({ uri, owner, ownerIndex, relativePath, isDirectory: false });
 			}
 		}
 		if (candidates.length === 0) {
@@ -211,7 +230,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 					type: MessageAttachmentKind.Resource,
 					uri: candidate.uri.toString(),
 					label: duplicateNames.has(name) ? `${ownerLabel} \u2022 ${candidate.relativePath}` : name,
-					displayKind: 'document',
+					displayKind: candidate.isDirectory ? 'directory' : 'document',
 				},
 			};
 		});
