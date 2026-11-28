@@ -125,12 +125,13 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-repositories-msg6', " - Use Shift + up/down keys to select multiple repositories."));
 
 		// Source Control
+		const canShowStructuralDiff = this._configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true && hasSCMStructuralDiffProvider(this._languageFeaturesService);
 		content.push(localize('scm-msg1', "Use the \"Source Control: Focus on Source Control View\" command to open the Source Control view."));
 		content.push(localize('scm-msg2', "The Source Control view displays the resource groups and resources of the repository. If the workspace contains more than one repository it will list the resource groups and resources of the repositories selected in the Source Control Repositories view."));
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
-		if (this._configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true && hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
+		if (canShowStructuralDiff) {
 			content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
 			content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
 			content.push(localize('scm-structural-staged', " - For Git, staged structural changes compare HEAD with the index, while unstaged structural changes compare the index with the working file. Both versions of the file and a provider that supports their document types are required."));
@@ -146,6 +147,9 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-graph-msg3', "Once the Source Control Graph view is opened you can:"));
 		content.push(localize('scm-graph-msg4', " - Use the up/down arrow keys to navigate the list of history items."));
 		content.push(localize('scm-graph-msg5', " - Use the Space key to open the history item details in the multi-file diff editor."));
+		if (canShowStructuralDiff) {
+			content.push(localize('scm-graph-structural', " - When \"Show Structural Diff\" is enabled in the Source Control view, files of a history item with a structural diff provider can be expanded with the right arrow key to show changed symbols. Press Enter on a changed symbol to open the file diff of the history item at that symbol."));
+		}
 
 		return content.join('\n');
 	}

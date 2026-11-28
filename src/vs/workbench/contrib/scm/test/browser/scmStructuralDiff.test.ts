@@ -309,7 +309,7 @@ suite('SCM structural diff tree', () => {
 		});
 	});
 
-	test('describes structural diff in the accessibility help only while enabled and a provider is registered', async () => {
+	test('describes structural diff in the accessibility help of the Source Control and Graph views only while enabled and a provider is registered', async () => {
 		const features = new LanguageFeaturesService();
 		const configurationService = new TestConfigurationService({ 'scm.structuralDiff.enabled': true });
 		const instantiationService = store.add(new TestInstantiationService());
@@ -320,7 +320,9 @@ suite('SCM structural diff tree', () => {
 		instantiationService.set(ILanguageFeaturesService, features);
 		const mentionsStructuralDiff = () => {
 			const provider = store.add(instantiationService.invokeFunction(accessor => new SCMAccessibilityHelp().getProvider(accessor)));
-			return provider.provideContent().includes('Show Structural Diff');
+			const content = provider.provideContent();
+			const graphSection = content.indexOf('Source Control Graph');
+			return { scm: content.substring(0, graphSection).includes('Show Structural Diff'), graph: content.substring(graphSection).includes('Show Structural Diff') };
 		};
 		const withoutProvider = mentionsStructuralDiff();
 		const registration = features.structuralDiffProvider.register('*', new class extends mock<StructuralDiffProvider>() { });
@@ -328,7 +330,11 @@ suite('SCM structural diff tree', () => {
 		await configurationService.setUserConfiguration('scm.structuralDiff.enabled', false);
 		const disabled = mentionsStructuralDiff();
 		registration.dispose();
-		assert.deepStrictEqual({ withoutProvider, enabled, disabled }, { withoutProvider: false, enabled: true, disabled: false });
+		assert.deepStrictEqual({ withoutProvider, enabled, disabled }, {
+			withoutProvider: { scm: false, graph: false },
+			enabled: { scm: true, graph: true },
+			disabled: { scm: false, graph: false },
+		});
 	});
 
 	test('the menu command shows or hides structural changes in the workspace and reports the new state', async () => {

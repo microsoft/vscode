@@ -920,6 +920,30 @@
 	flex-grow: 1;
 }
 
+.scm-history-view .monaco-list-row .history-item-structural-change {
+	display: flex;
+	height: 100%;
+}
+
+.scm-history-view .monaco-list-row .history-item-structural-change > .graph-placeholder {
+	position: absolute;
+	height: 22px;
+}
+
+.scm-history-view .monaco-list-row .history-item-structural-change > .scm-structural-change {
+	flex: 1;
+	min-width: 0;
+}
+
+/*
+ * Unlike in the Source Control view, the status letters of the files of history items are not centered in a column of
+ * their own, so the structural changes of the files end their status letters where the files end theirs.
+ */
+.scm-view.scm-history-view .monaco-list-row .scm-structural-change .scm-structural-change-status {
+	min-width: 0;
+	margin-right: 3px;
+}
+
 .scm-history-view .history-item-load-more {
 	display: flex;
 	height: 22px;

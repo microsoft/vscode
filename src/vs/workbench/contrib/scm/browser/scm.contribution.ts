@@ -384,7 +384,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.structuralDiff.enabled': {
 			type: 'boolean',
-			description: localize('scm.structuralDiff.enabled', "Controls whether the Source Control view can show the symbols that changed in a file. When enabled and an extension provides structural diffs for the file, they are shown by default. Use \"Show Structural Diff\" in the \"View & Sort\" menu to hide or show them."),
+			description: localize('scm.structuralDiff.enabled', "Controls whether the Source Control view and the Source Control Graph view can show the symbols that changed in a file. When enabled and an extension provides structural diffs for the file, they are shown by default. Use \"Show Structural Diff\" in the \"View & Sort\" menu of the Source Control view to hide or show them."),
 			default: false,
 			tags: ['experimental']
 		},

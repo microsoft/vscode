@@ -70,7 +70,7 @@ export interface SCMStructuralDiffStatus<T extends object = ISCMResource> extend
 export type SCMStructuralDiffElement<T extends object = ISCMResource> = SCMStructuralDiffNode<T> | SCMStructuralDiffStatus<T>;
 
 /** Where structural changes are shown, which is reported with the outcome of their requests. */
-export type StructuralDiffLocation = 'scm' | 'multiDiffEditor';
+export type StructuralDiffLocation = 'scm' | 'scmGraph' | 'multiDiffEditor';
 
 /**
  * Describes the files of a view that shows their structural changes, such as the resources of the Source Control view.
@@ -247,12 +247,12 @@ type StructuralDiffRequestedEvent = {
 
 type StructuralDiffRequestedClassification = {
 	owner: 'dbaeumer';
-	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view or in the file list of the multi-file diff editor, to understand how often they are used and how often they can be shown.';
+	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view, in the Source Control Graph view or in the file list of the multi-file diff editor, to understand how often they are used and how often they can be shown.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'success if structural changes were computed, noResult if no provider supplied any, providerFailed if a provider failed, timedOut if computing them took too long, and error if, for example, a document could not be loaded.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the file.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from the request until its outcome.' };
 	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the provider marked its result as incomplete, otherwise 0.' };
-	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the file was expanded: scm for the Source Control view, and multiDiffEditor for the file list of the multi-file diff editor.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the file was expanded: scm for the Source Control view, scmGraph for the Source Control Graph view, and multiDiffEditor for the file list of the multi-file diff editor.' };
 };
 
 /**
@@ -275,9 +275,10 @@ export class StructuralDiffModel<T extends object> extends Disposable {
 	/**
 	 * Files whose expansion was reported. Each expansion is reported once, by the first request that completes after
 	 * it. Reloads of an expanded file are not new expansions, so they are not reported, whether an edit, hiding and
-	 * showing the view, or a provider or language change causes them. Collapsing a file or turning structural diffs off
-	 * ends its expansion. Resources that their view removes or replaces, for example because their status changed, are
-	 * not used again, so they need no cleanup, and the first request of a new resource object is reported.
+	 * showing the view, or a provider or language change causes them. Releasing a file, which its view does when it
+	 * collapses the file or no longer shows it expanded, and turning structural diffs off end its expansion. Resources
+	 * that their view replaces, for example because their status changed, are new objects, so the first request of a
+	 * new resource object is reported.
 	 */
 	private reportedResources = new WeakSet<T>();
 	private readonly pendingChanges = new Set<T>();
@@ -393,11 +394,22 @@ export class StructuralDiffModel<T extends object> extends Disposable {
 		this._onDidChange.fire(resource);
 	}
 
-	/** Releases the cached results of the resources that the predicate selects, for example because the view removed them. */
-	releaseWhere(predicate: (resource: T) => boolean): void {
+	/**
+	 * Releases the cached results of the resources that the predicate selects, for example because the view removed
+	 * them or no longer shows them expanded. Like {@link release}, this ends their expansion. The model only knows the
+	 * resources that have cached results, so a view that shows its resources again passes them too, which ends their
+	 * expansion when they have no results, for example because hiding the view cleared them.
+	 */
+	releaseWhere(predicate: (resource: T) => boolean, reusedResources: Iterable<T> = []): void {
 		for (const [resource] of this.entries) {
 			if (predicate(resource)) {
+				this.reportedResources.delete(resource);
 				this.entries.deleteAndDispose(resource);
+			}
+		}
+		for (const resource of reusedResources) {
+			if (predicate(resource)) {
+				this.reportedResources.delete(resource);
 			}
 		}
 	}
