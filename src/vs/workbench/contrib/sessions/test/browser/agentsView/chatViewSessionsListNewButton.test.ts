@@ -56,7 +56,7 @@ suite('Sessions - Chat view sessions list New button', () => {
 		const variantId = ACTION_ID_NEW_CHAT + NEW_CHAT_ICON_VARIANTS[0].idSuffix;
 		const { primary, commands } = render(variantId, { [ACTION_ID_NEW_CHAT]: cmdN });
 		primary.click();
-		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), commands: commands.map(command => command.id) }, { ariaLabel: `New Chat (${cmdN.getLabel()})`, commands: [variantId] });
+		assert.deepStrictEqual({ ariaLabel: primary.getAttribute('aria-label'), commands: commands.map(command => command.id) }, { ariaLabel: `New Chat (${cmdN.getAriaLabel()})`, commands: [variantId] });
 	});
 
 	test('leaves the New menu to the stock renderer in a title that does not fit its actions by their widths, or without New Chat', () => {

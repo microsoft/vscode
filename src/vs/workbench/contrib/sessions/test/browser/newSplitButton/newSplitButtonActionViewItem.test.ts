@@ -116,9 +116,11 @@ suite('Sessions - New split button', () => {
 	});
 
 	test('speaks the keybinding of New Chat in the label\'s aria-label, not the glyphs it shows', () => {
-		const macCmdN = new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, false, true, KeyCode.KeyN)], OperatingSystem.Macintosh);
-		const { primary, shownKeybinding } = render(true, { [PRIMARY_ID]: macCmdN });
-		assert.deepStrictEqual({ keybinding: shownKeybinding(), ariaLabel: primary.getAttribute('aria-label') }, { keybinding: '⌘N', ariaLabel: 'New Chat (Command+N)' });
+		// The shown keybinding is rendered for the host OS, so the expectations come from a keybinding of the host OS: ⌘N on macOS, Ctrl+N elsewhere
+		const isMac = OS === OperatingSystem.Macintosh;
+		const primaryN = new USLayoutResolvedKeybinding([new KeyCodeChord(!isMac, false, false, isMac, KeyCode.KeyN)], OS);
+		const { primary, shownKeybinding } = render(true, { [PRIMARY_ID]: primaryN });
+		assert.deepStrictEqual({ keybinding: shownKeybinding(), ariaLabel: primary.getAttribute('aria-label') }, { keybinding: primaryN.getLabel(), ariaLabel: `New Chat (${isMac ? 'Command+N' : 'Control+N'})` });
 	});
 
 	test('runs the New menu with the context of the title and reports a failure once, even after the menu and the button are gone', async () => {
