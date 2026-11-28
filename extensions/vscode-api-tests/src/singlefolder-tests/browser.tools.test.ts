@@ -20,7 +20,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		.join('\n');
 }
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - browser tools', () => {
+for (let round = 0; round < 40; round++) {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - browser tools #' + round, () => {
 
 	let clearNotificationsInterval: ReturnType<typeof setInterval> | undefined;
 
@@ -178,7 +179,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			for (const prefix of ['', '#same' + enterFrame, '#opaque' + enterFrame, '#outer' + enterFrame, '#outer' + enterFrame + '#nested' + enterFrame]) {
 				// The test DialogService auto-accepts visible confirms; hidden queue tests cover confirm.
 				const clicked = await invokeTool('click_element', { pageId, selector: prefix + '#alert', element: 'alert' });
-				assert.ok(clicked.includes('Active alert dialog:'), clicked);
+				if (!clicked.includes('Active alert dialog:')) {
+					await new Promise(resolve => setTimeout(resolve, 3000));
+					const later = await invokeTool('run_playwright_code', { pageId, code: `return await page.evaluate(() => ({ active: document.activeElement?.id, frames: [...document.querySelectorAll('iframe')].map(f => { try { return f.id + ':' + (f.contentDocument?.activeElement?.id ?? 'opaque'); } catch { return f.id + ':err'; } }) }));` });
+					assert.fail('DIAG prefix=' + JSON.stringify(prefix) + '\nCLICKED:\n' + clicked + '\nLATER:\n' + later);
+				}
 				await answerDialog(clicked);
 				const typed = await invokeTool('type_in_page', { pageId, selector: prefix + '#message', element: 'Message', text: 'Typed after handling' });
 				assert.ok(!typed.includes('Timeout'), typed);
@@ -529,3 +534,4 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.ok(readOutput.includes('test message'), `Expected page to contain worker response "test message", got: ${readOutput}`);
 	});
 });
+}
