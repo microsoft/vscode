@@ -268,6 +268,12 @@
 	color: var(--vscode-foreground);
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon.codicon-github {
+	border: none;
+	border-radius: 0;
+	font-size: 16px;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar.hidden,
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon.hidden {
 	display: none;
