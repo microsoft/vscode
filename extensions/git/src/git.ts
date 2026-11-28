@@ -1068,9 +1068,9 @@ export interface LsTreeElement {
 }
 
 export function parseLsTree(raw: string): LsTreeElement[] {
-	return raw.split('\n')
+	return raw.split('\0')
 		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\t(.*)$/s.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
 }
@@ -1701,7 +1701,7 @@ export class Repository {
 	}
 
 	async lstree(treeish: string, path?: string, options?: { recursive?: boolean }): Promise<LsTreeElement[]> {
-		const args = ['ls-tree', '-l'];
+		const args = ['ls-tree', '-l', '-z'];
 
 		if (options?.recursive) {
 			args.push('-r');
