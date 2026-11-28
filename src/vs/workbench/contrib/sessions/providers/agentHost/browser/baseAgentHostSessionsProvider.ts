@@ -1972,14 +1972,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * The host working directory of the scope of `repositoryRoot` when it is one of the repositories of a session of
 	 * several folders or repositories, each with its own scope; else `undefined`. A session of one folder and one repository
 	 * has no scope of its own for it: its changes are its chats'. The scope of a folder's own repository is the folder, which can be below the repository's
-	 * root; that of a repository found in a folder is its root.
+	 * root; that of a repository found in a folder is its root. Only a host that lists the repositories of the session's
+	 * folders serves their scopes: with any other, such as an older host, the session's changes are its chats' only.
 	 */
 	private _getRepositoryScopeRoot(repositoryRoot: URI, reader?: IReader): string | undefined {
 		const workspace = reader ? this.workspace.read(reader) : this.workspace.get();
-		// Without repository records, each folder is its own repository
-		const scopes = workspace?.repositories?.map(repository => ({ root: repository.root, scope: repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder }))
-			?? workspace?.folders.map(folder => ({ root: folder.workingDirectory, scope: folder.workingDirectory }))
-			?? [];
+		if (!workspace?.repositories) {
+			return undefined;
+		}
+		const scopes = workspace.repositories.map(repository => ({ root: repository.root, scope: repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder }));
 		// As the Changes list them: a session of several folders, also with one in no repository, or of several repositories
 		const isSeveral = scopes.length > 1 || (workspace?.folders.length ?? 0) > 1;
 		const scope = isSeveral ? scopes.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repositoryRoot))?.scope : undefined;

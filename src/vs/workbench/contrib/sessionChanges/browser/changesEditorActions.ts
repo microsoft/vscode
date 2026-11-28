@@ -32,6 +32,7 @@ import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext,
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorCommandsContext, IEditorPane, isEditorCommandsContext } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../services/editor/common/diffEditorOptionsService.js';
 import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -509,7 +510,7 @@ class OpenChangedFileAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
+		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor.get(ISessionHostService)), session, target.chat);
 		// From a chat window's Changes editor, in its group, not by focus; in the main window, as ever.
 		const group = editor instanceof SessionChangesEditor && !accessor.get(IEditorGroupsService).mainPart.groups.includes(editor.group) ? editor.group : undefined;
 		await accessor.get(IEditorService).openEditor({
@@ -712,28 +713,31 @@ function listHas(key: RawContextKey<string[]>, entry: string): ContextKeyExpress
 	return ContextKeyExpr.regex(key.key, new RegExp(`(^|,)${escapeRegExpCharacters(entry)}(,|$)`));
 }
 
-/** The Changes of the Changes editor whose file toolbar or title an action is invoked from, else those of the main window's session. */
-function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs' | 'operationsChangesetObs'> } {
-	const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
-	const editorContext = args.find(isEditorCommandsContext);
-	const editor = fileContext?.editor instanceof SessionChangesEditor
-		? fileContext.editor
-		: editorContext ? accessor.get(IEditorGroupsService).getGroup(editorContext.groupId)?.activeEditorPane : undefined;
-	if (editor instanceof SessionChangesEditor) {
-		return { session: editor.changesScope.session.get(), chat: editor.changesScope.chat.get(), changes: editor.changesScope.changes };
+/** An action on the Changes of the Changes editor whose file toolbar or title it is invoked from, else on those of the main window's session. */
+abstract class InvokingChangesScopeAction extends Action2 {
+
+	/** The Changes the action is invoked on, from its command arguments and the services its `run` resolves. */
+	protected getInvokingChangesScope(args: readonly unknown[], editorGroupsService: IEditorGroupsService, changesViewService: IChangesViewService, sessionHostService: ISessionHostService): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs' | 'operationsChangesetObs'> } {
+		const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
+		const editorContext = args.find(isEditorCommandsContext);
+		const editor = fileContext?.editor instanceof SessionChangesEditor
+			? fileContext.editor
+			: editorContext ? editorGroupsService.getGroup(editorContext.groupId)?.activeEditorPane : undefined;
+		if (editor instanceof SessionChangesEditor) {
+			return { session: editor.changesScope.session.get(), chat: editor.changesScope.chat.get(), changes: editor.changesScope.changes };
+		}
+		const owner = mainWindowChangesOwner(sessionHostService);
+		return {
+			session: owner.session,
+			chat: owner.chat,
+			changes: {
+				changesObs: changesViewService.activeSessionChangesObs,
+				changesetObs: changesViewService.activeSessionChangesetObs,
+				changesetOperationsObs: changesViewService.activeSessionChangesetOperationsObs,
+				operationsChangesetObs: changesViewService.activeSessionOperationsChangesetObs,
+			},
+		};
 	}
-	const changesViewService = accessor.get(IChangesViewService);
-	const owner = mainWindowChangesOwner(accessor);
-	return {
-		session: owner.session,
-		chat: owner.chat,
-		changes: {
-			changesObs: changesViewService.activeSessionChangesObs,
-			changesetObs: changesViewService.activeSessionChangesetObs,
-			changesetOperationsObs: changesViewService.activeSessionChangesetOperationsObs,
-			operationsChangesetObs: changesViewService.activeSessionOperationsChangesetObs,
-		},
-	};
 }
 
 const CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesetOperation.';
@@ -751,7 +755,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 	const shown = listHas(SessionChangesetOperationsContext, key);
 	const precondition = listHas(SessionEnabledChangesetOperationsContext, key);
 	if (kind === 'resource') {
-		return registerAction2(class extends Action2 {
+		return registerAction2(class extends InvokingChangesScopeAction {
 			constructor() {
 				super({
 					id: `${CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
@@ -780,7 +784,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 				if (!URI.isUri(resource)) {
 					return;
 				}
-				const { changes } = getInvokingChangesScope(accessor, args);
+				const { changes } = this.getInvokingChangesScope(args, accessor.get(IEditorGroupsService), accessor.get(IChangesViewService), accessor.get(ISessionHostService));
 				const change = changes.changesObs.get().find(candidate => isChangesFileResource(candidate, resource));
 				if (change) {
 					await changes.changesetObs.get()?.invokeOperation(operation.id, { kind: 'resource', resource: getChangesFileUri(change) });
@@ -789,7 +793,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 		});
 	}
 	const shownInChangesEditor = ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), shown);
-	return registerAction2(class extends Action2 {
+	return registerAction2(class extends InvokingChangesScopeAction {
 		constructor() {
 			super({
 				id: `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
@@ -818,7 +822,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			const { session, chat, changes } = getInvokingChangesScope(accessor, args);
+			const { session, chat, changes } = this.getInvokingChangesScope(args, accessor.get(IEditorGroupsService), accessor.get(IChangesViewService), accessor.get(ISessionHostService));
 			await getChangesetOperations(session, chat, changes, undefined).titleChangeset?.invokeOperation(operation.id);
 		}
 	});
@@ -872,7 +876,15 @@ export function bindChangesetOperations(source: Pick<ISessionActionContextKeysSo
 	});
 }
 
-registerSessionActionContextKeyBinder((_accessor, source, contextKeyService) => bindChangesetOperations(source, contextKeyService));
+/** Registers the actions of the changeset operations the bound session's Changes offer. */
+class ChangesetOperationActions extends Disposable {
+	constructor(source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService) {
+		super();
+		this._register(bindChangesetOperations(source, contextKeyService));
+	}
+}
+
+registerSessionActionContextKeyBinder(ChangesetOperationActions);
 
 class CommitActionViewItem extends MenuEntryActionViewItem {
 
@@ -957,7 +969,7 @@ export class ChangesetReviewAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
+		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor.get(ISessionHostService)), session, target.chat);
 		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}

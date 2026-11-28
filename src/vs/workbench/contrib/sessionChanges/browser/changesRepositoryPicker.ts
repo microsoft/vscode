@@ -49,7 +49,7 @@ export class ChangesRepositoryPickerAction extends Action2 {
 				id: MenuId.ChatEditingSessionChangesFileHeaderToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ChangesHasRepositoriesContext,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChangesHasRepositoriesContext),
 			}, {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',

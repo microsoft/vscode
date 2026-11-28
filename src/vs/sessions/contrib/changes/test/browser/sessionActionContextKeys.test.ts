@@ -197,9 +197,13 @@ suite('Session Action Context Keys', () => {
 		const globalService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const scoped = disposables.add(globalService.createScoped(document.createElement('div')));
 		const bound: IContextKeyService[] = [];
-		disposables.add(registerSessionActionContextKeyBinder((_accessor, _source, contextKeyService) => {
-			bound.push(contextKeyService);
-			return { dispose: () => bound.pop() };
+		disposables.add(registerSessionActionContextKeyBinder(class {
+			constructor(_source: unknown, contextKeyService: IContextKeyService) {
+				bound.push(contextKeyService);
+			}
+			dispose(): void {
+				bound.pop();
+			}
 		}));
 
 		const binding = bindSessionActionContextKeys(instantiationService, createSource({}), scoped);

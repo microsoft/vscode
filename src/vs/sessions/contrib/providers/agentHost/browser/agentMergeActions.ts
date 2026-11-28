@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -129,48 +129,52 @@ const agentMergeMergePullRequestDescriptions: Record<AgentMergeMergePullRequest,
  * into context keys so the command palette only offers the action that
  * actually applies, and the button bar dropdown can render check marks.
  */
-function bindAgentMergeContextKeys(accessor: ServicesAccessor, source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService): IDisposable {
-	const configurationService = accessor.get(IConfigurationService);
-	const sessionAgentMergeService = accessor.get(ISessionAgentMergeService);
-	const logService = accessor.get(ILogService);
-	const store = new DisposableStore();
-	const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
-	const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
-	const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-	const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
-		DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
-	let lastLogged: string | undefined;
-	store.add(autorun(reader => {
-		if (changesEditorTransitionObs.read(reader)
-			|| source.changes.changesetsLoadingObs.read(reader)
-			|| source.changes.loadingObs.read(reader)) {
-			return;
-		}
-		const session = source.session.read(reader);
-		// Each folder has its own Agent Merge; follow the one the host's chat works in, or the repository the Changes show.
-		const chat = source.chat.read(reader);
-		const repository = source.changes.repositoryObs.read(reader)?.root;
-		const state = session ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
-		const enabled = state?.enabled === true;
-		const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
-		contextKeyService.bufferChangeEvents(() => {
-			enabledKey.set(enabled);
-			for (const [action, key] of actionKeys) {
-				key.set(effective[action]);
+class AgentMergeContextKeys extends Disposable {
+	constructor(
+		source: ISessionActionContextKeysSource,
+		contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
+		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
+		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
+		let lastLogged: string | undefined;
+		this._register(autorun(reader => {
+			if (changesEditorTransitionObs.read(reader)
+				|| source.changes.changesetsLoadingObs.read(reader)
+				|| source.changes.loadingObs.read(reader)) {
+				return;
 			}
-			mergePullRequestKey.set(effective.mergePullRequest);
-		});
-		const authorized = agentMergeRepairActions.filter(action => effective[action]);
-		const signature = `${session?.sessionId ?? 'none'}|${chat?.resource.toString() ?? 'none'}|${repository?.toString() ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
-		if (lastLogged !== signature) {
-			lastLogged = signature;
-			logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, chat=${chat?.resource.toString() ?? 'none'}, repository=${repository?.toString() ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
-		}
-	}));
-	return store;
+			const session = source.session.read(reader);
+			// Each folder has its own Agent Merge; follow the one the host's chat works in, or the repository the Changes show.
+			const chat = source.chat.read(reader);
+			const repository = source.changes.repositoryObs.read(reader)?.root;
+			const state = session ? sessionAgentMergeService.getConfigurationObservable(session, chat, repository).read(reader) : undefined;
+			const enabled = state?.enabled === true;
+			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
+			contextKeyService.bufferChangeEvents(() => {
+				enabledKey.set(enabled);
+				for (const [action, key] of actionKeys) {
+					key.set(effective[action]);
+				}
+				mergePullRequestKey.set(effective.mergePullRequest);
+			});
+			const authorized = agentMergeRepairActions.filter(action => effective[action]);
+			const signature = `${session?.sessionId ?? 'none'}|${chat?.resource.toString() ?? 'none'}|${repository?.toString() ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
+			if (lastLogged !== signature) {
+				lastLogged = signature;
+				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, chat=${chat?.resource.toString() ?? 'none'}, repository=${repository?.toString() ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
+			}
+		}));
+	}
 }
 
-registerSessionActionContextKeyBinder(bindAgentMergeContextKeys);
+registerSessionActionContextKeyBinder(AgentMergeContextKeys);
 
 interface IAgentMergeActionPick extends IQuickPickItem {
 	readonly action: AgentMergeRepairAction;

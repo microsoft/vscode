@@ -20177,6 +20177,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const provider = createProvider(disposables, agentHost);
 				await timeout(0);
 				fireSessionAdded(agentHost, 'repositories', { workingDirectories: [api.toString(), web.toString()] });
+				fireSessionMetaChanged(agentHost, 'repositories', withSessionRepositories(undefined, {
+					[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
+					[getWorkingDirectoryKey(web.toString())]: [{ root: web.toString(), kind: 'folder' }],
+				}));
 				const session = provider.getSessions()[0];
 				const owner = URI.parse(buildBranchChangesetUri(buildFolderChangesetOwnerUri(AgentSession.uri('copilotcli', 'repositories').toString(), getWorkingDirectoryScopeId([web.toString()])))).toString();
 				const changeset = session.getRepositoryChangeset?.(kind.toClient(web), BRANCH_CHANGES_CHANGESET_ID);
@@ -20230,6 +20234,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
 				notes: session.getRepositoryChangeset?.(notes, BRANCH_CHANGES_CHANGESET_ID),
 			}, { repositories: [api.toString()], api: owner, notes: undefined });
+		});
+
+		test('gives a session of several folders no repository changesets from a host that does not list their repositories', async () => {
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'aggregate', { workingDirectories: [api.toString(), web.toString()] });
+			const session = provider.getSessions()[0];
+			assert.deepStrictEqual({
+				repositories: session.workspace.get()?.repositories,
+				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID),
+				web: session.getRepositoryChangeset?.(web, BRANCH_CHANGES_CHANGESET_ID),
+			}, { repositories: undefined, api: undefined, web: undefined });
 		});
 
 		test('gives a session of one folder no repository changesets', async () => {

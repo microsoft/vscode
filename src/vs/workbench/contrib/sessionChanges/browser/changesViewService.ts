@@ -17,7 +17,6 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetFolderFailure, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../sessions/browser/agentFeedback.js';
@@ -1016,7 +1015,7 @@ export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservable
 }
 
 /** What the main window's Changes show: the session and the chat of the main window, which its cached changes are of. */
-export function mainWindowChangesOwner(accessor: ServicesAccessor): { readonly session: ISession | undefined; readonly chat: IChat | undefined } {
-	const host = getMainWindowHost(accessor.get(ISessionHostService));
+export function mainWindowChangesOwner(sessionHostService: ISessionHostService): { readonly session: ISession | undefined; readonly chat: IChat | undefined } {
+	const host = getMainWindowHost(sessionHostService);
 	return { session: host.session.get(), chat: host.chat.get() };
 }
