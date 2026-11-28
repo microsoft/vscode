@@ -10,6 +10,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IAgentsModeService } from '../../../../services/agentsMode/common/agentsMode.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 
@@ -32,6 +33,7 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -46,6 +48,17 @@ export class AgentsModeAuxiliaryBar extends Disposable {
 
 		// A window that left the mode while it could not run its leaving, such as one that restarts with the mode turned off
 		if (!agentsModeService.isActive) {
+			this.leaveOnceRestored(lifecycleService).catch(onUnexpectedError);
+		}
+	}
+
+	/**
+	 * Leaves the mode the window is no longer in once the window restored: this is created before the workbench lays its
+	 * parts out, which it can't show or hide until then.
+	 */
+	private async leaveOnceRestored(lifecycleService: ILifecycleService): Promise<void> {
+		await lifecycleService.when(LifecyclePhase.Restored);
+		if (!this._store.isDisposed && !this.agentsModeService.isActive) {
 			this.leave();
 		}
 	}

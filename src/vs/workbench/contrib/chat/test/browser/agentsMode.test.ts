@@ -197,6 +197,7 @@ suite('Agents mode actions', () => {
 				getSize: () => ({ width, height: 800 }),
 				setSize: (_part: Parts, size: { width: number }) => { width = size.width; sizes.push(size.width); },
 			});
+			instantiation.stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 			const auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
 			await agentsMode.setActive(!active);
 			auxiliaryBar.applyWidth();
@@ -295,6 +296,8 @@ suite('Agents mode actions', () => {
 			let editorVisible = true;
 			let chatPartVisible = !!scenario.chatPartVisible;
 			let panelVisible = !!scenario.panelVisible;
+			// Like the layout, which can't show or hide parts before it laid them out once the window starts
+			let laidOut = true;
 			instantiation.stub(IStorageService, storage);
 			instantiation.stub(IAgentsModeService, agentsMode);
 			const editorInputs = (): EditorInput[] => [
@@ -319,6 +322,9 @@ suite('Agents mode actions', () => {
 				isAuxiliaryBarMaximized: () => false,
 				isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.CHAT_PART ? chatPartVisible : part === Parts.PANEL_PART && panelVisible,
 				setPartHidden: (hidden: boolean, part: Parts) => {
+					if (!laidOut) {
+						throw new Error('not laid out');
+					}
 					calls.push(`${hidden ? 'hide' : 'show'} ${part}`);
 					editorVisible = !hidden;
 					// Like the layout: the editor and panel cannot be hidden at the same time unless a chat part shows
@@ -371,11 +377,19 @@ suite('Agents mode actions', () => {
 				await timeout(0);
 				inMode = state();
 			} else if (scenario.inMode === 'restartWithoutMode') {
-				// The window restarts with the mode turned off, so it is no longer in the mode, without having left it
+				// The window restarts with the mode turned off, so it is no longer in the mode, without having left it: this is
+				// created before the layout laid its parts out, and leaves once the window restored
 				editorArea.dispose();
 				agentsMode.isSupported = false;
 				agentsMode.isActive = false;
+				laidOut = false;
+				restored = new DeferredPromise<void>();
 				editorArea = instantiation.createInstance(AgentsModeEditorArea);
+				calls.push(`restored after ${calls.length} calls`);
+				laidOut = true;
+				restored.complete();
+				await restored.p;
+				await timeout(0);
 				inMode = state();
 			}
 
@@ -416,7 +430,7 @@ suite('Agents mode actions', () => {
 				emptyChatPartShownInMode: { afterEnter: untouched, inMode: hiddenByChat, afterLeave: shownOnLeave },
 				emptyRestartedInMode: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
 				welcomeRestoredInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: false, panelVisible: false, calls: [`show ${Parts.EDITOR_PART}`, 'restored after 1 calls', `close ${gettingStartedInputTypeId}`, 'hiddenByChat true'] }, afterLeave: shownOnLeave },
-				emptyRestartedWithoutMode: { afterEnter: hiddenByChat, inMode: shownOnLeave, afterLeave: untouched },
+				emptyRestartedWithoutMode: { afterEnter: hiddenByChat, inMode: { ...shownOnLeave, calls: ['restored after 0 calls', `show ${Parts.EDITOR_PART}`] }, afterLeave: untouched },
 				emptyChatPartReopenedInMode: { afterEnter: hiddenByChat, inMode: hiddenByChat, afterLeave: shownOnLeave },
 				withEditors: { afterEnter: untouched, afterLeave: untouched },
 				editorOpenedInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: true, panelVisible: false, calls: [`show ${Parts.EDITOR_PART}`] }, afterLeave: untouched },
@@ -440,6 +454,10 @@ suite('Agents mode actions', () => {
 			const agentsMode = { isSupported: true, isActive: false, onWillChange: disposables.add(new Emitter<boolean>()).event };
 			let visible = !!scenario.visibleBefore;
 			const calls: string[] = [];
+			// Like the layout, which can't show or hide parts before it laid them out once the window starts
+			let laidOut = true;
+			let restored = new DeferredPromise<void>();
+			instantiation.stub(ILifecycleService, { when: () => restored.p });
 			instantiation.stub(IStorageService, storage);
 			instantiation.stub(IAgentsModeService, agentsMode);
 			stubViews(instantiation, scenario.chatViewLocation ?? ViewContainerLocation.AuxiliaryBar, id => {
@@ -449,6 +467,9 @@ suite('Agents mode actions', () => {
 			instantiation.stub(IWorkbenchLayoutService, {
 				isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && visible,
 				setPartHidden: (hidden: boolean, part: Parts) => {
+					if (!laidOut) {
+						throw new Error('not laid out');
+					}
 					calls.push(`${hidden ? 'hide' : 'show'} ${part}`);
 					visible = !hidden;
 				},
@@ -465,11 +486,19 @@ suite('Agents mode actions', () => {
 				auxiliaryBar.dispose();
 				auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
 			} else if (scenario.inMode === 'restartWithoutMode') {
-				// The window restarts with the mode turned off, so it is no longer in the mode, without having left it
+				// The window restarts with the mode turned off, so it is no longer in the mode, without having left it: this is
+				// created before the layout laid its parts out, and leaves once the window restored
 				auxiliaryBar.dispose();
 				agentsMode.isSupported = false;
 				agentsMode.isActive = false;
+				laidOut = false;
+				restored = new DeferredPromise<void>();
 				auxiliaryBar = instantiation.createInstance(AgentsModeAuxiliaryBar);
+				calls.push(`restored after ${calls.length} calls`);
+				laidOut = true;
+				restored.complete();
+				await restored.p;
+				await timeout(0);
 				inMode = state();
 			}
 
@@ -494,7 +523,7 @@ suite('Agents mode actions', () => {
 				// The user moved the Chat view out of the secondary side bar, which is left alone, though its default container is there
 				chatViewInPanel: { afterEnter: { visible: false, calls: [] }, afterLeave: { visible: false, calls: [] } },
 				hiddenBeforeRestartedInMode: { afterEnter: shownOnEnter, afterLeave: hiddenOnLeave },
-				hiddenBeforeRestartedWithoutMode: { afterEnter: shownOnEnter, inMode: hiddenOnLeave, afterLeave: { visible: false, calls: [] } },
+				hiddenBeforeRestartedWithoutMode: { afterEnter: shownOnEnter, inMode: { ...hiddenOnLeave, calls: ['restored after 0 calls', `hide ${Parts.AUXILIARYBAR_PART}`] }, afterLeave: { visible: false, calls: [] } },
 				// The Chat view comes to the front, and the secondary side bar stays as the user had it
 				visibleBefore: { afterEnter: shownOnEnter, afterLeave: { visible: true, calls: [] } },
 			});
@@ -521,6 +550,7 @@ suite('Agents mode actions', () => {
 					visible = !hidden;
 				},
 			});
+			instantiation.stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 			const auxiliaryBar = disposables.add(instantiation.createInstance(AgentsModeAuxiliaryBar));
 			const switching = disposables.add(new CancellationTokenSource());
 
@@ -559,6 +589,7 @@ suite('Agents mode actions', () => {
 					visible = !hidden;
 				},
 			});
+			instantiation.stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
 			const auxiliaryBar = disposables.add(instantiation.createInstance(AgentsModeAuxiliaryBar));
 			const first = disposables.add(new CancellationTokenSource());
 			const second = disposables.add(new CancellationTokenSource());

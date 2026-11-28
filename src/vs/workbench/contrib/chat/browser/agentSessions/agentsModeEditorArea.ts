@@ -42,7 +42,7 @@ export class AgentsModeEditorArea extends Disposable {
 
 		// A window that left the mode while it could not run its leaving, such as one that restarts with the mode turned off
 		if (!agentsModeService.isActive) {
-			this.leave();
+			this.leaveOnceRestored(lifecycleService).catch(onUnexpectedError);
 		}
 
 		if (agentsModeService.isSupported) {
@@ -56,6 +56,17 @@ export class AgentsModeEditorArea extends Disposable {
 			if (agentsModeService.isActive) {
 				this.restoreInMode(lifecycleService).catch(onUnexpectedError);
 			}
+		}
+	}
+
+	/**
+	 * Leaves the mode the window is no longer in once the window restored: this is created before the workbench lays its
+	 * parts out, which it can't show or hide until then.
+	 */
+	private async leaveOnceRestored(lifecycleService: ILifecycleService): Promise<void> {
+		await lifecycleService.when(LifecyclePhase.Restored);
+		if (!this._store.isDisposed && !this.agentsModeService.isActive) {
+			this.leave();
 		}
 	}
 
