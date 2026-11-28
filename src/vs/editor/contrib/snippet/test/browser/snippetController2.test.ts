@@ -6,6 +6,7 @@ import assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorExtensionsRegistry } from '../../../../browser/editorExtensions.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Range } from '../../../../common/core/range.js';
 import { Handler } from '../../../../common/editorCommon.js';
@@ -551,6 +552,81 @@ suite('SnippetController2', function () {
 		ctrl.next();
 		assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
 		// editor.trigger('test', 'type', { text: ';' });
+	});
+
+	for (const primaryCursor of ['earlier', 'later']) {
+		test(`placeholder transforms preserve ${primaryCursor} primary cursor selections`, async function () {
+			ctrl = editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+			model.setValue(' | ');
+			const selections = [new Selection(1, 1, 1, 1), new Selection(1, 4, 1, 4)];
+			editor.setSelections(primaryCursor === 'earlier' ? selections : selections.reverse());
+
+			ctrl.insert('${1:foo}-${1/(.*)/prefix$1/}-${2:bar}$0');
+			await editor.runCommand(EditorExtensionsRegistry.getEditorCommand('jumpToNextSnippetPlaceholder'));
+			editor.trigger('test', 'type', { text: 'done' });
+
+			const expectedSelections = [new Selection(1, 19, 1, 19), new Selection(1, 40, 1, 40)];
+			assert.deepStrictEqual({
+				text: model.getValue(),
+				selections: editor.getSelections(),
+				inSnippet: ctrl.isInSnippet(),
+			}, {
+				text: 'foo-prefixfoo-done | foo-prefixfoo-done',
+				selections: primaryCursor === 'earlier' ? expectedSelections : expectedSelections.reverse(),
+				inSnippet: true,
+			});
+		});
+	}
+
+	for (const eol of [EndOfLineSequence.LF, EndOfLineSequence.CRLF]) {
+		test(`placeholder transforms preserve cursor selections after adding lines (${eol})`, async function () {
+			ctrl = editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+			model.setValue('\n');
+			model.setEOL(eol);
+			editor.setSelections([new Selection(2, 1, 2, 1), new Selection(1, 1, 1, 1)]);
+
+			ctrl.insert('${1:foo}-${1/(.*)/prefix\n$1/}-${2:bar}$0');
+			await editor.runCommand(EditorExtensionsRegistry.getEditorCommand('jumpToNextSnippetPlaceholder'));
+			editor.trigger('test', 'type', { text: 'done' });
+
+			assert.deepStrictEqual({
+				text: model.getLinesContent(),
+				selections: editor.getSelections(),
+				inSnippet: ctrl.isInSnippet(),
+			}, {
+				text: ['foo-prefix', 'foo-done', 'foo-prefix', 'foo-done'],
+				selections: [new Selection(4, 9, 4, 9), new Selection(2, 9, 2, 9)],
+				inSnippet: true,
+			});
+		});
+	}
+
+	test('placeholder transforms preserve edits through undo and redo', async function () {
+		ctrl = editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+		model.setValue(' | ');
+		const selections = [new Selection(1, 4, 1, 4), new Selection(1, 1, 1, 1)];
+		editor.setSelections(selections);
+		ctrl.insert('${1:foo}-${1/(.*)/prefix$1/}-${2:bar}$0');
+		await editor.runCommand(EditorExtensionsRegistry.getEditorCommand('jumpToNextSnippetPlaceholder'));
+		editor.trigger('test', 'type', { text: 'done' });
+
+		await editor.runCommand(CoreEditingCommands.Undo, null);
+		await editor.runCommand(CoreEditingCommands.Undo, null);
+		await editor.runCommand(CoreEditingCommands.Undo, null);
+		const undone = { text: model.getValue(), selections: editor.getSelections() };
+		await editor.runCommand(CoreEditingCommands.Redo, null);
+		await editor.runCommand(CoreEditingCommands.Redo, null);
+		await editor.runCommand(CoreEditingCommands.Redo, null);
+
+		assert.deepStrictEqual({
+			undone,
+			text: model.getValue(),
+			selections: editor.getSelections(),
+		}, {
+			undone: { text: ' | ', selections },
+			text: 'foo-prefixfoo-done | foo-prefixfoo-done',
+			selections: [new Selection(1, 40, 1, 40), new Selection(1, 19, 1, 19)],
+		});
 	});
 
 	suite('createEditsAndSnippetsFromEdits', function () {
