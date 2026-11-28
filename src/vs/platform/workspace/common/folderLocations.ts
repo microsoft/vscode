@@ -12,6 +12,14 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IWorkspaceFolder } from './workspace.js';
 
 /**
+ * The identity of a folder location without its trailing separator. Unlike `removeTrailingPathSeparator`,
+ * this also strips the separator of a UNC share root, which names the same location without it.
+ */
+export function withoutTrailingSeparator(uri: URI): URI {
+	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
+}
+
+/**
  * An alternate location of a workspace folder.
  */
 export interface IFolderLocation {

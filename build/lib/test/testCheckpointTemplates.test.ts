@@ -382,7 +382,7 @@ suite('Product test checkpoint templates', () => {
 			},
 			// The product build runs the same test jobs as CI, and only for x64
 			productJobsByPipeline: [0, 1].map(() => ({
-				runTests: ['${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}', undefined],
+				runTests: [true, undefined],
 				jobs: jobs.map(job => ({ arch: 'x64', ...job })),
 			})),
 			copilotSetup: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
@@ -482,7 +482,6 @@ suite('Product test checkpoint templates', () => {
 		const darwinJobDisplayNames = jobDisplayNames.filter(displayName => displayName !== 'Copilot Tests');
 		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
 		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')) }}';
-		const runTests = '${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}';
 		assert.deepStrictEqual(observed, [
 			{
 				platform: 'linux',
@@ -510,7 +509,7 @@ suite('Product test checkpoint templates', () => {
 				},
 				productJobsMatchCI: true,
 				// Only Linux x64 runs tests, not arm64 or armhf
-				productJobsByPipeline: [0, 1].map(() => ({ runTests: [runTests, undefined, undefined], arches: ['x64'] })),
+				productJobsByPipeline: [0, 1].map(() => ({ runTests: [true, undefined, undefined], arches: ['x64'] })),
 				testEnvironmentParameters: [],
 			},
 			{
@@ -539,7 +538,7 @@ suite('Product test checkpoint templates', () => {
 				},
 				productJobsMatchCI: true,
 				// Only macOS arm64 runs tests, not x64
-				productJobsByPipeline: [0, 1].map(() => ({ runTests: [undefined, runTests], arches: ['arm64'] })),
+				productJobsByPipeline: [0, 1].map(() => ({ runTests: [undefined, true], arches: ['arm64'] })),
 				testEnvironmentParameters: [],
 			},
 		]);

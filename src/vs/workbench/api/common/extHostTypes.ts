@@ -2575,6 +2575,11 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
+export enum WorkbenchMode {
+	Editor = 1,
+	Agents = 2
+}
+
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {

@@ -21,15 +21,15 @@ import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBr
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
+import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { sessionsDiffEditorWordWrapConfiguration } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 
 suite('SessionsDiffEditorCommandsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers independent editor and diff word wrap auto experiments', () => {
-		const properties = sessionsEditorWordWrapConfiguration.properties;
-		const summarize = (settingId: keyof typeof properties) => {
-			const property = properties[settingId];
+		const summarize = (property: IConfigurationPropertySchema) => {
 			return {
 				type: property.type,
 				enum: property.enum,
@@ -39,8 +39,8 @@ suite('SessionsDiffEditorCommandsService', () => {
 		};
 
 		assert.deepStrictEqual({
-			editor: summarize(SESSIONS_EDITOR_WORD_WRAP_SETTING),
-			diffEditor: summarize(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
+			editor: summarize(sessionsEditorWordWrapConfiguration.properties[SESSIONS_EDITOR_WORD_WRAP_SETTING]),
+			diffEditor: summarize(sessionsDiffEditorWordWrapConfiguration.properties[SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING]),
 		}, {
 			editor: {
 				type: 'string',

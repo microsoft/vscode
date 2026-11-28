@@ -555,6 +555,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<readonly URI[]> {
+		return this._requireClient().detachSessionsFromWorkspace(workspaceFiles);
+	}
+
 	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
 		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
 	}

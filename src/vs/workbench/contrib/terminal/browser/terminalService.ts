@@ -49,6 +49,7 @@ import { TerminalInstance } from './terminalInstance.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ITimerService } from '../../../services/timer/browser/timerService.js';
+import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { mark } from '../../../../base/common/performance.js';
 import { DetachedTerminal } from './detachedTerminal.js';
 import { ITerminalCapabilityImplMap, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -1167,7 +1168,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			const shouldUpdateConfig = e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier');
-			const shouldUpdateTheme = e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+			const shouldUpdateTheme = e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(LayoutSettings.MODERN_UI);
 			if (shouldUpdateConfig || shouldUpdateTheme) {
 				for (const instance of this._detachedXterms) {
 					if (shouldUpdateConfig) {

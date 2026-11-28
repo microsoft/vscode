@@ -101,4 +101,8 @@ export class EditorWindowSessionsNavigationHost extends Disposable implements IS
 	async closeArchivedChat(_session: ISession, chat: IChat): Promise<void> {
 		await this._presenter.closeChat(chat.resource);
 	}
+
+	async closeSession(session: ISession): Promise<void> {
+		await Promise.all(session.chats.get().map(chat => this._presenter.closeChat(chat.resource)));
+	}
 }

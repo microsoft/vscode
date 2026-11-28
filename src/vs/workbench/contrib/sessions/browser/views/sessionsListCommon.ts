@@ -7,6 +7,7 @@ import { IPendingSessionItem, isPendingSessionItem } from './pendingSessions.js'
 import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { IReader } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -69,11 +70,21 @@ export const SessionItemIsCloudContext = new RawContextKey<boolean>('sessionItem
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
 /** Whether the session item is the session of an automation run. */
 export const SessionItemIsAutomationContext = new RawContextKey<boolean>('sessionItem.isAutomation', false);
+/** Whether a canvas of the session item is pinned to the sidebar. */
+export const SessionItemHasPinnedCanvasContext = new RawContextKey<boolean>('sessionItem.hasPinnedCanvas', false);
 /** Whether the session item belongs in the Sessions list. Automation sessions only do once they are shown there. */
 export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('sessionItem.isInSessionsList', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
+/** Whether a section lists sessions, unlike the row of a workspace without any. */
+export const SessionSectionHasSessionsContext = new RawContextKey<boolean>('sessionSection.hasSessions', false);
+/** Whether a section has a {@link ISessionSection.rootFolder}. */
+export const SessionSectionHasRootFolderContext = new RawContextKey<boolean>('sessionSection.hasRootFolder', false);
+/** What a workspace row under the separate Workspaces header lists: a workspace the workspaces service knows (`known`), or a folder (`folder`). */
+export const SessionSectionWorkspaceKindContext = new RawContextKey<'known' | 'folder' | ''>('sessionSection.workspaceKind', '');
+/** Whether a workspace row under the separate Workspaces header lists a workspace on this computer, which an editor window can open. */
+export const SessionSectionWorkspaceIsLocalContext = new RawContextKey<boolean>('sessionSection.workspaceIsLocal', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);
@@ -84,8 +95,6 @@ export enum SessionsGrouping {
 	Environment = 'environment',
 	Date = 'date',
 	Inbox = 'inbox',
-	/** By the folder each session works in: a repository's main checkout and each of its worktrees. Offered by hosts that ask for it. */
-	Worktree = 'worktree',
 }
 
 export enum SessionsSorting {
@@ -96,16 +105,36 @@ export enum SessionsSorting {
 export interface ISessionSection {
 	readonly id: string;
 	readonly collapseStateId?: string;
+	/** The collapse state when this section groups rows in the separate navigation list. */
+	readonly navigationCollapsed?: boolean;
 	readonly label: string;
 	readonly sessions: ISession[];
+	/** The sessions the header counts and summarizes when they differ from its own {@link sessions}, such as those of the groups and sections pinned in the Pinned section too. */
+	readonly summarySessions?: readonly ISession[];
 	readonly pendingItems?: readonly IPendingSessionItem[];
 	/** The repository of a repository section. */
 	readonly repository?: ISessionRepository;
 	readonly environment?: ISessionEnvironment;
-	/** Shown on hover of the section's label and spoken with it, such as the full path of a worktree section's folder. */
-	readonly hover?: string;
 	/** The pinned canvas a navigation row opens. */
 	readonly pinnedCanvas?: IPinnedCanvas;
+	/**
+	 * The root folder (the project or repository folder, never a session's worktree) of a workspace or repository section:
+	 * the root of its first session that has one. Unset when none of its sessions has a folder, or when that root is a cloud
+	 * folder.
+	 */
+	readonly rootFolder?: URI;
+	/** The workspace that a workspace row lists while Group by Workspace separates groups and workspaces. */
+	readonly workspace?: ISessionSectionWorkspace;
+}
+
+/** A workspace that a section lists: its `.code-workspace` file, or the folder a standalone workspace is. */
+export interface ISessionSectionWorkspace {
+	readonly uri: URI;
+	/** The workspace's icon and color, from its workspace file: a theme color ID or a custom `#rrggbb`. */
+	readonly icon?: string;
+	readonly color?: string;
+	/** Whether the workspaces service knows the workspace, which it can edit and remove, rather than only its folder. */
+	readonly known: boolean;
 }
 
 /** A GitHub repository that sessions work in, whichever environment they run in. */

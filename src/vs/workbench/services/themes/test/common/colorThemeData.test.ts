@@ -10,7 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { editorBackground, foreground, inputBackground, inputForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorHoverLinkForeground, foreground, inputBackground, inputForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ColorThemeData } from '../../common/colorThemeData.js';
 
 suite('ColorThemeData - loading', () => {
@@ -33,6 +33,23 @@ suite('ColorThemeData - loading', () => {
 			message = error.message;
 		}
 		assert.strictEqual(message, `Problem parsing tmTheme file: ${theme.location.toString()}. 'settings' is not array.`);
+	});
+});
+
+suite('ColorThemeData - hover link color', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepts a customization without defining a default in any theme', () => {
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(id => {
+			const theme = ColorThemeData.createUnloadedTheme(id);
+			const fallback = theme.getColor(editorHoverLinkForeground);
+			theme.setCustomColors({ [editorHoverLinkForeground]: '#abcdef' });
+			const customized = theme.getColor(editorHoverLinkForeground)?.toString();
+			theme.setCustomColors({});
+			return { fallback, customized, restored: theme.getColor(editorHoverLinkForeground) };
+		});
+
+		assert.deepStrictEqual(results, Array(4).fill({ fallback: undefined, customized: '#abcdef', restored: undefined }));
 	});
 });
 

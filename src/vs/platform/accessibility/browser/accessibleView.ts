@@ -61,6 +61,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChat = 'sessionsChat',
 	ArtifactDetails = 'artifactDetails',
 	SessionsStorageCleanup = 'sessionsStorageCleanup',
+	SessionWorkspaceEditor = 'sessionWorkspaceEditor',
 	SessionsChanges = 'sessionsChanges',
 	EmptyFileEditorSearch = 'emptyFileEditorSearch',
 	SessionsListNotification = 'sessionsListNotification',

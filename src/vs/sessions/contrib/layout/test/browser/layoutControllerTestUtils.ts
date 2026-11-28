@@ -444,7 +444,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}, sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }), focusedSessionHostServiceOf(constObservable(undefined)), new class extends mock<ISessionsService>() {
 			override isActivePane() { return false; }
 			override isDetachedPane() { return false; }
-		}, new class extends mock<IDecorationsService>() {
+		}, new class extends mock<ISessionsManagementService>() { }, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
 		}, new NullLogService())),
 		contextKeyService,
@@ -517,6 +517,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = harness.sessionChangesService.activeSessionUncommittedChangesCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
+		override getChangesEditorFileCount(editorResource: URI) { return harness.sessionChangesService.getChangesEditorFileCount(editorResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
 		override getChatResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getChatResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {

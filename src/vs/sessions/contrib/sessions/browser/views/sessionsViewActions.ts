@@ -23,7 +23,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext 
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { canStartNewSessionLike, getNewSessionSources } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
-import { SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionHasSessionsContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -241,10 +241,14 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 	}
 });
 
-const SessionGroupingSectionContext = ContextKeyExpr.or(
-	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
-	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
-	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
+// A section of the grouping with sessions to start a new one like; the row of a workspace without any has none
+const SessionGroupingSectionContext = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+		ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
+		ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
+	),
+	SessionSectionHasSessionsContext,
 );
 
 /**

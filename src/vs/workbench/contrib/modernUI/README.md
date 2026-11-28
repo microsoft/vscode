@@ -98,7 +98,7 @@ In high contrast, the connected boundary uses `focusBorder` for the active edito
 windows. Editor windows require `workbench.experimental.modernUI`; the Agents
 window already uses its own modern design. The treatment applies to quick input
 (including the Command Palette), custom menus and pickers, hovers, custom dialogs,
-spotlight callouts, the notification center, and settled notification toasts. It also applies in
+spotlight callouts, floating comment cards, the notification center, and settled notification toasts. It also applies in
 auxiliary editor windows. Native OS menus/dialogs, rich quick-input overlays,
 editor backgrounds, panels, session cards, chat inputs, and web windows are unchanged.
 
@@ -221,6 +221,9 @@ After transpiling, run it with
 | `modernActivityBar.background` | Background of the Modern UI activity bar in the default side position | `activityBar.background` |
 | `modernActivityBar.inactiveBackground` | Background of the Modern UI activity bar in the default side position in an inactive window | `modernActivityBar.background` |
 | `modernActivityBar.border` | Frame border of the Modern UI activity bar in the default side position | `surface.border` |
+| `modernSideBar.background` | Background of the primary and secondary side bars, including their view surfaces | Unset (`null`), retaining the existing side bar and surface defaults |
+| `modernSideBar.foreground` | Foreground of the primary and secondary side bar surfaces | Unset (`null`), retaining the existing side bar and surface defaults |
+| `modernSideBar.border` | Frame and connected tab border of the primary and secondary side bars | Unset (`null`), retaining the existing side bar, surface, and tab border defaults |
 | `modernActivityBarItem.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
 | `modernActivityBarItem.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
 | `modernActivityBarItem.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
@@ -233,7 +236,7 @@ Customize both shell colors when changing the shell palette. `modernUI.inactiveS
 
 Shell colors with alpha are composited over the workbench background to produce an opaque backdrop. The title bar itself continues to use `titleBar.*`, falling back to `titleBar.activeBackground` when its inactive background is absent.
 
-The `surface.*` colors provide shared framing defaults, not a replacement for every region's semantic colors. Side bars, the panel, and the editor retain `sideBar.background`, `panel.background`, and `editor.background`. Override `editor.border`, `modernPanel.border`, or `modernActivityBar.border` to distinguish a frame from the shared `surface.border`.
+The `surface.*` colors provide shared framing defaults, not a replacement for every region's semantic colors. Side bars, the panel, and the editor retain their existing theme colors when no Modern UI override is set. Use `modernSideBar.background`, `modernSideBar.foreground`, and `modernSideBar.border` to customize both side bars only in the Modern UI. When `modernSideBar.background` is unset, the primary floating side bar retains `surface.background`; docked side bars, the secondary floating side bar, and side bar view surfaces retain `sideBar.background`. A translucent `modernSideBar.background` is composited over `sideBar.background` to produce a consistent opaque surface. Treat the background and foreground as a pair and verify their contrast when customizing either. Sidebar title, section-header, sticky-scroll, and drop-feedback colors remain controlled by their existing tokens; section headers retain `sideBar.background` at rest. Check their contrast too when changing the sidebar colors. A terminal in a side bar follows its background unless `terminal.background` is set; terminal foreground colors remain independent. Override `editor.border`, `modernPanel.border`, or `modernActivityBar.border` to distinguish a frame from the shared `surface.border`.
 
 Inside the panel, the existing `panelSection.border` separates horizontally arranged views and `panelSectionHeader.border` separates vertically stacked views. Neither controls the outer floating frame. Side bar section dividers use `sideBarSectionHeader.border`. High contrast border defaults use `contrastBorder`, but explicit theme overrides remain effective.
 

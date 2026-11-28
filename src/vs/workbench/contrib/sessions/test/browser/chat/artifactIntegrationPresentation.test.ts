@@ -1465,7 +1465,7 @@ suite('Artifact Integration Presentation', () => {
 	test('a group dropdown keeps the member details it replaces, so its active section closes them and another section switches them', async () => {
 		const f = fixture();
 		const members = [f.artifact('first'), f.artifact('second')];
-		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, 'group', constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
+		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
 		const item = group.pill.createActionViewItem!({});
 		assert.ok(item instanceof BaseActionViewItem);
 		store.add(item);

@@ -108,6 +108,10 @@ export class DevContainerEnvironments extends Disposable {
 		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DEV_CONTAINER_ENVIRONMENTS_STORAGE_KEY, this._store)(() => this._restore()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('dev.containers.dockerPath')) {
+				this._localDockerCheck = undefined;
+				this._updateEnvironmentHosts();
+			}
 			if (e.affectsConfiguration(DevContainerEnvironmentsEnabledSettingId) || e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
 				this._restore();
 			}

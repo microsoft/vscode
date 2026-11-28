@@ -12,10 +12,30 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionFileChange, IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { type IAgentFeedbackService, IAgentFeedbackContext } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
+import { type IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { type ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+
+export const AGENTS_WINDOW_PR_COMMENTS_SETTING = 'chat.experimental.agentsWindowPRComments';
+
+/**
+ * The pull requests that a comment on a file of a session can be added to as a review comment, rather than as agent
+ * feedback. None unless {@link AGENTS_WINDOW_PR_COMMENTS_SETTING} offers pull request comments.
+ */
+export function getPRCommentPullRequests(
+	configurationService: IConfigurationService,
+	codeReviewService: ICodeReviewService,
+	sessionResource: URI,
+	resource: URI,
+): readonly IGitHubPullRequestRef[] {
+	if (configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
+		return [];
+	}
+	return codeReviewService.getPRReviewCommentPullRequests(sessionResource, resource);
+}
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {

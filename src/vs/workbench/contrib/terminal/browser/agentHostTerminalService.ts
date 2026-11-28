@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -44,6 +44,12 @@ export interface IAgentHostEntry {
 	readonly getConnection: () => IAgentConnection | undefined;
 }
 
+/** A registered {@link IAgentHostEntry}. Dispose it to remove the entry. */
+export interface IAgentHostEntryRegistration extends IDisposable {
+	/** Renames the entry's profile, e.g. after its host was renamed. */
+	setName(name: string): void;
+}
+
 export interface IAgentHostTerminalProfileInfo {
 	readonly extensionIdentifier: string;
 	readonly profileId: string;
@@ -75,6 +81,11 @@ interface IAgentHostTerminalRegistration {
 	readonly cwd?: URI;
 }
 
+/** A registered terminal profile with the title it was registered with. */
+interface IAgentHostProfileRegistration extends IDisposable {
+	readonly title: string;
+}
+
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
 
 export const IAgentHostTerminalService = createDecorator<IAgentHostTerminalService>('agentHostTerminalService');
@@ -94,10 +105,9 @@ export interface IAgentHostTerminalService {
 
 	/**
 	 * Registers an agent host entry. The service reconciles entries into
-	 * terminal profiles automatically. Dispose the returned disposable to
-	 * remove the entry.
+	 * terminal profiles automatically.
 	 */
-	registerEntry(entry: IAgentHostEntry): IDisposable;
+	registerEntry(entry: IAgentHostEntry): IAgentHostEntryRegistration;
 
 	/**
 	 * Creates a new interactive terminal on the given agent host connection.
@@ -177,7 +187,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	private readonly _entries: IAgentHostEntry[] = [];
 	private readonly _usedHosts = new Set<string>();
-	private readonly _profileRegistrations = this._register(new DisposableMap<string>());
+	private readonly _profileRegistrations = this._register(new DisposableMap<string, IAgentHostProfileRegistration>());
 	private readonly _profiles = observableValue<readonly IAgentHostTerminalProfileInfo[]>('agentHostTerminalProfiles', []);
 	readonly profiles: IObservable<readonly IAgentHostTerminalProfileInfo[]> = this._profiles;
 
@@ -213,16 +223,28 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	// #region Profile management
 
-	registerEntry(entry: IAgentHostEntry): IDisposable {
-		this._entries.push(entry);
+	registerEntry(entry: IAgentHostEntry): IAgentHostEntryRegistration {
+		let current = entry;
+		this._entries.push(current);
 		this._reconcile();
-		return toDisposable(() => {
-			const idx = this._entries.indexOf(entry);
-			if (idx >= 0) {
-				this._entries.splice(idx, 1);
+		return {
+			setName: name => {
+				const idx = this._entries.indexOf(current);
+				if (idx < 0 || current.name === name) {
+					return;
+				}
+				current = { ...current, name };
+				this._entries[idx] = current;
 				this._reconcile();
-			}
-		});
+			},
+			dispose: () => {
+				const idx = this._entries.indexOf(current);
+				if (idx >= 0) {
+					this._entries.splice(idx, 1);
+					this._reconcile();
+				}
+			},
+		};
 	}
 
 	getProfileForConnection(address: string): IAgentHostTerminalProfileInfo | undefined {
@@ -274,34 +296,41 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			}
 		}
 
-		// Diff registrations
-		for (const [key, entry] of desiredProfiles) {
-			if (!this._profileRegistrations.has(key)) {
-				this._registerProfile(key, entry, entries);
+		// Diff registrations. Remove stale ones first: a renamed profile is
+		// registered again under the same id, and disposing its old
+		// registration afterwards would remove the new profile provider.
+		for (const [key, registration] of [...this._profileRegistrations]) {
+			const entry = desiredProfiles.get(key);
+			if (!entry || registration.title !== this._getProfileTitle(key, entry)) {
+				this._profileRegistrations.deleteAndDispose(key);
 			}
 		}
-		for (const key of this._profileRegistrations.keys()) {
-			if (!desiredProfiles.has(key)) {
-				this._profileRegistrations.deleteAndDispose(key);
+		for (const [key, entry] of desiredProfiles) {
+			if (!this._profileRegistrations.has(key)) {
+				this._profileRegistrations.set(key, this._registerProfile(key, entry, entries));
 			}
 		}
 
 		// Update observable
 		const infos: IAgentHostTerminalProfileInfo[] = [];
-		for (const [key] of desiredProfiles) {
+		for (const [key, entry] of desiredProfiles) {
 			infos.push({
 				extensionIdentifier: AGENT_HOST_PROFILE_EXT_ID,
 				profileId: key,
-				title: key === '__quickpick__'
-					? localize('agentHostTerminal.pick', "Agent Host\u2026")
-					: localize('agentHostTerminal.profileName', "Agent Host ({0})", desiredProfiles.get(key)!.name),
+				title: this._getProfileTitle(key, entry),
 				address: key,
 			});
 		}
 		transaction(tx => { this._profiles.set(infos, tx); });
 	}
 
-	private _registerProfile(key: string, entry: IAgentHostEntry, allEntries: IAgentHostEntry[]): void {
+	private _getProfileTitle(key: string, entry: IAgentHostEntry): string {
+		return key === '__quickpick__'
+			? localize('agentHostTerminal.pick', "Agent Host\u2026")
+			: localize('agentHostTerminal.profileName', "Agent Host ({0})", entry.name);
+	}
+
+	private _registerProfile(key: string, entry: IAgentHostEntry, allEntries: IAgentHostEntry[]): IAgentHostProfileRegistration {
 		const provider: ITerminalProfileProvider = {
 			createContributedTerminalProfile: async (options) => {
 				let connection: IAgentConnection | undefined;
@@ -335,10 +364,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			},
 		};
 
-		const title = key === '__quickpick__'
-			? localize('agentHostTerminal.pick', "Agent Host\u2026")
-			: localize('agentHostTerminal.profileName', "Agent Host ({0})", entry.name);
-
+		const title = this._getProfileTitle(key, entry);
 		const store = new DisposableStore();
 		store.add(this._terminalProfileService.registerTerminalProfileProvider(
 			AGENT_HOST_PROFILE_EXT_ID,
@@ -351,7 +377,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			title,
 			icon: 'remote',
 		}));
-		this._profileRegistrations.set(key, store);
+		return { title, dispose: () => store.dispose() };
 	}
 
 	// #endregion

@@ -171,7 +171,16 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
 		instantiationService.stub(IUriIdentityService, { asCanonicalUri: (uri: URI) => uri });
 		instantiationService.stub(IUntitledTextEditorService, { get: () => undefined });
-		instantiationService.stub(IFileService, { onDidFilesChange: Event.None, onDidChangeFileSystemProviderRegistrations: Event.None, onDidChangeFileSystemProviderCapabilities: Event.None });
+		const copies: string[] = [];
+		instantiationService.stub(IFileService, {
+			onDidFilesChange: Event.None,
+			onDidChangeFileSystemProviderRegistrations: Event.None,
+			onDidChangeFileSystemProviderCapabilities: Event.None,
+			copy: async (source: URI, target: URI, overwrite?: boolean) => {
+				copies.push(`copy(${source.path}, ${target.path}, overwrite: ${overwrite})`);
+				return undefined!;
+			},
+		});
 		instantiationService.stub(ILabelService, { onDidChangeFormatters: Event.None, getUriLabel: (uri: URI) => uri.path });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
@@ -239,7 +248,7 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
+		return { calls, copies, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
 
 	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
@@ -412,6 +421,24 @@ suite('MainThreadCustomEditors', () => {
 				'$resolveCustomEditor(/workspace/file.custom, webview#1)',
 				'$disposeCustomDocument(/workspace/file.custom)',
 			],
+			unexpectedErrors: [],
+		});
+	});
+
+	test('saves a readonly document as another file by copying it, replacing an existing file', async () => {
+		const customEditors = createCustomEditors({ createCustomDocument: async () => ({ editable: false }) });
+
+		const { input } = customEditors.createInput();
+		await input.resolve();
+		const model = await customEditors.models.get(resource, viewType);
+		const saved = await model?.saveCustomEditorAs(resource, URI.file('/workspace/copy.custom'));
+		input.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ saved, copies: customEditors.copies, unexpectedErrors }, {
+			saved: true,
+			// The save dialog already asked whether to replace an existing file
+			copies: ['copy(/workspace/file.custom, /workspace/copy.custom, overwrite: true)'],
 			unexpectedErrors: [],
 		});
 	});

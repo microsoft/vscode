@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'vitest';
 import * as vscode from 'vscode';
-import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
+import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse, CCAModel } from '@vscode/copilot-api';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
@@ -57,7 +57,7 @@ vi.mock('vscode', async () => {
 		},
 		workspace: {
 			get workspaceFolders() { return []; },
-			get isAgentSessionsWorkspace() { return false; },
+			get isAgentManaged() { return false; },
 			asRelativePath: vi.fn((uri: vscode.Uri) => uri.path),
 		},
 		window: {
@@ -551,7 +551,7 @@ describe('cloud session visibility', () => {
 			});
 		});
 
-		describe('custom agent options', () => {
+		describe('session provider options', () => {
 			const workspaceUri = vscode.Uri.file('/workspace');
 			const agentsDir = vscode.Uri.joinPath(workspaceUri, '.github/agents');
 			const defaultAgent = {
@@ -592,6 +592,31 @@ describe('cloud session visibility', () => {
 					fileSystemService.mockFile(vscode.Uri.joinPath(agentsDir, name), content);
 				}
 			}
+
+			it('updates Cloud model options after sign-in while initial session discovery is pending', async () => {
+				const discovery = new DeferredPromise<CloudSessionData[]>();
+				fetchSessionList.mockReturnValueOnce(discovery.p);
+				const github: IOctoKitService = octoKitService;
+				const getModels = vi.spyOn(github, 'getCopilotAgentModels').mockResolvedValue([]);
+				const provider = createProvider(github);
+				const readModels = async () => {
+					const options = await provider.provideChatSessionProviderOptions(CancellationToken.None);
+					return options.optionGroups?.find(group => group.id === 'models')?.items.map(item => item.id) ?? [];
+				};
+				let models = readModels();
+				expect(await models).toEqual([]);
+				store.add(provider.onDidChangeChatSessionProviderOptions(() => { models = readModels(); }));
+
+				getModels.mockResolvedValue([new class extends mock<CCAModel>() {
+					override readonly id = 'test-model';
+					override readonly name = 'Test Model';
+				}()]);
+				authenticationChanged.fire();
+				await discovery.complete([]);
+				await vi.advanceTimersByTimeAsync(500);
+
+				expect(await models).toEqual(['auto', 'test-model']);
+			});
 
 			it('hides non-user-invocable remote agents without hiding manual-only or default-visible agents', async () => {
 				octoKitService.setCustomAgents([
@@ -1221,8 +1246,8 @@ describe('cloud session visibility', () => {
 				.toEqual({ before: ['expiring'], after: [], fetches: 2 });
 		});
 
-		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentSessionsWorkspace => {
-			vi.spyOn(vscode.workspace, 'isAgentSessionsWorkspace', 'get').mockReturnValue(isAgentSessionsWorkspace);
+		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentManaged => {
+			vi.spyOn(vscode.workspace, 'isAgentManaged', 'get').mockReturnValue(isAgentManaged);
 			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
 			const provider = createProvider();
 			const changes = vi.fn();

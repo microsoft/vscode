@@ -18,6 +18,7 @@ export function stubChatViewSessionsListService(instantiationService: TestInstan
 	instantiationService.stub(IChatViewSessionsListService, {
 		get enabled() { return current().enabled; },
 		get surfacesAllLocalAgentHostAgents() { return current().surfacesAllLocalAgentHostAgents; },
+		get listsAllSessions() { return current().listsAllSessions; },
 	});
 }
 

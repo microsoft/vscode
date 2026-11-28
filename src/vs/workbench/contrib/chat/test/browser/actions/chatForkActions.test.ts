@@ -82,7 +82,7 @@ suite('ForkConversationAction', () => {
 		}, { target, cause });
 	});
 
-	test('offers three fork presentations and preserves prompt syntax and offsets', async () => {
+	test('offers fork presentations and sends any argument as the fork prompt', async () => {
 		let forkCommand: IChatSlashCallback | undefined;
 		let forkData: IChatSlashData | undefined;
 		const commandCalls: { readonly options: unknown }[] = [];
@@ -112,31 +112,30 @@ suite('ForkConversationAction', () => {
 		));
 		assert.deepStrictEqual(forkData?.completionVariants?.map(variant => [variant.label, variant.insertText, variant.argumentHint, variant.executeImmediately, variant.detail ?? forkData?.detail]), [
 			['/fork', '', undefined, true, 'Fork conversation into a new chat session'],
-			['/fork <title>', '/fork ', 'title', undefined, 'Fork conversation with a custom title'],
-			['/fork prompt <prompt>', '/fork prompt ', 'prompt', undefined, 'Fork conversation and send a prompt'],
+			['/fork <prompt>', '/fork ', 'prompt', undefined, 'Fork conversation and send a prompt'],
 		]);
 
 		const resource = URI.parse('agent-host-copilot:/source');
 		assert.ok(forkCommand);
-		await forkCommand('prompt  line one\nline two', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, {
+		await forkCommand('line one\nline two', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, {
 			attachedContext: [],
-		}, { input: '/fork   prompt  line one\nline two' });
-		await forkCommand('prompting title', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork prompting title' });
-		await forkCommand('prompt   ', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork prompt   ' });
-		await forkCommand('prompt legacy title', { report: () => { } }, [], ChatAgentLocation.Chat, URI.parse('contributed:/source'), CancellationToken.None, undefined, { input: '/fork prompt legacy title' });
+		}, { input: '/fork   line one\nline two' });
+		await forkCommand('prompt is plain text', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork prompt is plain text' });
+		await forkCommand('', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork   ' });
+		await forkCommand('ignored text', { report: () => { } }, [], ChatAgentLocation.Chat, URI.parse('contributed:/source'), CancellationToken.None, undefined, { input: '/fork ignored text' });
 
 		assert.deepStrictEqual(commandCalls.map(call => call.options), [
-			{ initialMessage: { text: ' line one\nline two', textOffset: 15, requestOptions: { attachedContext: [], resolvedVariables: undefined } } },
-			{ title: 'prompting title' },
+			{ initialMessage: { text: 'line one\nline two', textOffset: 8, requestOptions: { attachedContext: [], resolvedVariables: undefined } } },
+			{ initialMessage: { text: 'prompt is plain text', textOffset: 6, requestOptions: undefined } },
 			undefined,
-			{ title: 'prompt legacy title' },
+			undefined,
 		]);
 	});
 
 	test('fork prompt source input retains the source chat until the fork outcome is known', () => {
 		// Opening the fork releases the source chat, which persists its draft
 		// when no reference remains. The captured input must outlive that release.
-		const inputText = '/fork prompt keep the source alive';
+		const inputText = '/fork keep the source alive';
 		const state = observableValue('sourceInput', { inputText, attachments: [] });
 		const events: string[] = [];
 		const widget = {
@@ -318,7 +317,7 @@ suite('ForkConversationAction', () => {
 		]);
 	});
 
-	test('trims only the fork slash command title', async () => {
+	test('locates the fork prompt in the original slash command input', async () => {
 		let forkCommand: IChatSlashCallback | undefined;
 		let forkData: IChatSlashData | undefined;
 		const commandCalls: { readonly resource: URI; readonly options: object | undefined }[] = [];
@@ -355,17 +354,12 @@ suite('ForkConversationAction', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
 			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
-		const resource = URI.parse('contributed:/source');
 		const agentHostResource = URI.parse('agent-host-copilot:/source');
 
 		assert.ok(forkCommand);
-		for (const prompt of ['', '   ', '  My  title.  ']) {
-			await forkCommand(prompt, { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None);
-		}
-		await forkCommand('icipant /fork Participant title  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '@participant /fork Participant title  ' });
-		await forkCommand('ork  Leading title  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '   /fork  Leading title  ' });
-		await forkCommand('  Fallback  title.  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None);
-		await forkCommand('Legacy title', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork Different title' });
+		await forkCommand('icipant /fork Participant prompt  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '@participant /fork Participant prompt  ' });
+		await forkCommand('ork  Leading prompt  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None, undefined, { input: '   /fork  Leading prompt  ' });
+		await forkCommand('  Fallback  prompt.  ', { report: () => { } }, [], ChatAgentLocation.Chat, agentHostResource, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			executeImmediately: forkData?.executeImmediately,
@@ -375,13 +369,9 @@ suite('ForkConversationAction', () => {
 			executeImmediately: true,
 			detailIncludesNewChatSession: true,
 			commandCalls: [
-				{ resource, options: undefined },
-				{ resource, options: undefined },
-				{ resource, options: { title: 'My  title.' } },
-				{ resource: agentHostResource, options: { title: 'Participant title' } },
-				{ resource: agentHostResource, options: { title: 'Leading title' } },
-				{ resource: agentHostResource, options: { title: 'Fallback  title.' } },
-				{ resource, options: { title: 'Legacy title' } },
+				{ resource: agentHostResource, options: { initialMessage: { text: 'Participant prompt  ', textOffset: 19, requestOptions: undefined } } },
+				{ resource: agentHostResource, options: { initialMessage: { text: 'Leading prompt  ', textOffset: 10, requestOptions: undefined } } },
+				{ resource: agentHostResource, options: { initialMessage: { text: 'Fallback  prompt.  ', textOffset: 8, requestOptions: undefined } } },
 			],
 		});
 	});

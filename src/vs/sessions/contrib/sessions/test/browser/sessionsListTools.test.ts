@@ -23,7 +23,7 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
-import { DEFAULT_SESSIONS_GROUPINGS, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, SessionsView, SessionsViewGroupingState } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
@@ -82,7 +82,7 @@ suite('Sessions - Sessions list tools', () => {
 			getSession: resource => harness.managementService.getSession(resource),
 		}), orderService)));
 
-		const state = { grouping: SessionsGrouping.Workspace, sorting: SessionsSorting.Created, compact: false };
+		const state = { grouping: SessionsGrouping.Workspace, sorting: SessionsSorting.Created, compact: false, separateGroupsAndWorkspaces: false };
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
 			grouping: () => state.grouping,
 			sorting: () => state.sorting,
@@ -94,9 +94,10 @@ suite('Sessions - Sessions list tools', () => {
 			set currentGrouping(grouping: SessionsGrouping) { state.grouping = grouping; },
 			get grouping() { return state.grouping; },
 			get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+			get canEnterInbox(): boolean { return Reflect.get(SessionsView.prototype, 'canEnterInbox', this); },
 			offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
 			configurationService,
-			storageService,
+			groupingState: new SessionsViewGroupingState(undefined, storageService, configurationService),
 			chatEntitlementService: { sentiment: { hidden: false } },
 			sessionsControl: list,
 			updateHeaderLayout: () => { },
@@ -107,6 +108,8 @@ suite('Sessions - Sessions list tools', () => {
 			get grouping() { return state.grouping; },
 			get sorting() { return state.sorting; },
 			get compact() { return state.compact; },
+			get separateGroupsAndWorkspaces() { return state.separateGroupsAndWorkspaces; },
+			setSeparateGroupsAndWorkspaces: separate => { state.separateGroupsAndWorkspaces = separate; },
 			setGrouping: grouping => groupingHost.setGrouping(grouping),
 			setSorting: sorting => { state.sorting = sorting; list.update(); },
 			setCompact: compact => { state.compact = compact; },
@@ -144,7 +147,7 @@ suite('Sessions - Sessions list tools', () => {
 		const { view, tree } = await read({}, sessions[2].resource);
 
 		assert.deepStrictEqual({ view: { ...view, filters: undefined }, tree: outline(tree), headerIds: tree.map(node => node.id) }, {
-			view: { grouping: 'workspace', sorting: 'created', showArchived: false, sessionsPerSection: 'recent', compact: false, externalSection: false, filters: undefined },
+			view: { grouping: 'workspace', sorting: 'created', showArchived: false, sessionsPerSection: 'recent', compact: false, separateGroupsAndWorkspaces: false, externalSection: false, filters: undefined },
 			tree: [
 				{ 'Pinned+': ['Pinned one'] },
 				{ 'Release': [{ 'Hotfixes': ['Fix login'] }, 'Ship notes'] },
@@ -305,8 +308,27 @@ suite('Sessions - Sessions list tools', () => {
 
 		assert.deepStrictEqual({ results, view: { ...view, filters: undefined }, claudeExcluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) }, {
 			results: [{ action: 'setView', ok: true }],
-			view: { grouping: 'date', sorting: 'updated', showArchived: true, sessionsPerSection: 'all', compact: false, externalSection: false, filters: undefined },
+			view: { grouping: 'date', sorting: 'updated', showArchived: true, sessionsPerSection: 'all', compact: false, separateGroupsAndWorkspaces: false, externalSection: false, filters: undefined },
 			claudeExcluded: true,
+		});
+	});
+
+	test('separates groups and workspaces under workspace grouping, also for the former Workspaces & Groups grouping', async () => {
+		const { read, organize } = setup([session('Alpha', 1)]);
+
+		await organize({ action: 'setView', grouping: 'date', separateGroupsAndWorkspaces: false });
+		const legacy = await organize({ action: 'setView', grouping: 'workspacesAndGroups' });
+		const afterLegacy = (await read()).view;
+		await organize({ action: 'setView', separateGroupsAndWorkspaces: false });
+
+		assert.deepStrictEqual({
+			legacy: legacy.results,
+			afterLegacy: { grouping: afterLegacy.grouping, separateGroupsAndWorkspaces: afterLegacy.separateGroupsAndWorkspaces },
+			off: (await read()).view.separateGroupsAndWorkspaces,
+		}, {
+			legacy: [{ action: 'setView', ok: true }],
+			afterLegacy: { grouping: 'workspace', separateGroupsAndWorkspaces: true },
+			off: false,
 		});
 	});
 

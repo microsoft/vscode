@@ -232,6 +232,11 @@
 	background-color: var(--vscode-statusBarItem-remoteHoverBackground) !important;
 }
 
+/* Keep the remote hover pair while pressed so its foreground stays readable */
+.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item.remote-kind a:active:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-remoteHoverBackground) !important;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.offline-kind {
 	color: var(--vscode-statusBarItem-offlineForeground);
 	background-color: var(--vscode-statusBarItem-offlineBackground);

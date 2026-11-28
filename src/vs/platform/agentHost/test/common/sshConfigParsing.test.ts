@@ -272,19 +272,19 @@ suite('SSH Config Parsing', () => {
 			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
 		});
 
-		test('parses PubkeyAuthentication and PreferredAuthentications', () => {
+		test('parses PubkeyAuthentication, PasswordAuthentication and PreferredAuthentications', () => {
 			const parse = (output: string) => {
-				const { pubkeyAuthentication, preferredAuthentications } = parseSSHGOutput(output);
-				return { pubkeyAuthentication, preferredAuthentications };
+				const { pubkeyAuthentication, passwordAuthentication, preferredAuthentications } = parseSSHGOutput(output);
+				return { pubkeyAuthentication, passwordAuthentication, preferredAuthentications };
 			};
 			assert.deepStrictEqual([
-				parse('pubkeyauthentication false\npreferredauthentications keyboard-interactive,password'),
-				parse('pubkeyauthentication no'),
-				parse('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+				parse('pubkeyauthentication false\npasswordauthentication false\npreferredauthentications keyboard-interactive,password'),
+				parse('pubkeyauthentication no\npasswordauthentication no'),
+				parse('pubkeyauthentication true\npasswordauthentication yes\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 			], [
-				{ pubkeyAuthentication: false, preferredAuthentications: ['keyboard-interactive', 'password'] },
-				{ pubkeyAuthentication: false, preferredAuthentications: undefined },
-				{ pubkeyAuthentication: undefined, preferredAuthentications: ['gssapi-with-mic', 'hostbased', 'publickey', 'keyboard-interactive', 'password'] },
+				{ pubkeyAuthentication: false, passwordAuthentication: false, preferredAuthentications: ['keyboard-interactive', 'password'] },
+				{ pubkeyAuthentication: false, passwordAuthentication: false, preferredAuthentications: undefined },
+				{ pubkeyAuthentication: undefined, passwordAuthentication: undefined, preferredAuthentications: ['gssapi-with-mic', 'hostbased', 'publickey', 'keyboard-interactive', 'password'] },
 			]);
 		});
 

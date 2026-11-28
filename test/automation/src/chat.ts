@@ -586,8 +586,9 @@ export class Chat {
  */
 export async function acceptToolConfirmationIfPresent(code: Code): Promise<void> {
 	const allowButtonSelector = '.chat-confirmation-widget2 .monaco-button.monaco-text-button';
-	// Agent Host client tools offer "Allow in this Session" as their primary action.
-	const allowLabel = /^Allow( in this Session)?$/;
+	// Agent Host confirmations offer "Allow Once" as their primary action; builds
+	// before that default offered "Allow in this Session" for client tools.
+	const allowLabel = /^Allow( Once| in this Session)?$/;
 	try {
 		const buttons = await code.driver.getElements(allowButtonSelector, /* recursive */ true);
 		// The first text button in the widget is "Allow"; only proceed when

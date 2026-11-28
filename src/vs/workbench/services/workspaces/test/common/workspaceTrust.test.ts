@@ -20,7 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace as BaseWorkspace } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, Workspace as BaseWorkspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
@@ -157,6 +157,34 @@ suite('Workspace Trust', () => {
 		test('empty workspace - untrusted', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('workspace without folders and workspace file - untrusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+			workspaceService.setWorkspace(new Workspace('agents-mode-workspace'));
+			workspaceService.getWorkbenchState = () => WorkbenchState.WORKSPACE;
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('workspace without folders and workspace file - trusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('agents-mode-workspace'));
+			workspaceService.getWorkbenchState = () => WorkbenchState.WORKSPACE;
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+		});
+
+		test('workspace file without folders - not trusted like an empty window', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			environmentService.untitledWorkspacesHome = URI.file('/untitled-workspaces');
+			workspaceService.setWorkspace(new Workspace('saved-workspace', [], URI.file('/saved.code-workspace')));
+			workspaceService.getWorkbenchState = () => WorkbenchState.WORKSPACE;
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());

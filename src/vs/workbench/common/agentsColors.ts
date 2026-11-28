@@ -224,6 +224,39 @@ export const inactiveSessionViewForeground = registerColor(
 );
 
 // ============================================================================
+// CI failures banner
+// ============================================================================
+
+export const agentsCIBannerBorder = registerColor(
+	'agentsCIBanner.border',
+	{ dark: '#D18616', light: '#B35900', hcDark: '#FFB86C', hcLight: '#8F3F00' },
+	localize('agentsCIBanner.border', 'Border color of the banner shown above the chat input when a pull request has failing checks. Its background is a tint of this color.')
+);
+
+export const agentsCIBannerIconForeground = registerColor(
+	'agentsCIBanner.iconForeground', agentsCIBannerBorder,
+	localize('agentsCIBanner.iconForeground', 'Icon color of the banner shown above the chat input when a pull request has failing checks.')
+);
+
+export const agentsCIBannerButtonBackground = registerColor(
+	'agentsCIBanner.buttonBackground',
+	{ dark: '#B35900', light: '#B35900', hcDark: '#FFB86C', hcLight: '#8F3F00' },
+	localize('agentsCIBanner.buttonBackground', 'Background color of the primary action, such as Fix Checks, in the banner shown when a pull request has failing checks.')
+);
+
+export const agentsCIBannerButtonForeground = registerColor(
+	'agentsCIBanner.buttonForeground',
+	{ dark: Color.white, light: Color.white, hcDark: Color.black, hcLight: Color.white },
+	localize('agentsCIBanner.buttonForeground', 'Foreground color of the primary action, such as Fix Checks, in the banner shown when a pull request has failing checks.')
+);
+
+export const agentsCIBannerButtonHoverBackground = registerColor(
+	'agentsCIBanner.buttonHoverBackground',
+	{ dark: '#9E4A00', light: '#9E4A00', hcDark: '#F0A050', hcLight: '#A04A00' },
+	localize('agentsCIBanner.buttonHoverBackground', 'Background color of the primary action, such as Fix Checks, when hovered in the banner shown when a pull request has failing checks.')
+);
+
+// ============================================================================
 // Agents window graphic (Welcome page)
 // ============================================================================
 

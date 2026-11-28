@@ -103,7 +103,7 @@ async function renderWrappedActions(ctx: ComponentFixtureContext, tabHeight: 'de
 	await waitForFixtureCondition(() => {
 		const strips = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
 		const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
-		const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab:not(.hidden)');
+		const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab');
 		if (tabs.length !== 5 || !add || !strips.some(strip => strip.classList.contains('wrapping')) || tabs.some(tab => tab.offsetHeight === 0)) {
 			return false;
 		}

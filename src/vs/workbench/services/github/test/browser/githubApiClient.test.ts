@@ -27,6 +27,7 @@ suite('GitHubApiClient', () => {
 		const provider = { id: 'github', name: 'GitHub', enterprise: false };
 		let account: IDefaultAccount | null = upcastPartial<IDefaultAccount>({ sessionId: 'selected', accountName: 'octocat', authenticationProvider: provider });
 		let available = true;
+		let microsoftDefault = false;
 		let acquisition: Promise<void> | undefined;
 		let signInError: Error | string | undefined;
 		let signInResult = true;
@@ -65,8 +66,10 @@ suite('GitHubApiClient', () => {
 					return null;
 				}
 				available = true;
-				account = upcastPartial<IDefaultAccount>({ sessionId: 'repository', authenticationProvider: provider });
-				changed.fire(account);
+				if (!microsoftDefault) {
+					account = upcastPartial<IDefaultAccount>({ sessionId: 'repository', authenticationProvider: provider });
+					changed.fire(account);
+				}
 				defaultClientChanged.fire();
 				return account;
 			}
@@ -82,6 +85,7 @@ suite('GitHubApiClient', () => {
 			},
 			repeatAccount: () => changed.fire(account),
 			setAvailable: (value: boolean) => { available = value; },
+			useMicrosoftDefault: () => { microsoftDefault = true; account = upcastPartial<IDefaultAccount>({ sessionId: 'microsoft', authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } }); },
 			delayAcquisition: (value: Promise<void>) => { acquisition = value; },
 			setSignInError: (value: Error | string) => { signInError = value; },
 			setSignInResult: (value: boolean) => { signInResult = value; },
@@ -121,6 +125,16 @@ suite('GitHubApiClient', () => {
 
 	test('explicit authentication obtains repository access through the default account', async () => {
 		const setup = setupClient();
+		setup.setAvailable(false);
+		await setup.client.authenticate(['repo'], CancellationToken.None);
+		assert.deepStrictEqual({ acquisitions: setup.signals.length, signIns: setup.signIns }, {
+			acquisitions: 2, signIns: [{ additionalScopes: ['repo'] }],
+		});
+	});
+
+	test('explicit authentication with a Microsoft default account adds repository access and retries', async () => {
+		const setup = setupClient();
+		setup.useMicrosoftDefault();
 		setup.setAvailable(false);
 		await setup.client.authenticate(['repo'], CancellationToken.None);
 		assert.deepStrictEqual({ acquisitions: setup.signals.length, signIns: setup.signIns }, {

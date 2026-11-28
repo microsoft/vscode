@@ -73,7 +73,7 @@ import { computerUseConfigurationProperties } from './computerUseConfiguration.j
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
-import { ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
+import { MODEL_ROUTER_DEFAULT_DECISION_MODEL, ModelRouterDecisionModelConfigKey, ModelRouterDecisionModelSettingId, ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -304,6 +304,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview', 'advanced', 'experimental'],
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
+		[ModelRouterDecisionModelSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.copilot.modelRouter.decisionModel', "The id of the Copilot decision model that picks a model router's route for each turn, such as `{0}` or `{1}`. The model must be one your account can use; otherwise routers use their first route. Empty uses the default decision model. Requires `#{2}#`.", MODEL_ROUTER_DEFAULT_DECISION_MODEL, 'microsoft-decision-1-1', ModelRouterEnabledSettingId),
+			default: MODEL_ROUTER_DEFAULT_DECISION_MODEL,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'advanced', 'experimental'],
+			agentHost: { key: ModelRouterDecisionModelConfigKey },
+		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.overlapProviderPreparation', "When enabled, agents prepare their session for a new turn, such as starting the runtime session, while the turn-start checkpoint is captured instead of after it. This can shorten the time to the first response, especially on the first turn of a session."),
@@ -346,7 +354,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Remote session messages have the same limit, counted separately in each Agents window. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. When a session reaches its limit on sessions, chats, or messages, you're asked whether to allow more, except in Autopilot or with auto-reply on, where the tool is refused. Remote session messages have the same limit, counted separately in each Agents window. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

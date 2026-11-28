@@ -89,12 +89,6 @@ export interface IChatAgentData {
 	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
-export interface IChatWelcomeMessageContent {
-	icon: ThemeIcon;
-	title: string;
-	message: IMarkdownString;
-}
-
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	setRequestTools?(requestId: string, tools: UserSelectedTools): void;

@@ -17,17 +17,10 @@ import { IValue, IMapValue } from './promptFileParser.js';
 
 /**
  * A single hook command configuration.
- * Extends the platform-layer {@link IParsedHookCommand} with editor-specific
- * metadata used for UI display and field highlighting.
+ * Extends the platform-layer {@link IParsedHookCommand} with the `type` discriminator.
  */
 export interface IHookCommand extends IParsedHookCommand {
 	readonly type: 'command';
-	/** Original JSON field name that provided the windows command. */
-	readonly windowsSource?: 'windows' | 'powershell';
-	/** Original JSON field name that provided the linux command. */
-	readonly linuxSource?: 'linux' | 'bash';
-	/** Original JSON field name that provided the osx command. */
-	readonly osxSource?: 'osx' | 'bash';
 }
 
 /**
@@ -350,7 +343,7 @@ export function toHookType(rawHookTypeId: string): HookType | undefined {
  * - powershell -> windows
  * This is an internal helper - use resolveHookCommand for the full resolution.
  */
-function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; windowsSource?: 'windows' | 'powershell'; linuxSource?: 'linux' | 'bash'; osxSource?: 'osx' | 'bash'; cwd?: string; env?: Record<string, string>; timeout?: number } | undefined {
+function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; cwd?: string; env?: Record<string, string>; timeout?: number } | undefined {
 	if (raw.type !== 'command') {
 		return undefined;
 	}
@@ -370,38 +363,16 @@ function normalizeHookCommand(raw: Record<string, unknown>): { command?: string;
 	const linux = hasLinux ? raw.linux as string : (hasBash ? raw.bash as string : undefined);
 	const osx = hasOsx ? raw.osx as string : (hasBash ? raw.bash as string : undefined);
 
-	// Track source field names for editor focus (which JSON field to highlight)
-	const windowsSource: 'windows' | 'powershell' | undefined = hasWindows ? 'windows' : (hasPowerShell ? 'powershell' : undefined);
-	const linuxSource: 'linux' | 'bash' | undefined = hasLinux ? 'linux' : (hasBash ? 'bash' : undefined);
-	const osxSource: 'osx' | 'bash' | undefined = hasOsx ? 'osx' : (hasBash ? 'bash' : undefined);
-
 	return {
 		...(hasCommand && { command: raw.command as string }),
 		...(windows && { windows }),
 		...(linux && { linux }),
 		...(osx && { osx }),
-		...(windowsSource && { windowsSource }),
-		...(linuxSource && { linuxSource }),
-		...(osxSource && { osxSource }),
 		...(typeof raw.cwd === 'string' && { cwd: raw.cwd }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
 		...(typeof raw.timeout !== 'number' && typeof raw.timeoutSec === 'number' && { timeout: raw.timeoutSec }),
 		...(typeof raw.timeout === 'number' && { timeout: raw.timeout }),
 	};
-}
-
-/**
- * Gets a label for the given platform.
- */
-export function getPlatformLabel(os: OperatingSystem): string {
-	if (os === OperatingSystem.Windows) {
-		return 'Windows';
-	} else if (os === OperatingSystem.Macintosh) {
-		return 'macOS';
-	} else if (os === OperatingSystem.Linux) {
-		return 'Linux';
-	}
-	return '';
 }
 
 /**
@@ -421,54 +392,6 @@ export function resolveEffectiveCommand(hook: IParsedHookCommand, os: OperatingS
 
 	// Fall back to the default command
 	return hook.command;
-}
-
-/**
- * Checks if the hook is using a platform-specific command override.
- */
-export function isUsingPlatformOverride(hook: IParsedHookCommand, os: OperatingSystem): boolean {
-	if (os === OperatingSystem.Windows && hook.windows) {
-		return true;
-	} else if (os === OperatingSystem.Macintosh && hook.osx) {
-		return true;
-	} else if (os === OperatingSystem.Linux && hook.linux) {
-		return true;
-	}
-	return false;
-}
-
-/**
- * Gets the source shell type for the effective command on the given platform.
- * Returns 'powershell' if the Windows command came from a powershell field,
- * 'bash' if the Linux/macOS command came from a bash field,
- * or undefined for default shell handling.
- */
-export function getEffectiveCommandSource(hook: IHookCommand, os: OperatingSystem): 'powershell' | 'bash' | undefined {
-	if (os === OperatingSystem.Windows && hook.windows && hook.windowsSource === 'powershell') {
-		return 'powershell';
-	} else if (os === OperatingSystem.Macintosh && hook.osx && hook.osxSource === 'bash') {
-		return 'bash';
-	} else if (os === OperatingSystem.Linux && hook.linux && hook.linuxSource === 'bash') {
-		return 'bash';
-	}
-	return undefined;
-}
-
-/**
- * Gets the original JSON field key name for the given platform's command.
- * Returns the actual field name from the JSON (e.g., 'bash' instead of 'osx' if bash was used).
- * This is used for editor focus to highlight the correct field.
- */
-export function getEffectiveCommandFieldKey(hook: IHookCommand | IParsedHookCommand, os: OperatingSystem): string {
-	const h = hook as Partial<IHookCommand>;
-	if (os === OperatingSystem.Windows && hook.windows) {
-		return h.windowsSource ?? 'windows';
-	} else if (os === OperatingSystem.Macintosh && hook.osx) {
-		return h.osxSource ?? 'osx';
-	} else if (os === OperatingSystem.Linux && hook.linux) {
-		return h.linuxSource ?? 'linux';
-	}
-	return 'command';
 }
 
 /**
@@ -518,9 +441,6 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 		...(normalized.windows && { windows: normalized.windows }),
 		...(normalized.linux && { linux: normalized.linux }),
 		...(normalized.osx && { osx: normalized.osx }),
-		...(normalized.windowsSource && { windowsSource: normalized.windowsSource }),
-		...(normalized.linuxSource && { linuxSource: normalized.linuxSource }),
-		...(normalized.osxSource && { osxSource: normalized.osxSource }),
 		...(cwdUri && { cwd: cwdUri }),
 		...(normalized.env && { env: normalized.env }),
 		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),

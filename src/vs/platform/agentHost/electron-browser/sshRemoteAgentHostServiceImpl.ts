@@ -21,9 +21,10 @@ import { IProductService } from '../../product/common/productService.js';
 import { IStorageService, StorageScope } from '../../storage/common/storage.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, SSH_REMOTE_AGENT_HOSTS_STORAGE_KEY, getEntryAddress, isLegacySshRawEntry, isRawRemoteAgentHostEntry, parseLegacyRawEntry, readDisconnectedRemoteAgentHostAddresses, readRemoteAgentHostSettings, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, setRemoteAgentHostDisconnected, storeSSHRemoteAgentHostEntries, upsertRemoteAgentHostEntry, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
+import { DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, SSH_REMOTE_AGENT_HOSTS_STORAGE_KEY, getEntryAddress, isLegacySshRawEntry, isRawRemoteAgentHostEntry, parseLegacyRawEntry, readDisconnectedRemoteAgentHostAddresses, readRemoteAgentHostSettings, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, setRemoteAgentHostDisconnected, storeSSHRemoteAgentHostEntries, upsertRemoteAgentHostEntry, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionAttempt, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
@@ -38,6 +39,7 @@ import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
+	decodeSSHConnectFailureCode,
 	isSSHAuthenticationFailedError,
 	isSSHHostKeyDeniedError,
 	SSHAuthenticationFailedError,
@@ -59,6 +61,7 @@ import {
 } from '../common/sshRemoteAgentHost.js';
 import { ISSHHostKeyTrustService } from '../common/sshHostKeyTrust.js';
 import { decideHostKeyTrust, type SSHHostKeyDenial } from '../common/sshHostKeyPolicy.js';
+import { classifySSHConnectError, logSSHConnectAttempt } from '../common/sshConnectTelemetry.js';
 
 function reviveSSHAuthenticationError(error: unknown): unknown {
 	return error instanceof Error && isSSHAuthenticationFailedError(error)
@@ -183,11 +186,14 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	// Survives connection cleanup so an automatic reconnect can identify an
 	// editor-to-standalone endpoint failover after a successful handshake.
 	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
+	/** Whether each address's current dial is an explicit connection or a connection to a saved host. */
+	private readonly _dialOperations = new Map<string, 'connect' | 'reconnect'>();
 
 	constructor(
 		private readonly _storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _logService: ILogService,
+		private readonly _telemetryService: ITelemetryService,
 		private readonly _mainService: ISSHRemoteAgentHostMainService,
 		private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		private readonly _relayClientFactory: ISSHRelayClientFactory,
@@ -262,6 +268,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 
 		const stagedConfig = this._stagedConfigurations.get(entry.connection.address);
 		this._stagedConfigurations.delete(entry.connection.address);
+		this._dialOperations.set(entry.connection.address, stagedConfig ? 'connect' : 'reconnect');
 		const restored = this._userRestoredAddresses.delete(entry.connection.address);
 		const userInitiated = stagedConfig?.userInitiated ?? (restored || options.userInitiated);
 		let result;
@@ -287,6 +294,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 					}));
 		} catch (error) {
 			this._transportDisposables.deleteAndDispose(entry.connection.address);
+			decodeSSHConnectFailureCode(error);
 			// A refused host key is the user's decision, not a transient fault.
 			// Report it in the shared vocabulary for "do not retry" while keeping
 			// the host-key-denial name, which `isSSHHostKeyDeniedError` matches
@@ -375,6 +383,23 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		storeSSHRemoteAgentHostEntries(this._storageService, upsertRemoteAgentHostEntry(readSSHRemoteAgentHostEntries(this._storageService), entry));
 	}
 
+	reportConnectionAttempt(entry: IRemoteAgentHostEntry, attempt: IRemoteAgentHostConnectionAttempt): void {
+		const address = getEntryAddress(entry);
+		const operation = this._dialOperations.get(address) ?? 'reconnect';
+		this._dialOperations.delete(address);
+		const failure = attempt.failure && classifySSHConnectError(attempt.failure.error, attempt.failure.duringHandshake);
+		logSSHConnectAttempt(this._telemetryService, {
+			operation,
+			userInitiated: attempt.userInitiated,
+			attempt: attempt.attempt,
+			durationMs: attempt.durationMs,
+			success: !attempt.failure,
+			willRetry: attempt.failure?.willRetry ?? false,
+			errorCategory: failure?.errorCategory,
+			stage: failure?.stage,
+		});
+	}
+
 	private _observeSuccessfulConnection(result: ISSHConnectResult, userInitiated: boolean): IDisposable {
 		const listener = this._remoteAgentHostService.onDidChangeConnections(() => {
 			const status = this._remoteAgentHostService.connections.find(connection => connection.address === result.address)?.status;
@@ -435,7 +460,13 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				throw new NonReconnectableTransportError('Cannot automatically reconnect an SSH connection without an SSH config host.');
 			}
 			const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: result.sshConfigHost }));
-			const reconnected = await this._mainService.reconnect(result.sshConfigHost, result.name, this._getRemoteAgentHostCommand(), this._isSSHAgentForwardingEnabled(), false, preferredAgentLocation, activeConnectionId);
+			let reconnected: ISSHConnectResult;
+			try {
+				reconnected = await this._mainService.reconnect(result.sshConfigHost, result.name, this._getRemoteAgentHostCommand(), this._isSSHAgentForwardingEnabled(), false, preferredAgentLocation, activeConnectionId);
+			} catch (error) {
+				decodeSSHConnectFailureCode(error);
+				throw error;
+			}
 			activeConnectionId = reconnected.connectionId;
 			onRelayReplaced(activeConnectionId);
 			return {
@@ -534,6 +565,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IProductService private readonly _productService: IProductService,
 		@ISSHHostKeyTrustService private readonly _hostKeyTrustService: ISSHHostKeyTrustService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -544,6 +576,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			this._storageService,
 			this._configurationService,
 			this._logService,
+			this._telemetryService,
 			this._mainService,
 			this._remoteAgentHostService,
 			this._relayClientFactory,

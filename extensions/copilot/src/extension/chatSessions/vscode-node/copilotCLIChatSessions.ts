@@ -392,7 +392,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 	): Promise<vscode.MarkdownString | undefined> {
 		const repositories = this._gitService.repositories.filter(r => r.kind !== 'worktree');
 		const shouldShow = vscode.workspace.workspaceFolders === undefined ||
-			vscode.workspace.isAgentSessionsWorkspace ||
+			vscode.workspace.isAgentManaged ||
 			repositories.length > 1;
 		if (!shouldShow) {
 			return undefined;

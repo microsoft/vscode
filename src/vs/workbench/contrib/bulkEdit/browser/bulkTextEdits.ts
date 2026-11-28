@@ -180,6 +180,105 @@ class EditorEditTask extends ModelEditTask {
 	}
 }
 
+function applySingleModelEditWithUndoStops(
+	model: ITextModel,
+	label: string,
+	code: string,
+	beforeCursorState: Selection[] | null,
+	undoRedoService: IUndoRedoService,
+	undoRedoGroup: UndoRedoGroup,
+	undoRedoSource: UndoRedoSource | undefined,
+	undoStopBefore: boolean,
+	undoStopAfter: boolean,
+	applyEdits: () => void,
+): void {
+	if (undoStopBefore) {
+		model.pushStackElement();
+	}
+	const lastElement = !undoStopBefore ? undoRedoService.getLastElement(model.uri) : null;
+	let singleModelEditStackElement: SingleModelEditStackElement;
+	if (lastElement instanceof SingleModelEditStackElement && lastElement.canAppend(model)) {
+		singleModelEditStackElement = lastElement;
+	} else {
+		singleModelEditStackElement = new SingleModelEditStackElement(label, code, model, beforeCursorState);
+		undoRedoService.pushElement(singleModelEditStackElement, undoRedoGroup, undoRedoSource);
+	}
+	applyEdits();
+	if (undoStopAfter) {
+		singleModelEditStackElement.close();
+	}
+}
+
+export interface IBulkTextEditStep {
+	readonly edits: readonly ResourceTextEdit[];
+	readonly undoStopBefore: boolean;
+	readonly undoStopAfter: boolean;
+}
+
+export class BulkTextEditSequence {
+
+	constructor(
+		private readonly _label: string,
+		private readonly _code: string,
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
+		private readonly _token: CancellationToken,
+		private readonly _resource: URI,
+		private readonly _expectedVersionId: number | undefined,
+		private readonly _steps: readonly IBulkTextEditStep[],
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+	) { }
+
+	async apply(reason?: TextModelEditSource): Promise<readonly URI[]> {
+		if (typeof this._expectedVersionId === 'number') {
+			const existing = this._modelService.getModel(this._resource);
+			if (existing && existing.getVersionId() !== this._expectedVersionId) {
+				throw new Error(`${existing.uri.toString()} has changed in the meantime`);
+			}
+		}
+
+		const ref = await this._textModelResolverService.createModelReference(this._resource);
+		try {
+			if (this._token.isCancellationRequested) {
+				return [];
+			}
+
+			const model = ref.object.textEditorModel;
+			if (typeof this._expectedVersionId === 'number' && model.getVersionId() !== this._expectedVersionId) {
+				throw new Error(`${model.uri.toString()} has changed in the meantime`);
+			}
+
+			let appliedAny = false;
+			for (const step of this._steps) {
+				const task = new ModelEditTask({ object: ref.object, dispose: () => { } });
+				for (const edit of step.edits) {
+					task.addEdit(edit);
+				}
+				if (task.isNoOp()) {
+					continue;
+				}
+				applySingleModelEditWithUndoStops(
+					model,
+					this._label,
+					this._code,
+					task.getBeforeCursorState(),
+					this._undoRedoService,
+					UndoRedoGroup.None,
+					this._undoRedoSource,
+					step.undoStopBefore,
+					step.undoStopAfter,
+					() => task.apply(reason),
+				);
+				appliedAny = true;
+			}
+			return appliedAny ? [model.uri] : [];
+		} finally {
+			ref.dispose();
+		}
+	}
+}
+
 export class BulkTextEdits {
 
 	private readonly _edits = new ResourceMap<ResourceTextEdit[]>();
@@ -193,6 +292,8 @@ export class BulkTextEdits {
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		edits: ResourceTextEdit[],
+		private readonly _undoStopBefore: boolean,
+		private readonly _undoStopAfter: boolean,
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -310,15 +411,26 @@ export class BulkTextEdits {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
-					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
-					task.apply(reason);
-					singleModelEditStackElement.close();
+					applySingleModelEditWithUndoStops(
+						task.model,
+						this._label,
+						this._code,
+						task.getBeforeCursorState(),
+						this._undoRedoService,
+						this._undoRedoGroup,
+						this._undoRedoSource,
+						this._undoStopBefore,
+						this._undoStopAfter,
+						() => task.apply(reason),
+					);
 					resources.push(task.model.uri);
 				}
 				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
+				for (const task of tasks) {
+					task.model.pushStackElement();
+				}
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
 					this._code,

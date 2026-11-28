@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from './auxiliaryBarTestUtils.js';
 import { timeout } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -119,6 +121,81 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			afterTheyGo: { separatorShown: false, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '24px' },
 		});
 	}));
+
+	test('does not fit a title without a split button that sizes itself again when the theme changes', async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store);
+		container.style.width = '300px';
+		part.layout(300, 200, 0, 0);
+		const toolbar = part.toolbar;
+		let relayouts = 0;
+		toolbar.relayout = () => relayouts++;
+
+		part.updateStyles();
+		await timeout(0);
+
+		assert.strictEqual(relayouts, 0);
+	});
+
+	test('does not fit a title again that no longer has a split button that sizes itself when the queued fit runs', async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store);
+		const [newChat, settings] = [part.toolbar.getItemAction(0)!, part.toolbar.getItemAction(1)!];
+		part.viewActionViewItemProvider = (action, options) => action === newChat ? new class extends ActionViewItem { getMinimumWidth() { return 60; } }(undefined, action, options) : undefined;
+		part.setTitleActions('Chat', [newChat, settings], []);
+		container.style.width = '300px';
+		part.layout(300, 200, 0, 0);
+		const toolbar = part.toolbar;
+		let relayouts = 0;
+		toolbar.relayout = () => relayouts++;
+
+		part.updateStyles();
+		part.setTitleActions('Settings', [settings], []);
+		await timeout(0);
+
+		assert.strictEqual(relayouts, 0);
+	});
+
+	test('fits the title again at the same width when a keybinding change resizes its split button, also while it is in the overflow', async () => {
+		const onDidUpdateKeybindings = store.add(new Emitter<void>());
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store, { globalActions: false, onDidUpdateKeybindings: onDidUpdateKeybindings.event });
+		const [newChat, settings] = [part.toolbar.getItemAction(0)!, part.toolbar.getItemAction(1)!];
+		let newChatWidth = 60;
+		part.viewActionViewItemProvider = (action, options) => action === newChat ? new class extends ActionViewItem { getMinimumWidth() { return newChatWidth; } }(undefined, action, options) : undefined;
+		part.setTitleActions('Chat', [newChat, settings], []);
+		container.style.width = '300px';
+		part.setToolbarAvailableWidth(120);
+		part.layout(300, 200, 0, 0);
+		part.toolbar.relayout();
+		const actions = () => Array.from({ length: part.toolbar.getItemsLength() }, (_, index) => part.toolbar.getItemAction(index)?.id);
+		const before = actions();
+
+		// A longer keybinding widens New
+		newChatWidth = 110;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const rebound = actions();
+
+		// Without a keybinding New is narrower again, also while it is in the overflow
+		newChatWidth = 60;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const unbound = actions();
+
+		newChatWidth = 110;
+		onDidUpdateKeybindings.fire();
+		await timeout(0);
+		const restored = actions();
+
+		// New moves into the overflow last, so Settings goes first and comes back after it
+		assert.deepStrictEqual({ before, rebound, unbound, restored }, {
+			before: [newChat.id, 'settings', Separator.ID],
+			rebound: [ToggleMenuAction.ID, Separator.ID],
+			unbound: [newChat.id, 'settings', Separator.ID],
+			restored: [ToggleMenuAction.ID, Separator.ID],
+		});
+	});
 });
 
 suite('Auxiliary Bar - Maximize action', () => {

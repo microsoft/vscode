@@ -53,6 +53,10 @@ export interface IRequestService {
 	 */
 	readonly onDidCompleteRequest: Event<IRequestCompleteEvent>;
 
+	/**
+	 * Cancelling `token` aborts the request until its response body has been read,
+	 * and reading the body then fails with a `CancellationError`.
+	 */
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;

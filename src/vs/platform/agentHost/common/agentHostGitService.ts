@@ -306,6 +306,12 @@ export interface IAddWorktreeOptions {
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
+/** The checkout that `git worktree add` produced. */
+export interface IAddWorktreeResult {
+	/** Git LFS files were checked out as their pointer files, because `git-lfs` could not be run. */
+	readonly gitLfsPointerFiles: boolean;
+}
+
 /** A remote a repository fetches from. */
 export interface IGitRemote {
 	readonly name: string;
@@ -331,10 +337,20 @@ export interface IAgentHostGitService {
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
 	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
-	/** Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight probe. */
-	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
+	/**
+	 * Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight
+	 * probe. `fresh` reads the disk whatever is cached, and a folder it finds missing or not in a repository replaces a
+	 * cached root.
+	 */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean; readonly fresh?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/**
+	 * The Git repositories in the immediate subfolders of `folder`: each subfolder with a `.git` entry that Git opens as
+	 * the root of a checkout, in name order, at most `limit`. Reads `folder` once, does not follow symbolic links, and
+	 * does not look deeper or inside the repositories it finds.
+	 */
+	findRepositories?(folder: URI, limit: number): Promise<readonly URI[]>;
 	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
 	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**
@@ -344,7 +360,7 @@ export interface IAgentHostGitService {
 	 * never be called (fast checkouts and git versions that stay silent), so it
 	 * MUST be treated as best-effort.
 	 */
-	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
+	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<IAddWorktreeResult>;
 	/**
 	 * Copies the git-ignored files matching `patterns` into the worktree.
 	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
@@ -366,7 +382,7 @@ export interface IAgentHostGitService {
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
 	 * whose worktree was previously cleaned up on archive).
 	 */
-	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<IAddWorktreeResult>;
 	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
 	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */

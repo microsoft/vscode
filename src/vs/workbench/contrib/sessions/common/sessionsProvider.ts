@@ -406,6 +406,8 @@ export interface IDeleteChatOptions {
  * does not open, leaves nothing behind.
  */
 export interface ISessionsProviderCanvasDraft extends IDisposable {
+	/** The ID of the draft's session, which the session it starts replaces once the provider lists it. */
+	readonly sessionId: string;
 	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
 	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
 	/** Opens one instance of `canvas` in the draft and resolves to the committed session once the provider lists it. */
@@ -727,6 +729,15 @@ export interface ISessionsProvider {
 	 * @param folder The folder, in the client's URI space.
 	 */
 	removeChatFolder?(sessionId: string, chatUri: URI, folder: URI): Promise<void>;
+
+	/**
+	 * Detaches the provider's sessions, loaded or not, that were created in one of the workspace configurations
+	 * (`.code-workspace` files, in the client's URI space): they no longer record it (see
+	 * {@link ISessionWorkspace.workspaceConfig}) and keep working in their folders. A file that is not on the provider's
+	 * backend is ignored, and is not sent to it. Resolves when there are none, also when the provider's backend cannot
+	 * record workspace configurations.
+	 */
+	detachSessionsFromWorkspace?(workspaceFiles: readonly URI[]): Promise<void>;
 
 	/**
 	 * Rename the session itself, independently of its chats. Single-chat

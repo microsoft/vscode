@@ -22,6 +22,7 @@ export const REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING = 'sessions.chat.experime
 export const REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING = 'sessions.chat.remoteEnvironments.sharingSetup';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = ChatConfiguration.AgentsPickerInAttachContextMenu;
+export const SESSIONS_LIST_WORKSPACES_FILTER_SETTING = ChatConfiguration.SessionsListWorkspacesFilterEnabled;
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
 export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
 export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';

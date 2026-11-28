@@ -157,7 +157,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { composeSessionActiveClient, IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from './agentHostMcpAppToolsService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
-import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionCreation, IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -7383,7 +7383,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: IAgentHostImportConversation, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
 		const requestedSession = this._resolveSessionUri(sessionResource);
-		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
+		const initialMeta = this._provisionalService.getInitialSessionMetadata(sessionResource);
+		const creation = this._resolveSessionCreation(sessionResource);
+		const meta = creation?.metadata ? { ...initialMeta, ...creation.metadata } : initialMeta;
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}`);
 
@@ -8223,9 +8225,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
 	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
 		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
+		// A session created in several folders names them, its working directory first. The trust gate before the
+		// session is created reads them here too.
+		const creation = this._resolveSessionCreation(sessionResource);
+		if (primary && creation && creation.workingDirectories.length > 1 && isEqual(creation.workingDirectories[0], primary)) {
+			return this._hostAddressableWorkingDirectories(creation.workingDirectories);
+		}
 		return this._hostAddressableWorkingDirectories(
 			computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider)
 		);
+	}
+
+	private _resolveSessionCreation(sessionResource: URI): IAgentHostSessionCreation | undefined {
+		// Optional call: partial resolvers registered by other session types may not implement it
+		return this._isNewSessionResource(sessionResource) ? this._workingDirectoryResolver.resolveCreation?.(sessionResource) : undefined;
 	}
 
 	/** Matches the sessions provider's quick-chat and user-folder customization scopes. */

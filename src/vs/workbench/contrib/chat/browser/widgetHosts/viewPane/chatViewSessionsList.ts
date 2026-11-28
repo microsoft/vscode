@@ -29,8 +29,12 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 	/** Opens the list's find, as Find of the Chat view's sessions toolbar does, which a list without a header of its own keeps. */
 	openFind(): void;
-	/** The widget of an action that the list contributes to the Chat view's title, where the list needs one of its own. */
-	createActionViewItem?(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined;
+	/**
+	 * The widget of an action that the list contributes to the Chat view's title, where the list needs one of its own.
+	 * `titleFitsWidths` tells whether the title fits its actions to its width by the widths they need, moving one that does
+	 * not fit into its overflow whole, as the secondary side bar's title does.
+	 */
+	createActionViewItem?(action: IAction, options: IDropdownMenuActionViewItemOptions | undefined, titleFitsWidths: boolean): IActionViewItem | undefined;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */

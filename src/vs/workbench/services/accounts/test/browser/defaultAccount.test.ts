@@ -2285,6 +2285,8 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		readonly microsoftLookups: string[];
 		readonly lookups: string[];
 		readonly requests: string[];
+		readonly createdSessions: { providerId: string; scopes: readonly string[] }[];
+		readonly preferenceLabels: Map<string, string>;
 		readonly preferenceChanges: Emitter<{ extensionIds: string[]; providerId: string }>;
 		readonly sessionChanges: Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
 		readonly nativeChanges: Emitter<ManagedSettingsData>;
@@ -2356,6 +2358,8 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			microsoftLookups: [],
 			lookups: [],
 			requests: [],
+			createdSessions: [],
+			preferenceLabels: preferences,
 			preferenceChanges: disposables.add(new Emitter()),
 			sessionChanges: disposables.add(new Emitter()),
 			nativeChanges: disposables.add(new Emitter<ManagedSettingsData>()),
@@ -2377,6 +2381,12 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: (providerId: string) => providerId !== 'microsoft' || world.microsoftProviderAvailable,
 			getAccounts: async () => [],
+			createSession: async (providerId: string, scopes: readonly string[]) => {
+				world.createdSessions.push({ providerId, scopes: [...scopes] });
+				const created = githubSession('octocat');
+				world.githubSessions.push(created);
+				return created;
+			},
 			getSessions: async (providerId: string) => {
 				world.lookups.push(providerId);
 				if (providerId === 'microsoft') {
@@ -2433,7 +2443,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
-			preferredExtensions: [],
+			preferredExtensions: ['copilot.extension'],
 			authenticationProvider: {
 				default: { id: 'github', name: 'GitHub' },
 				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
@@ -2472,7 +2482,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 
 	test('the setting off leaves a remembered Microsoft account unused', async () => {
 		const { world, provider } = await createWorld({ enabled: false, rememberedAccountLabel: 'alice', microsoftSessions: [session('s1', 'alice')] });
-		await provider.rememberMicrosoftAccount({ id: 'id-bob', label: 'bob' });
+		await provider.rememberMicrosoftAccount({ id: 'id-bob', label: 'bob' }, 'github');
 
 		assert.deepStrictEqual({ account: provider.defaultAccount, lookups: world.microsoftLookups, rememberedAccountLabel: world.rememberedAccountLabel }, { account: null, lookups: [], rememberedAccountLabel: 'alice' });
 	});
@@ -2486,7 +2496,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 	test('remembering an account makes it the default account once the update has finished', async () => {
 		const { world, provider } = await createWorld({ microsoftSessions: [session('s1', 'alice')] });
 
-		await provider.rememberMicrosoftAccount({ id: 'id-alice', label: 'alice' });
+		await provider.rememberMicrosoftAccount({ id: 'id-alice', label: 'alice' }, 'github');
 
 		// A user target value would roam with Settings Sync.
 		assert.deepStrictEqual({
@@ -2612,6 +2622,35 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		assert.deepStrictEqual({ account: provider.defaultAccount, rememberedAccountLabel: world.rememberedAccountLabel }, { account: null, rememberedAccountLabel: undefined });
 	});
 
+	test('removing the session of an account remembered with its service forgets it', async () => {
+		const { world, provider } = await createWorld({ rememberedAccountLabel: JSON.stringify({ label: 'alice', service: 'm365' }), microsoftSessions: [session('s1', 'alice')] });
+		const changed = Event.toPromise(provider.onDidChangeDefaultAccount);
+
+		world.microsoftSessions = [];
+		world.sessionChanges.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [session('s1', 'alice')], changed: [] } });
+		await changed;
+
+		assert.deepStrictEqual({ account: provider.defaultAccount, rememberedAccountLabel: world.rememberedAccountLabel }, { account: null, rememberedAccountLabel: undefined });
+	});
+
+	test('the remembered service is part of the Microsoft default account: stored value, plain label and unknown service', async () => {
+		const outcome: Record<string, object | undefined> = {};
+		for (const [name, stored] of [
+			['service', JSON.stringify({ label: 'alice', service: 'm365' })],
+			['plainLabel', 'alice'],
+			['unknownService', JSON.stringify({ label: 'alice', service: 'other' })],
+		]) {
+			const { provider } = await createWorld({ rememberedAccountLabel: stored, microsoftSessions: [session('s1', 'alice')] });
+			outcome[name] = { accountName: provider.defaultAccount?.accountName, copilotService: provider.defaultAccount?.copilotService };
+		}
+
+		assert.deepStrictEqual(outcome, {
+			service: { accountName: 'alice', copilotService: 'm365' },
+			plainLabel: { accountName: 'alice', copilotService: undefined },
+			unknownService: { accountName: 'alice', copilotService: undefined },
+		});
+	});
+
 	test('removing a session of the remembered account keeps it while the account still has a session', async () => {
 		// The Microsoft provider returns one session per account and all of its sessions share the id of the account.
 		const { world, provider } = await createWorld({ rememberedAccountLabel: 'alice', microsoftSessions: [session('s1', 'alice')] });
@@ -2629,11 +2668,11 @@ suite('DefaultAccountProvider Microsoft account', () => {
 
 		world.sessionChanges.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [session('s1', 'alice')], changed: [] } });
 		world.microsoftSessions = [session('s2', 'bob')];
-		await provider.rememberMicrosoftAccount({ id: 'id-bob', label: 'bob' });
+		await provider.rememberMicrosoftAccount({ id: 'id-bob', label: 'bob' }, 'github');
 		await lookup.complete([session('s2', 'bob')]);
 		await provider.refresh();
 
-		assert.deepStrictEqual({ rememberedAccountLabel: world.rememberedAccountLabel, accountName: provider.defaultAccount?.accountName, providerId: provider.defaultAccount?.authenticationProvider.id }, { rememberedAccountLabel: 'bob', accountName: 'bob', providerId: 'microsoft' });
+		assert.deepStrictEqual({ rememberedAccountLabel: world.rememberedAccountLabel, accountName: provider.defaultAccount?.accountName, providerId: provider.defaultAccount?.authenticationProvider.id }, { rememberedAccountLabel: JSON.stringify({ label: 'bob', service: 'github' }), accountName: 'bob', providerId: 'microsoft' });
 	});
 
 	test('a remembered account stored by another window makes the Microsoft account the default account', async () => {
@@ -2681,7 +2720,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		const { world, provider } = await createWorld({ microsoftSessions: [session('s1', 'alice')] });
 		const lookupsAfterStart = world.microsoftLookups.length;
 
-		await provider.rememberMicrosoftAccount({ id: 'id-alice', label: 'alice' });
+		await provider.rememberMicrosoftAccount({ id: 'id-alice', label: 'alice' }, 'github');
 		await timeout(300);
 
 		assert.deepStrictEqual({ accountName: provider.defaultAccount?.accountName, microsoftLookups: world.microsoftLookups.length - lookupsAfterStart }, { accountName: 'alice', microsoftLookups: 1 });
@@ -2901,6 +2940,46 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			nativeRequirement: { signedOut: blocked, microsoft: blocked },
 			noRequirement: { signedOut: notRequired, microsoft: notRequired },
 		});
+	});
+
+	test('a Microsoft default account with a remembered service has the policy state of one without', async () => {
+		const outcome: Record<string, object> = {};
+		for (const [name, rememberedAccountLabel] of [['withoutService', 'alice'], ['withService', JSON.stringify({ label: 'alice', service: 'm365' })]] as const) {
+			const { provider } = await createWorld({ nativeManagedSettings: nativeRequirement, rememberedAccountLabel, microsoftSessions: [session('s1', 'alice')] });
+			outcome[name] = describePolicyState(provider);
+		}
+
+		assert.deepStrictEqual(outcome.withService, outcome.withoutService);
+	});
+
+	test('signing in to GitHub while Microsoft is the default account keeps the Microsoft default account and policy state', async () => {
+		const { world, provider } = await createWorld({ nativeManagedSettings: nativeRequirement, rememberedAccountLabel: JSON.stringify({ label: 'alice', service: 'm365' }), microsoftSessions: [session('s1', 'alice')] });
+		const before = describePolicyState(provider);
+
+		await provider.signIn({ additionalScopes: ['repo'] });
+
+		assert.deepStrictEqual({
+			created: world.createdSessions,
+			preferences: [...world.preferenceLabels.values()],
+			account: { provider: provider.defaultAccount?.authenticationProvider.id, name: provider.defaultAccount?.accountName, service: provider.defaultAccount?.copilotService },
+			policy: describePolicyState(provider),
+		}, {
+			created: [{ providerId: 'github', scopes: ['user:email', 'repo'] }],
+			preferences: ['octocat'],
+			account: { provider: 'microsoft', name: 'alice', service: 'm365' },
+			policy: before,
+		});
+	});
+
+	test('a change of only the remembered service by another window updates the Microsoft default account', async () => {
+		const { world, provider } = await createWorld({ rememberedAccountLabel: JSON.stringify({ label: 'alice', service: 'github' }), microsoftSessions: [session('s1', 'alice')] });
+		const before = provider.defaultAccount?.copilotService;
+		const changed = Event.toPromise(provider.onDidChangeDefaultAccount);
+
+		world.storeInAnotherWindow(JSON.stringify({ label: 'alice', service: 'm365' }));
+		await changed;
+
+		assert.deepStrictEqual({ before, after: provider.defaultAccount?.copilotService, accountName: provider.defaultAccount?.accountName }, { before: 'github', after: 'm365', accountName: 'alice' });
 	});
 });
 

@@ -427,7 +427,7 @@
 	}
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-thinking-compact, .codicon-tools, .codicon-tools-compact, .codicon-chevron-right-compact) {
 	display: inline-flex;
 	width: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
@@ -437,8 +437,32 @@
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress-anchor > .chat-working-progress > .chat-progress-icon,
 .interactive-session .chat-sticky-progress > .chat-working-progress > .chat-progress-icon,
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-thinking-compact, .codicon-tools, .codicon-tools-compact, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+}
+
+/* A model router's routing line keeps its icon on the title's first line when the title wraps. */
+.interactive-session .interactive-response .value .chat-thinking-box.chat-model-router-routing > .chat-used-context-label .monaco-button.monaco-icon-button {
+	align-items: flex-start;
+
+	> .codicon:first-child {
+		display: inline-flex;
+		align-items: center;
+		/* One title line tall, so the glyph centers on that line. */
+		line-height: inherit;
+	}
+}
+
+/* A model router's routing line puts its icon in the gutter of the rows below it, so its text lines up with theirs. */
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-model-router-routing > .chat-used-context-label .monaco-button.monaco-icon-button {
+	margin-left: calc(-1 * var(--vscode-spacing-size20));
+	gap: 0;
+
+	> .codicon:first-child {
+		width: var(--vscode-codiconFontSize-compact);
+		flex-shrink: 0;
+		margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+	}
 }
 
 /* A chevron centered in the icon gutter looks indented beside the response's text, because its glyph is

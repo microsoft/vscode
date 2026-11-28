@@ -9,10 +9,12 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import type { IAgentHostClientCertificatesProvider } from '../../../../platform/agentHost/common/clientCertificatesProtocol.js';
 import type { IAgentHostClientProxyProvider } from '../../../../platform/agentHost/common/clientProxyProtocol.js';
+import type { IAgentHostClientForwardingProvider } from '../../../../platform/agentHost/common/clientForwardingProtocol.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { findDevContainerSample, IDevContainerRepository } from '../../../../platform/agentHost/common/devContainerSamples.js';
+import type { IDevContainerHostFolderContainer } from '../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
@@ -32,8 +34,14 @@ export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContai
 /** Experimental setting that enables Dev Container environments created from a base image on this computer and on SSH, Tunnel, and WSL hosts. */
 export const DevContainerEnvironmentsEnabledSettingId = 'chat.agentHost.devContainer.environments.enabled';
 
+/** Experimental setting that forwards the client's Git configuration, Git credentials, and SSH and GPG agents into Dev Containers without sandboxing. */
+export const DevContainerCredentialForwardingEnabledSettingId = 'chat.agentHost.devContainer.credentialForwarding.enabled';
+
 /** Experimental setting that lets agents create Dev Container environments and continue work in them. */
 export const DevContainerHandoffEnabledSettingId = 'chat.agentHost.devContainer.handoff.enabled';
+
+/** Experimental setting that lists and connects the running Dev Containers of folders, such as those opened in editor windows. */
+export const DevContainerDiscoveryEnabledSettingId = 'chat.agentHost.devContainer.discovery.enabled';
 
 /** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
 export const LocalDevContainerEnvironmentHost = 'local';
@@ -53,6 +61,11 @@ export function areDevContainerEnvironmentsEnabled(configurationService: IConfig
 /** Whether agents can create Dev Container environments, which also requires the environments themselves to be enabled. */
 export function isDevContainerHandoffEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(DevContainerHandoffEnabledSettingId) === true && areDevContainerEnvironmentsEnabled(configurationService);
+}
+
+/** Whether the running Dev Containers of folders on this computer and on connected hosts are listed and connected. */
+export function isDevContainerDiscoveryEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(DevContainerDiscoveryEnabledSettingId) === true && canUseDevContainerEnvironments(configurationService);
 }
 
 /** Whether new sample workspaces can be selected, independently of already-created sessions. */
@@ -91,6 +104,8 @@ export interface IDevContainerAgentHostConnection {
 	readonly defaultDirectory?: string;
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	readonly clientProxy?: IAgentHostClientProxyProvider;
+	/** Forwards the client's Git identity, and without sandboxing, its Git configuration, Git credentials and agents. */
+	readonly clientForwarding?: IAgentHostClientForwardingProvider;
 }
 
 /** Options for {@link IDevContainerAgentHostConnector.createConnection}. */
@@ -99,6 +114,11 @@ export interface IDevContainerAgentHostConnectionOptions {
 	readonly sandboxEnabled?: boolean;
 	/** Names the connection of a Dev Container environment, which otherwise gets a name for its host. */
 	readonly name?: string;
+	/**
+	 * Connects only while the folder's container is running, without starting or creating it, also when reconnecting
+	 * without user action. Failing that check neither reveals the log nor counts as a failed connection.
+	 */
+	readonly requireRunning?: boolean;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
@@ -108,6 +128,8 @@ export interface IDevContainerAgentHostConnector {
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	/** Whether Docker is available on this computer, regardless of settings. */
 	isLocalDockerAvailable?(): Promise<boolean>;
+	/** The folder Dev Containers on this computer's Docker engine, regardless of settings. */
+	listLocalFolderContainers?(): Promise<readonly IDevContainerHostFolderContainer[]>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
@@ -140,6 +162,22 @@ export interface ICreatedDevContainerEnvironment extends IDevContainerEnvironmen
 	readonly workspaceUri: URI | undefined;
 }
 
+/**
+ * The Dev Container of a folder on this computer or on an SSH, Tunnel, or WSL host, such as one an editor window opened,
+ * listed while it runs or while the folder's container provider has sessions.
+ */
+export interface IDevContainerFolderContainer {
+	/** Address of the container's Agent Host connection, which also identifies it. */
+	readonly address: string;
+	readonly providerId: string;
+	/** The source folder, whose container provider sessions in the container run in. */
+	readonly workspaceUri: URI;
+	/** Address of the SSH, Tunnel, or WSL host of the folder, or {@link LocalDevContainerEnvironmentHost}. */
+	readonly sourceAddress: string;
+	/** Whether the container ran when its host was last listed; undefined when that is unknown. */
+	readonly running: boolean | undefined;
+}
+
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
 /** Coordinates local, SSH, Tunnel, and WSL source workspaces with persistent container-backed Sessions providers. */
@@ -150,7 +188,8 @@ export interface IDevContainerAgentHostService {
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled: boolean }): Promise<IDevContainerAgentHostTarget>;
+	/** Connects the workspace's container; callers request workspace trust first. */
+	connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled?: boolean; readonly requireRunning?: boolean }): Promise<IDevContainerAgentHostTarget>;
 	/** Known Docker support for a workspace's current container, if already connected. */
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	/**
@@ -176,4 +215,12 @@ export interface IDevContainerAgentHostService {
 	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
 	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
 	deleteEnvironment(address: string): Promise<void>;
+
+	/**
+	 * The Dev Containers of folders, empty while {@link isDevContainerDiscoveryEnabled} is false. Running ones are connected
+	 * without user action, unless their folder isn't trusted or this window disconnected from them while they ran.
+	 */
+	readonly folderContainers: IObservable<readonly IDevContainerFolderContainer[]>;
+	/** Lists the folder Dev Containers on this computer and on connected hosts again, e.g. as the window gains focus. */
+	refreshFolderContainers(): Promise<void>;
 }

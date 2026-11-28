@@ -14,11 +14,12 @@ import { IDocumentsAndEditorsDelta } from '../../common/extHost.protocol.js';
 import { createTestCodeEditor, ITestCodeEditor } from '../../../../editor/test/browser/testCodeEditor.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from '../../../test/browser/workbenchTestServices.js';
-import { Event } from '../../../../base/common/event.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService, IFileSystemProviderCapabilitiesChangeEvent } from '../../../../platform/files/common/files.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
@@ -51,7 +52,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let textFileService: ITextFileService;
 	let mainThreadDocumentsAndEditors: MainThreadDocumentsAndEditors;
 	let propertyChanges: number;
+	let readonlyByUri: Map<string, boolean>;
+	let onDidChangeFilesConfigReadonly: Emitter<void>;
+	let onDidChangeTextFileReadonly: Emitter<{ resource: URI }>;
+	let onDidChangeFileSystemProviderCapabilities: Emitter<IFileSystemProviderCapabilitiesChangeEvent>;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
+	const readonlyChanges: { uri: string; isReadonly: boolean }[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor(model, {
@@ -66,7 +72,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
+		readonlyChanges.length = 0;
 		propertyChanges = 0;
+		readonlyByUri = new Map();
+		onDidChangeFilesConfigReadonly = disposables.add(new Emitter<void>());
+		onDidChangeTextFileReadonly = disposables.add(new Emitter<{ resource: URI }>());
+		onDidChangeFileSystemProviderCapabilities = disposables.add(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
@@ -92,7 +103,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None,
-				onDidChangeEncoding: Event.None
+				onDidChangeReadonly: onDidChangeTextFileReadonly.event,
+				onDidChangeEncoding: Event.None,
+				get: () => undefined
 			};
 			// eslint-disable-next-line local/code-no-any-casts
 			override untitled = <any>{
@@ -105,13 +118,18 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override onDidRunOperation = Event.None;
-			override onDidChangeFileSystemProviderCapabilities = Event.None;
+			override onDidChangeFileSystemProviderCapabilities = onDidChangeFileSystemProviderCapabilities.event;
 			override onDidChangeFileSystemProviderRegistrations = Event.None;
+		};
+		const filesConfigurationService = new class extends mock<IFilesConfigurationService>() {
+			override onDidChangeReadonly = onDidChangeFilesConfigReadonly.event;
+			override isReadonly(resource: URI) { return readonlyByUri.get(resource.toString()) ?? false; }
 		};
 
 		mainThreadDocumentsAndEditors = disposables.add(new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol({
 				$acceptDocumentsAndEditorsDelta: (delta: IDocumentsAndEditorsDelta) => { deltas.push(delta); },
+				$acceptReadonlyStateChanged: (uri: URI, isReadonly: boolean) => { readonlyChanges.push({ uri: URI.revive(uri).toString(), isReadonly }); },
 				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { },
 				$acceptEditorPropertiesChanged: () => { propertyChanges++; }
 			}),
@@ -143,7 +161,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 				override createQuickDiffModelReference() {
 					return undefined;
 				}
-			}
+			},
+			filesConfigurationService
 		));
 	});
 
@@ -366,5 +385,49 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		editor.dispose();
 		model.dispose();
+	});
+
+	test('propagates initial and dynamic document read-only state', () => {
+		const uri = URI.file('/workspace/readonly.md');
+		readonlyByUri.set(uri.toString(), true);
+		deltas.length = 0;
+
+		const model = modelService.createModel('# Read-only', null, uri);
+		assert.strictEqual(deltas.length, 1);
+		assert.strictEqual(deltas[0].addedDocuments?.[0].isReadonly, true);
+
+		// FilesConfigurationService change (e.g., files.readonlyInclude / session toggle)
+		readonlyByUri.set(uri.toString(), false);
+		onDidChangeFilesConfigReadonly.fire();
+		// Duplicate notification with unchanged value should not fire again
+		onDidChangeFilesConfigReadonly.fire();
+
+		// TextFileEditorModel readonly change
+		readonlyByUri.set(uri.toString(), true);
+		onDidChangeTextFileReadonly.fire({ resource: uri });
+
+		// FileSystemProviderCapabilities change: unrelated scheme ignored, matching scheme updates
+		readonlyByUri.set(uri.toString(), false);
+		onDidChangeFileSystemProviderCapabilities.fire({ scheme: 'other', provider: {} as never });
+		onDidChangeFileSystemProviderCapabilities.fire({ scheme: uri.scheme, provider: {} as never });
+
+		// Untitled documents always report isReadonly: false
+		const untitledUri = URI.from({ scheme: 'untitled', path: '/Untitled-1' });
+		readonlyByUri.set(untitledUri.toString(), true);
+		const untitledModel = modelService.createModel('', null, untitledUri);
+		assert.strictEqual(deltas[deltas.length - 1].addedDocuments?.[0].isReadonly, false);
+
+		// Disposed models stop firing read-only changes
+		model.dispose();
+		untitledModel.dispose();
+		readonlyByUri.set(uri.toString(), true);
+		onDidChangeFilesConfigReadonly.fire();
+		onDidChangeFileSystemProviderCapabilities.fire({ scheme: uri.scheme, provider: {} as never });
+
+		assert.deepStrictEqual(readonlyChanges, [
+			{ uri: uri.toString(), isReadonly: false },
+			{ uri: uri.toString(), isReadonly: true },
+			{ uri: uri.toString(), isReadonly: false },
+		]);
 	});
 });

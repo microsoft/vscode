@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { pathRule, permissionGrantOptionId, PermissionGrantScope } from '../../common/permissionRules.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostDefaultUrlAllowRulesConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { AgentPermissionKind, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
@@ -206,6 +206,102 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual({ subCommandAsk, askOverCommandLine, commandLineAsk, commandLineAllow, askOverDefaults }, {
 			subCommandAsk: undefined, askOverCommandLine: undefined, commandLineAsk: undefined,
 			commandLineAllow: ToolCallConfirmationReason.NotNeeded, askOverDefaults: undefined,
+		});
+	});
+
+	test('only saved rules approve a request whose reviewer requires confirmation', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const alias = join(workDir, 'alias');
+		symlinkSync(outsideDir, alias, directoryLinkType);
+		const canonical = join(outsideDir, 'notes.md');
+		writeFileSync(canonical, '');
+		const linked = join(alias, 'notes.md');
+		const inside = join(workDir, 'file.txt');
+		const protectedFile = join(workDir, '.mcp.json');
+		const implicit = await Promise.all([readEvent(inside), writeEvent(inside), shellEvent('git status', 'bash')].map(event => Promise.all([
+			permissions.getAutoApproval(event, sessionUri), permissions.getAutoApproval(event, sessionUri, explicit),
+		])));
+
+		setPermissionRules([pathRule('Read', canonical, false)!, pathRule('Edit', workDir, true)!]);
+		const sessionGrants = await Promise.all([
+			readEvent(linked), readEvent(join(alias, 'other.md')), writeEvent(inside), writeEvent(protectedFile),
+			{ ...readEvent(linked), requestSandboxBypass: true },
+		].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+		setPermissionRules([pathRule('Read', canonical, false)!, pathRule('Edit', protectedFile, false)!], [], [pathRule('Read', linked, false)!]);
+		const askAndExact = await Promise.all([readEvent(linked), writeEvent(protectedFile)].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+
+		setPermissionRules([]);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [pathRule('Read', outsideDir, true)!], deny: [] } });
+		const hostGrant = await permissions.getAutoApproval(readEvent(linked), sessionUri, explicit);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [], deny: [] } });
+
+		const allowAll = [];
+		for (const global of [true, false]) {
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: global });
+			manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { [SessionConfigKey.AutoApprove]: global ? 'default' : 'autoApprove' } });
+			allowAll.push(await Promise.all([permissions.getAutoApproval(readEvent(linked), sessionUri), permissions.getAutoApproval(readEvent(linked), sessionUri, explicit)]));
+		}
+
+		const Setting = ToolCallConfirmationReason.Setting;
+		const NotNeeded = ToolCallConfirmationReason.NotNeeded;
+		assert.deepStrictEqual({ implicit, sessionGrants, askAndExact, hostGrant, allowAll }, {
+			implicit: [[NotNeeded, undefined], [NotNeeded, undefined], [NotNeeded, undefined]],
+			sessionGrants: [Setting, undefined, Setting, undefined, undefined],
+			askAndExact: [undefined, Setting],
+			hostGrant: Setting,
+			allowAll: [[Setting, undefined], [Setting, undefined]],
+		});
+	});
+
+	test('saved shell, URL and tool rules approve reviewer-required requests without implicit defaults', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const url = (permissionUrl: string): IToolApprovalEvent => ({ toolCallId: 'url', session: URI.parse(sessionUri), permissionKind: AgentPermissionKind.Url, permissionUrl });
+		setPermissionRules(['Shell(my-command *)', 'Shell(commandLine:custom-command && rm file.txt)', 'WebFetch(example.com)', 'custom'], [], ['Shell(asked *)']);
+		const results = await Promise.all([
+			shellEvent('my-command --flag', 'bash'),
+			shellEvent('custom-command && rm file.txt', 'bash'),
+			shellEvent('my-command --flag && git status', 'bash'),
+			shellEvent('my-command --flag && asked now', 'bash'),
+			shellEvent('my-command --flag > out.txt', 'bash'),
+			shellEvent('my-command --flag', undefined),
+			url('https://example.com/page'),
+			url('https://other.test/page'),
+			{ toolCallId: 'custom', toolName: 'custom', session: URI.parse(sessionUri) },
+			{ toolCallId: 'other', toolName: 'other', session: URI.parse(sessionUri) },
+		].map(event => permissions.getAutoApproval(event, sessionUri, explicit)));
+		const withDefaults = await Promise.all(['my-command --flag && git status', 'my-command --flag > out.txt']
+			.map(command => permissions.getAutoApproval(shellEvent(command, 'bash'), sessionUri)));
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: false });
+		const disabled = await permissions.getAutoApproval(shellEvent('my-command --flag', 'bash'), sessionUri, explicit);
+
+		// A local window mirrors built-in URL defaults into the host's allow rules; they are not saved by the user.
+		const defaultRule = 'WebFetch(default.test)';
+		const defaultUrl = url('https://default.test/page');
+		const mirrorDefault = () => configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [defaultRule], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: [defaultRule] });
+		const evaluateDefault = async () => [await permissions.getAutoApproval(defaultUrl, sessionUri), await permissions.getAutoApproval(defaultUrl, sessionUri, explicit)];
+		mirrorDefault();
+		const mirroredDefault = [];
+		for (const values of [{ [SessionConfigKey.Permissions]: { allow: [], deny: [] } }, {}]) {
+			manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values });
+			mirroredDefault.push(await evaluateDefault());
+		}
+		setPermissionRules([defaultRule]);
+		const savedInSession = await evaluateDefault();
+		manager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: defaultUrl.permissionUrl });
+		startConfirmation(signal);
+		confirmToolCall(signal.chat.toString(), signal.state.toolCallId, permissionGrantOptionId(PermissionGrantScope.Host, [defaultRule]));
+		const savedOnHost = { approvals: await evaluateDefault(), defaults: configService.getRootValue(platformRootSchema, AgentHostDefaultUrlAllowRulesConfigKey) };
+
+		const Setting = ToolCallConfirmationReason.Setting;
+		const NotNeeded = ToolCallConfirmationReason.NotNeeded;
+		assert.deepStrictEqual({ results, withDefaults, disabled, mirroredDefault, savedInSession, savedOnHost }, {
+			results: [Setting, Setting, undefined, undefined, undefined, undefined, Setting, undefined, Setting, undefined],
+			withDefaults: [NotNeeded, NotNeeded],
+			disabled: undefined,
+			mirroredDefault: [[Setting, undefined], [Setting, undefined]],
+			savedInSession: [Setting, Setting],
+			savedOnHost: { approvals: [Setting, Setting], defaults: [] },
 		});
 	});
 
@@ -545,6 +641,57 @@ suite('SessionPermissionManager', () => {
 			{ id: 'allow-always-rules:["Shell(My-Cmdlet -Flag)"]', label: 'Always Allow Exact Command', kind: 'approve', group: 1 },
 			{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
 		]);
+	});
+
+	test('reviewer-required shell confirmations offer grants that also cover sub-commands implicit defaults approve', async () => {
+		const explicit = { explicitRulesOnly: true };
+		const command = 'my-command --flag && git status';
+		const manual = confirmationSignal({ permissionKind: AgentPermissionKind.Shell, shellCommand: command, shellLanguage: 'bash' });
+		const required: IAgentToolPendingConfirmationSignal = { ...manual, requiresUserConfirmation: true };
+		const chat = required.chat.toString();
+		const event = { ...shellEvent(command, 'bash'), toolCallId: required.state.toolCallId };
+		const optionIds = (signal: IAgentToolPendingConfirmationSignal) => permissions.createToolReadyAction(signal, chat, 'turn').options?.map(option => option.id);
+		const grant = 'allow-session-rules:["Shell(my-command *)","Shell(git status)"]';
+		setPermissionRules([]);
+		const offered = {
+			manual: optionIds(manual),
+			required: optionIds(required),
+			requiredLabels: permissions.createToolReadyAction(required, chat, 'turn').options?.map(option => option.label),
+			// A sub-command that defaults approve gets an exact rule only: a prefix rule would also allow the forms defaults deny, such as `find -delete`.
+			defaultsOnly: optionIds({ ...required, shellCommand: 'find . -name x' }),
+			withoutExactRule: optionIds({ ...required, shellCommand: 'find . -name *.log' }),
+			// Only the redirect keeps this command from approval, and no saved shell rule can change that.
+			redirected: optionIds({ ...required, shellCommand: 'echo hello > out.txt' }),
+		};
+		startConfirmation(required);
+		const before = await permissions.getAutoApproval(event, chat, explicit);
+		confirmToolCall(chat, required.state.toolCallId, grant);
+		const after = await permissions.getAutoApproval(event, chat, explicit);
+		setPermissionRules(['Shell(find . -name x)']);
+		const exactOnly = await Promise.all(['find . -name x', 'find . -name x -delete']
+			.map(variant => permissions.getAutoApproval(shellEvent(variant, 'bash'), sessionUri, explicit)));
+		assert.deepStrictEqual({ offered, before, after, exactOnly }, {
+			offered: {
+				manual: [
+					'allow-once', 'allow-session-rules:["Shell(my-command *)"]', 'allow-session-rules:["Shell(my-command --flag)"]',
+					'allow-always-rules:["Shell(my-command *)"]', 'allow-always-rules:["Shell(my-command --flag)"]', 'skip',
+				],
+				required: [
+					'allow-once', grant, 'allow-session-rules:["Shell(my-command --flag)","Shell(git status)"]',
+					'allow-always-rules:["Shell(my-command *)","Shell(git status)"]', 'allow-always-rules:["Shell(my-command --flag)","Shell(git status)"]', 'skip',
+				],
+				requiredLabels: [
+					'Allow Once', 'Allow Commands `my-command …`, `git status` in this Session', 'Allow Exact Command in this Session',
+					'Always Allow Commands `my-command …`, `git status`', 'Always Allow Exact Command', 'Skip',
+				],
+				defaultsOnly: ['allow-once', 'allow-session-rules:["Shell(find . -name x)"]', 'allow-always-rules:["Shell(find . -name x)"]', 'skip'],
+				withoutExactRule: ['allow-once', 'skip'],
+				redirected: ['allow-once', 'skip'],
+			},
+			before: undefined,
+			after: ToolCallConfirmationReason.Setting,
+			exactOnly: [ToolCallConfirmationReason.Setting, undefined],
+		});
 	});
 
 	test('unsafe, unparseable and disabled shell commands offer no scoped grants', () => {
@@ -1155,14 +1302,35 @@ suite('SessionPermissionManager', () => {
 		});
 	}
 
-	test('other kinds keep the session grant first, while managed and sandbox asks remain one-time', () => {
+	test('kinds without scoped grants default to Allow Once and keep the tool-wide session grant', () => {
+		const kinds = [
+			AgentPermissionKind.Mcp, AgentPermissionKind.Skill, AgentPermissionKind.CustomTool, AgentPermissionKind.Hook,
+			AgentPermissionKind.Memory, AgentPermissionKind.Workflow, AgentPermissionKind.ExtensionManagement,
+			AgentPermissionKind.ExtensionPermissionAccess, AgentPermissionKind.ExtensionEnvAccess, undefined,
+		];
+		assert.deepStrictEqual(
+			kinds.map(permissionKind => permissions.createToolReadyAction(confirmationSignal({ permissionKind }), sessionUri, 'turn').options),
+			kinds.map(() => [
+				{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+				{ id: 'allow-session', label: 'Allow in this Session', kind: 'approve', group: 1 },
+				{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
+			]),
+		);
+	});
+
+	test('agent-supplied options keep their order, while managed and sandbox asks remain one-time', () => {
+		const agentOptions: ConfirmationOption[] = [
+			{ id: 'approve-all', label: 'Approve All', kind: ConfirmationOptionKind.Approve },
+			{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+		];
+		const agentSignal = confirmationSignal({ permissionKind: AgentPermissionKind.CustomTool });
 		assert.deepStrictEqual([
-			confirmationSignal({ permissionKind: AgentPermissionKind.Mcp }),
+			{ ...agentSignal, state: { ...agentSignal.state, options: agentOptions } },
 			confirmationSignal({ permissionKind: AgentPermissionKind.Shell, managedApprovalRequired: true }),
 			confirmationSignal({ permissionKind: AgentPermissionKind.Url, requestSandboxBypass: true }),
 			confirmationSignal({ permissionKind: AgentPermissionKind.Shell, requestSandboxPermissive: true }),
 		].map(signal => permissions.createToolReadyAction(signal, sessionUri, 'turn').options?.map(option => option.id)), [
-			['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'],
+			['approve-all', 'allow-once'], ['allow-once', 'skip'], ['allow-once', 'skip'], ['allow-once', 'skip'],
 		]);
 	});
 
@@ -2240,6 +2408,18 @@ suite('SessionPermissionManager', () => {
 			}, {
 				inline: undefined,
 				unscoped: ToolCallConfirmationReason.NotNeeded,
+			});
+		});
+
+		test('a reviewer-required shell confirmation offers no grant for a command that defaults approve, since every shell command is confirmed here', () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Shell, shellCommand: 'git status', shellLanguage: 'bash', requiresUserConfirmation: true });
+			assert.deepStrictEqual({
+				inline: permissions.createToolReadyAction(signal, inlineSessionUri, 'turn').options?.map(option => option.id),
+				unscoped: permissions.createToolReadyAction(signal, sessionUri, 'turn').options?.map(option => option.id),
+			}, {
+				inline: ['allow-once', 'skip'],
+				unscoped: ['allow-once', 'allow-session-rules:["Shell(git status)"]', 'allow-always-rules:["Shell(git status)"]', 'skip'],
 			});
 		});
 

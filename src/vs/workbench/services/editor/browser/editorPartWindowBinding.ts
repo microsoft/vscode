@@ -5,6 +5,7 @@
 
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroupsService, IContentPart } from '../common/editorGroupsService.js';
 
@@ -12,13 +13,14 @@ import { IEditorGroupsService, IContentPart } from '../common/editorGroupsServic
  * Ties the lifetime of editor parts created with `IEditorGroupsService.createEditorPart`
  * to an auxiliary window that the caller owns:
  * - closing the window is vetoed when an editor in one of the parts cannot be moved to the main part
- *   (the editor is revealed in its group so that the user can resolve it),
+ *   (the editor is revealed in its group so that the user can resolve it), unless `closesWithWindow` says that the
+ *   editor closes with the window rather than moving, such as the chats of a chat window,
  * - once the window unloads, the parts are closed, which merges their editors into the main part; editors that
  *   cannot move there close with the parts.
  *
  * The returned disposable removes the binding without closing the parts.
  */
-export function bindEditorPartsToWindow(window: IAuxiliaryWindow, parts: readonly IContentPart[], editorGroupsService: IEditorGroupsService): IDisposable {
+export function bindEditorPartsToWindow(window: IAuxiliaryWindow, parts: readonly IContentPart[], editorGroupsService: IEditorGroupsService, closesWithWindow?: (editor: EditorInput) => boolean): IDisposable {
 	const store = new DisposableStore();
 
 	store.add(window.onBeforeUnload(event => {
@@ -26,6 +28,9 @@ export function bindEditorPartsToWindow(window: IAuxiliaryWindow, parts: readonl
 		for (const part of parts) {
 			for (const group of part.groups) {
 				for (const editor of group.editors) {
+					if (closesWithWindow?.(editor)) {
+						continue;
+					}
 					const canMoveVeto = editor.canMove(group.id, targetGroupId);
 					if (typeof canMoveVeto === 'string') {
 						group.openEditor(editor);

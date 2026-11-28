@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostDefaultUrlAllowRulesConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -268,6 +268,35 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
 			{ [SessionConfigKey.Permissions]: { allow: ['WebFetch(global.test)'], ask: [], deny: [] } },
+		]);
+	});
+
+	test('names the URL allow rules that come from registered defaults rather than the user', async () => {
+		const results = [];
+		const configured = { 'https://user.test': true };
+		// The last case changes the setting while the push is in flight: both values must come from the same reading.
+		for (const [initial, duringPush] of [[undefined, undefined], [configured, configured], [undefined, configured]]) {
+			let userValue = initial;
+			const configurationService = new class extends TestConfigurationService {
+				override inspect<T>(key: string): IConfigurationValue<T> {
+					const inspected = super.inspect<T>(key);
+					return key === URL_AUTO_APPROVE_SETTING_ID ? { ...inspected, defaultValue: { 'https://default.test': true } as T, userValue: userValue as T | undefined } : inspected;
+				}
+			}();
+			const { agentHostService } = setup(disposables, {}, null, configurationService);
+			agentHostService.setRootState(makeRootStateWithSchema({
+				[AgentHostDefaultUrlAllowRulesConfigKey]: { type: 'array', title: 'Default URL Allow Rules' },
+				[SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' },
+			}));
+			userValue = duringPush;
+			await flush();
+			results.push(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config));
+		}
+		const fromDefaults = [{ [SessionConfigKey.Permissions]: { allow: ['WebFetch(default.test)'], ask: [], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: ['WebFetch(default.test)'] }];
+		assert.deepStrictEqual(results, [
+			fromDefaults,
+			[{ [SessionConfigKey.Permissions]: { allow: ['WebFetch(user.test)'], ask: [], deny: [] }, [AgentHostDefaultUrlAllowRulesConfigKey]: [] }],
+			fromDefaults,
 		]);
 	});
 

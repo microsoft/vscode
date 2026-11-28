@@ -23,5 +23,4 @@ allowBuilds:
   esbuild@0.27.2: true
   fsevents@2.3.3: true
 overrides:
-  path-scurry>lru-cache: 11.2.1
   yauzl: ^3.3.1

@@ -193,7 +193,11 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
 	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	readonly menuActionClassNames?: string[];
+	/** Runs the actions of the menu, instead of a runner of the menu's own. */
+	readonly menuActionRunner?: IActionRunner;
 	readonly keybindingProvider?: IKeybindingProvider;
+	/** Gives a split button with filled labels the geometry of the split buttons of the Extensions editor header. */
+	readonly filledSplitButton?: boolean;
 }
 
 export class ActionWithDropdownActionViewItem extends ActionViewItem {
@@ -213,6 +217,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 		super.render(container);
 		if (this.element) {
 			this.element.classList.add('action-dropdown-item');
+			this.element.classList.toggle('filled-split-button', !!(<IActionWithDropdownActionViewItemOptions>this.options).filledSplitButton);
 			const menuActionsProvider = {
 				getActions: () => {
 					const actionsProvider = (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider;
@@ -229,6 +234,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 				classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames],
 				hoverDelegate: this.options.hoverDelegate,
 				keybindingProvider: (<IActionWithDropdownActionViewItemOptions>this.options).keybindingProvider,
+				actionRunner: (<IActionWithDropdownActionViewItemOptions>this.options).menuActionRunner,
 			}));
 			this.dropdownMenuActionViewItem.render(this.element);
 

@@ -8,6 +8,7 @@ import { URI, UriComponents, UriDto } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ILoggerResource, LogLevel } from '../../../../platform/log/common/log.js';
 import { IRemoteConnectionData } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { WorkbenchMode } from '../../../../platform/workspace/common/workspace.js';
 
 export interface IExtensionDescriptionSnapshot {
 	readonly versionId: number;
@@ -84,6 +85,11 @@ export interface IStaticWorkspaceData {
 	transient?: boolean;
 	configuration?: UriComponents | null;
 	isUntitled?: boolean | null;
+	/**
+	 * The mode of the workbench when the extension host starts. Absent, as without workspace data, means {@link WorkbenchMode.Editor}
+	 * until `$initializeWorkspace` sends the window's actual mode.
+	 */
+	mode?: WorkbenchMode;
 }
 
 export interface MessagePortLike {

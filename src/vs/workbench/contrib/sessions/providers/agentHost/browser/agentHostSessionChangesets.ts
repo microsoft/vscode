@@ -21,8 +21,9 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionChangesetCapabilities, ISessionChangesetFolderFailure, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { AgentHostBaseBranchSelection } from './agentHostBaseBranchSelection.js';
+import { readSessionChangesetFolderFailures } from './agentHostSessionFolders.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
@@ -158,7 +159,7 @@ export function createChangesets(
 			changeset.changeKind === ChangesetKind.Session
 		) {
 			// Branch Changes, Uncommitted Changes, and Session Changes
-			sessionChangesets.push(options.instantiationService.createInstance(AgentHostChangeset, options, isActiveSessionObs, {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostChangeset, sessionUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		} else if (changeset.changeKind === ChangesetKind.Turn) {
@@ -356,6 +357,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 	readonly baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>;
+	readonly folderFailures: IObservable<readonly ISessionChangesetFolderFailure[]>;
 
 	readonly capabilities: ISessionChangesetCapabilities;
 
@@ -366,6 +368,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
 
 	constructor(
+		sessionUri: URI,
+		isActiveSessionObs: IObservable<boolean>,
 		changeset: IAgentHostChangeset & { isDefault: boolean },
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
@@ -373,6 +377,17 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		this.capabilities = {
 			review: changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
+
+		// The host records the folders it could not compute in the session's metadata, by changeset
+		const folderFailuresSessionStateObs = createActiveSessionSubscriptionObs<SessionState>(_options, isActiveSessionObs, StateComponents.Session, constObservable(sessionUri));
+		this.folderFailures = derivedOpts<readonly ISessionChangesetFolderFailure[]>({ owner: this, equalsFn: arrayEqualsC((a, b) => isEqual(a.workingDirectory, b.workingDirectory) && a.message === b.message && a.detail === b.detail) }, reader => {
+			const sessionState = folderFailuresSessionStateObs.read(reader).read(reader);
+			const channel = this.channelUriObs.read(reader);
+			if (!sessionState || sessionState instanceof Error || !channel) {
+				return [];
+			}
+			return readSessionChangesetFolderFailures(sessionState._meta, channel.toString(), uri => _options.mapWorkingDirectoryUri?.(uri) ?? uri);
+		});
 
 		const retainUntilChangesetFilesPublished = <T extends readonly ISessionFileChange[]>(source: IObservable<T | undefined> | undefined) => {
 			let changesetStateWithProvidedChanges: ChangesetState | Error | undefined | null;
@@ -651,12 +666,13 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
+		sessionUri: URI,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(changesetSummary, options, dialogService);
+		super(sessionUri, isActiveSessionObs, changesetSummary, options, dialogService);
 
 		this.resource = URI.parse(changesetSummary.uriTemplate);
 		this.channelUriObs = constObservable(this.resource);
@@ -702,7 +718,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(changesetSummary, options, dialogService);
+		super(sessionUri, isActiveSessionObs, changesetSummary, options, dialogService);
 
 		this.id = changesetSummary.changeKind;
 
@@ -806,7 +822,7 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(changesetSummary, options, dialogService);
+		super(sessionUri, isActiveSessionObs, changesetSummary, options, dialogService);
 
 		this.label = changesetSummary.label;
 		this.description = changesetSummary.description;

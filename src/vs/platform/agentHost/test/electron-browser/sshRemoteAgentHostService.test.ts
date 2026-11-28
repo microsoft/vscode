@@ -22,7 +22,7 @@ import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAc
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { ILabelService } from '../../../label/common/label.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { IConfirmation, IDialogService } from '../../../dialogs/common/dialogs.js';
 import { INotificationService, Severity, type INotification, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
@@ -41,8 +41,11 @@ import { InMemoryStorageService, IStorageService } from '../../../storage/common
 import {
 	SSHAuthMethod,
 	SSHAuthenticationFailedError,
+	SSHConnectFailureCode,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
+	encodeSSHConnectFailureCode,
+	setSSHConnectFailureCode,
 	type ISSHAgentHostConfig,
 	type ISSHConnectProgress,
 	type ISSHConnectResult,
@@ -709,6 +712,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
 		sshStorageService = disposables.add(new InMemoryStorageService());
@@ -1384,6 +1388,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
@@ -1654,6 +1659,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
@@ -2288,7 +2294,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		return client.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL);
 	}
 
-	function createIsolatedRenderer(autoConnect = false, channel = asChannel(mainService)): { remoteAgentHostService: EditorWindowRemoteAgentHostService; service: SSHRemoteAgentHostService } {
+	function createIsolatedRenderer(autoConnect = false, channel = asChannel(mainService), telemetryService: ITelemetryService = NullTelemetryService): { remoteAgentHostService: EditorWindowRemoteAgentHostService; service: SSHRemoteAgentHostService } {
 		const rendererInstantiationService = disposables.add(new TestInstantiationService());
 		const rendererStorageService = disposables.add(new InMemoryStorageService());
 		rendererInstantiationService.stub(ILogService, new NullLogService());
@@ -2297,7 +2303,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		rendererInstantiationService.stub(IStorageService, rendererStorageService);
 		rendererInstantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		rendererInstantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
-		rendererInstantiationService.stub(ITelemetryService, NullTelemetryService);
+		rendererInstantiationService.stub(ITelemetryService, telemetryService);
 		rendererInstantiationService.stub(IAgentHostResourceService, new class extends mock<IAgentHostResourceService>() {
 			override connectionClosed(): void { }
 		});
@@ -2380,6 +2386,33 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			connects: 1,
 			reconnects: 1,
 			status: RemoteAgentHostConnectionStatus.connected,
+		});
+		renderer.remoteAgentHostService.dispose();
+	}));
+
+	test('reports user-initiated and automatic connection attempts', () => runWithFakedTimers({}, async () => {
+		const attempts: object[] = [];
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(eventName?: string, data?: object): void {
+				if (eventName === 'vscodeAgents.sshConnect/attempt' && data) {
+					attempts.push(Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'durationMs')));
+				}
+			}
+		};
+		const renderer = createIsolatedRenderer(true, createIPCChannel(), telemetryService);
+		const dnsFailure = new Error('getaddrinfo ENOTFOUND remote.example');
+		setSSHConnectFailureCode(dnsFailure, SSHConnectFailureCode.Network);
+		encodeSSHConnectFailureCode(dnsFailure);
+		mainService.nextConnectError = dnsFailure;
+		const failure = await renderer.service.connect(config).then(() => undefined, error => String(error));
+		await renderer.remoteAgentHostService.waitForConnection(computeSSHConnectionKey(config));
+
+		assert.deepStrictEqual({ failure, attempts }, {
+			failure: 'Error: getaddrinfo ENOTFOUND remote.example',
+			attempts: [
+				{ operation: 'connect', userInitiated: true, attempt: 1, success: false, willRetry: true, errorCategory: 'network', stage: 'ssh' },
+				{ operation: 'reconnect', userInitiated: false, attempt: 2, success: true, willRetry: false, errorCategory: '', stage: '' },
+			],
 		});
 		renderer.remoteAgentHostService.dispose();
 	}));

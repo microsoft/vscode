@@ -26,7 +26,7 @@ const mockNotification = {
 
 const onDidChangeChatModelsEmitter = new Emitter<void>();
 const selectChatModelsMock = vi.fn();
-const mockWorkspace = vi.hoisted(() => ({ isAgentSessionsWorkspace: false }));
+const mockWorkspace = vi.hoisted(() => ({ isAgentManaged: false }));
 
 vi.mock('vscode', () => ({
 	ChatInputNotificationSeverity: { Info: 1 },
@@ -101,7 +101,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		mockNotification.description = '';
 		mockNotification.actions = [];
 		mockNotification.sessionTypes = undefined;
-		mockWorkspace.isAgentSessionsWorkspace = false;
+		mockWorkspace.isAgentManaged = false;
 		selectChatModelsMock.mockResolvedValue([{ vendor: 'ollama', id: 'llama3' }]);
 	});
 
@@ -126,7 +126,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 	});
 
 	test('does not show notification in the Agents window', async () => {
-		mockWorkspace.isAgentSessionsWorkspace = true;
+		mockWorkspace.isAgentManaged = true;
 		const { authService } = createAuthService({ anyGitHubSession: undefined });
 		const { configService } = createConfigService();
 		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);

@@ -22,7 +22,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../../browser/views/sessionsListNotification.js';
+import { SessionsListNotification } from '../../../browser/views/sessionsListNotification.js';
+import { ISessionsListNotice } from '../../../browser/sessionsListUndoService.js';
 
 suite('Sessions - List notification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +86,20 @@ suite('Sessions - List notification', () => {
 		assert.ok(test.element());
 		await timeout(1);
 		assert.strictEqual(test.element(), null);
+	}));
+
+	test('pauses the countdown while its view is hidden, so Undo does not run out unseen, and resumes with the remaining time', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		test.notification.show(notice('1 deleted'));
+		await timeout(4000);
+		test.notification.setVisible(false);
+		await timeout(60_000);
+		const whileHidden = { shown: !!test.element(), progress: test.container.querySelector<HTMLElement>('.sessions-list-notification-progress')?.style.animationPlayState };
+		test.notification.setVisible(true);
+		await timeout(5999);
+		const beforeExpiry = !!test.element();
+		await timeout(1);
+		assert.deepStrictEqual({ whileHidden, beforeExpiry, expired: !test.element() }, { whileHidden: { shown: true, progress: 'paused' }, beforeExpiry: true, expired: true });
 	}));
 
 	test('countdown stays clear of the banner corners and shrinks without scaling its rounded ends', () => {
@@ -416,5 +431,29 @@ suite('Sessions - List notification', () => {
 		test.notification.dispose();
 		await timeout(10000);
 		assert.strictEqual(test.element(), null);
+	}));
+
+	test('updating a notice shows the new message and restarts its countdown, and closing it reports once', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		let closed = 0;
+		const handle = test.notification.show({ ...notice('1 marked done'), onDidClose: () => closed++ });
+		await timeout(6000);
+		const firstBar = test.container.querySelector('.sessions-list-notification-progress');
+		handle.update('3 marked done');
+		const updated = {
+			label: test.container.querySelector('.sessions-list-notification-label')?.textContent,
+			undoLabel: test.undoButton().getAttribute('aria-label'),
+			barRestarted: test.container.querySelector('.sessions-list-notification-progress') !== firstBar,
+		};
+		await timeout(9999);
+		const shownBeforeExpiry = !!test.element();
+		await timeout(1);
+		handle.close();
+		assert.deepStrictEqual({ updated, shownBeforeExpiry, expired: !test.element(), closed }, {
+			updated: { label: '3 marked done', undoLabel: 'Undo: 3 marked done', barRestarted: true },
+			shownBeforeExpiry: true,
+			expired: true,
+			closed: 1,
+		});
 	}));
 });

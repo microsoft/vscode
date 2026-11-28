@@ -172,7 +172,7 @@ import { IHistoryService } from '../../services/history/common/history.js';
 import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IPartsLayoutState, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
@@ -203,6 +203,7 @@ import { IWorkingCopyService, WorkingCopyService } from '../../services/workingC
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { TestActivityService, TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
+import { IAgentsModeService } from '../../services/agentsMode/common/agentsMode.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 // Backcompat export
@@ -313,6 +314,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IAgentsModeService, { _serviceBrand: undefined, isSupported: false, windowFolders: [], isActive: false, onWillChange: Event.None, onDidChange: Event.None, setActive: async () => { } });
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
 	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();
@@ -721,6 +723,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isAuxiliaryBarMaximized(): boolean { return false; }
 	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
 	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
+	getPartsLayoutState(): IPartsLayoutState | undefined { return undefined; }
+	applyPartsLayoutState(_state: IPartsLayoutState): void { }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -1020,6 +1024,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
+	readonly onDidRelayout: Event<void> = Event.None;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	readonly onDidOpenEditorFail: Event<EditorInput> = Event.None;

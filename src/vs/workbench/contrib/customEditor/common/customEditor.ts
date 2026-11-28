@@ -117,6 +117,10 @@ export interface CustomEditorDescriptor {
 	readonly providerDisplayName: string;
 	readonly priority: CustomEditorPriorityInfo;
 	readonly selector: readonly CustomEditorSelector[];
+	/**
+	 * Markdown of the accessibility help of the custom editor.
+	 */
+	readonly accessibilityHelpContent?: string;
 }
 
 export class CustomEditorInfo implements CustomEditorDescriptor {
@@ -126,6 +130,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly providerDisplayName: string;
 	public readonly priority: CustomEditorPriorityInfo;
 	public readonly selector: readonly CustomEditorSelector[];
+	public readonly accessibilityHelpContent: string | undefined;
 
 	constructor(descriptor: CustomEditorDescriptor) {
 		this.id = descriptor.id;
@@ -133,6 +138,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
 		this.selector = descriptor.selector;
+		this.accessibilityHelpContent = descriptor.accessibilityHelpContent;
 	}
 
 	matches(resource: URI): boolean {

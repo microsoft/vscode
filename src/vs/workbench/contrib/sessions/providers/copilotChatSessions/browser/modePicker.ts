@@ -33,6 +33,8 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { PromptsStorage } from '../../../../chat/common/promptSyntax/service/promptsService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { getModeConfigurationActionId } from '../../../../chat/browser/widget/input/modePickerActionItem.js';
 import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 interface IModePickerItem {
@@ -250,6 +252,7 @@ export class ModePicker extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -396,7 +399,7 @@ export class ModePicker extends Disposable {
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
 					toolbarActions: resource && hasReadableCustomizationContent(resource) && this.fileService.hasProvider(resource) ? [{
-						id: `${isExtension ? 'viewAgent' : 'editAgent'}:${mode.id}`,
+						id: getModeConfigurationActionId(mode, this.productService),
 						label: openLabel,
 						tooltip: openLabel,
 						class: ThemeIcon.asClassName(isExtension ? Codicon.file : Codicon.edit),

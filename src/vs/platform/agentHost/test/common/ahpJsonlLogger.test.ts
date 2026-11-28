@@ -16,6 +16,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { ClientForwardingDataNotification, ClientGitCredentialExtensionMethod } from '../../common/clientForwardingProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -467,6 +468,25 @@ suite('AhpJsonlLogger', () => {
 			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
 			live: response.result.certificates,
 		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
+	});
+
+	test('redacts forwarded Git credentials, Git configuration and agent data without modifying the live messages', () => {
+		const messages = [
+			{ jsonrpc: '2.0', id: 1, method: ClientGitCredentialExtensionMethod, params: { operation: 'store', input: 'password=secret\n' } },
+			{ jsonrpc: '2.0', id: 1, result: { gitCredential: 'password=secret\n' } },
+			{ jsonrpc: '2.0', id: 2, result: { user: { name: 'User' }, gitGlobalConfig: { config: 'W2h0dHBdIGV4dHJhaGVhZGVyID0gdG9rZW4=' } } },
+			{ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection: 3, data: 'c2lnbmF0dXJl' } },
+		];
+		const live = JSON.stringify(messages);
+		assert.deepStrictEqual({ logged: messages.map(message => JSON.parse(stringifyAhpLogEntry(message))), unchanged: JSON.stringify(messages) === live }, {
+			logged: [
+				{ jsonrpc: '2.0', id: 1, method: ClientGitCredentialExtensionMethod, params: { operation: 'store', input: '<redacted>' } },
+				{ jsonrpc: '2.0', id: 1, result: { gitCredential: '<redacted>' } },
+				{ jsonrpc: '2.0', id: 2, result: { user: { name: 'User' }, gitGlobalConfig: '<redacted>' } },
+				{ jsonrpc: '2.0', method: ClientForwardingDataNotification, params: { connection: 3, data: '<redacted channel payload>' } },
+			],
+			unchanged: true,
+		});
 	});
 
 	test('redacts Assisted permissions feedback in dispatched confirmations without modifying the live action', () => {
