@@ -9,10 +9,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { countEOL } from '../../core/misc/eolCounter.js';
 import { IPosition, Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
-import { IWordAtPosition, getWordAtText } from '../../core/wordHelper.js';
+import { IWordAtPosition } from '../../core/wordHelper.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { ILanguageService } from '../../languages/language.js';
-import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from '../../languages/languageConfigurationRegistry.js';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent } from '../../languages/languageConfigurationRegistry.js';
+import { createScopedLineTokens, getWordAtColumn } from '../../languages/supports.js';
 import { BracketPairsTextModelPart } from '../bracketPairsTextModelPart/bracketPairsImpl.js';
 import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
@@ -266,77 +267,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.assertNotDisposed();
 
 		const position = this._textModel.validatePosition(_position);
-		const lineContent = this._textModel.getLineContent(position.lineNumber);
 		const lineTokens = this.getLineTokens(position.lineNumber);
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-
-		// (1). First try checking right biased word
-		const [rbStartOffset, rbEndOffset] = TokenizationTextModelPart._findLanguageBoundaries(lineTokens, tokenIndex);
-		const rightBiasedWord = getWordAtText(
-			position.column,
-			this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex)).getWordDefinition(),
-			lineContent.substring(rbStartOffset, rbEndOffset),
-			rbStartOffset
-		);
-		// Make sure the result touches the original passed in position
-		if (
-			rightBiasedWord &&
-			rightBiasedWord.startColumn <= _position.column &&
-			_position.column <= rightBiasedWord.endColumn
-		) {
-			return rightBiasedWord;
-		}
-
-		// (2). Else, if we were at a language boundary, check the left biased word
-		if (tokenIndex > 0 && rbStartOffset === position.column - 1) {
-			// edge case, where `position` sits between two tokens belonging to two different languages
-			const [lbStartOffset, lbEndOffset] = TokenizationTextModelPart._findLanguageBoundaries(
-				lineTokens,
-				tokenIndex - 1
-			);
-			const leftBiasedWord = getWordAtText(
-				position.column,
-				this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex - 1)).getWordDefinition(),
-				lineContent.substring(lbStartOffset, lbEndOffset),
-				lbStartOffset
-			);
-			// Make sure the result touches the original passed in position
-			if (
-				leftBiasedWord &&
-				leftBiasedWord.startColumn <= _position.column &&
-				_position.column <= leftBiasedWord.endColumn
-			) {
-				return leftBiasedWord;
-			}
-		}
-
-		return null;
-	}
-
-	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
-		return this._languageConfigurationService.getLanguageConfiguration(languageId);
-	}
-
-	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
-		const languageId = lineTokens.getLanguageId(tokenIndex);
-
-		// go left until a different language is hit
-		let startOffset = 0;
-		for (let i = tokenIndex; i >= 0 && lineTokens.getLanguageId(i) === languageId; i--) {
-			startOffset = lineTokens.getStartOffset(i);
-		}
-
-		// go right until a different language is hit
-		let endOffset = lineTokens.getLineContent().length;
-		for (
-			let i = tokenIndex, tokenCount = lineTokens.getCount();
-			i < tokenCount && lineTokens.getLanguageId(i) === languageId;
-			i++
-		) {
-			endOffset = lineTokens.getEndOffset(i);
-		}
-
-		return [startOffset, endOffset];
+		return getWordAtColumn(position.column, _position.column, offset => createScopedLineTokens(lineTokens, offset).getWordScope(this._languageConfigurationService));
 	}
 
 	public getWordUntilPosition(position: IPosition): IWordAtPosition {
