@@ -7,10 +7,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { observableSessionWorkspacesEnabled } from '../../common/sessionConfig.js';
 import { ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 
@@ -27,9 +27,10 @@ export class SessionWorkspaceRenamePlacementContribution extends Disposable impl
 		@ISessionGroupsService private readonly groupsService: ISessionGroupsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IProductService productService: IProductService,
 	) {
 		super();
-		const enabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, configurationService);
+		const enabled = observableSessionWorkspacesEnabled(configurationService, productService);
 		this._register(autorun(reader => {
 			if (!enabled.read(reader)) {
 				return;

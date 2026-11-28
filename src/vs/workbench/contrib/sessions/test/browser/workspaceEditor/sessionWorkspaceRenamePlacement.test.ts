@@ -11,6 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { SessionWorkspaceRenamePlacementContribution } from '../../../browser/workspaceEditor/sessionWorkspaceRenamePlacement.js';
@@ -31,6 +32,7 @@ suite('SessionWorkspaceRenamePlacementContribution', () => {
 			new class extends mock<ISessionGroupsService>() { override renameSection(sectionId: string, newSectionId: string) { renames.push(`${sectionId} -> ${newSectionId}`); } },
 			new class extends mock<IUriIdentityService>() { override readonly extUri = extUriIgnorePathCase; },
 			configurationService,
+			new class extends mock<IProductService>() { override readonly quality = 'insider'; },
 		));
 		const disabled = [...renames];
 		await configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
@@ -48,5 +50,20 @@ suite('SessionWorkspaceRenamePlacementContribution', () => {
 			renamedAgain: ['workspace:file:///user/a.code-workspace -> workspace:file:///user/b.code-workspace'],
 			caseVariant: [],
 		});
+	});
+
+	test('moves no placement in Stable, which does not offer workspaces, also when the setting is written by hand', () => {
+		const renames: string[] = [];
+		const configurationService = new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		disposables.add(new SessionWorkspaceRenamePlacementContribution(
+			new class extends mock<ISessionWorkspacesService>() { override readonly workspaces = observableValue<readonly IRecentSessionWorkspace[]>('workspaces', [{ uri: URI.file('/user/A.code-workspace'), name: 'A', folders: [], owned: true, previousUris: [URI.file('/user/Old.code-workspace')] }]); },
+			new class extends mock<ISessionGroupsService>() { override renameSection(sectionId: string, newSectionId: string) { renames.push(`${sectionId} -> ${newSectionId}`); } },
+			new class extends mock<IUriIdentityService>() { override readonly extUri = extUriIgnorePathCase; },
+			configurationService,
+			new class extends mock<IProductService>() { override readonly quality = 'stable'; },
+		));
+
+		assert.deepStrictEqual(renames, []);
 	});
 });

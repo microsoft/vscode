@@ -38,7 +38,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_WORKSPACES_ENABLED_SETTING, observableSessionWorkspacesEnabled } from '../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, observableSessionWorkspacesEnabled } from '../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -779,6 +779,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The chat the main window shows, which its row reflects as the open one. */
 	private readonly _mainWindowShown: IObservable<IShownChat | undefined>;
+	private readonly _workspacesEnabled: IObservable<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -1751,9 +1752,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		// Group by Workspace lists the workspaces as their files have them, and pins a label by its workspace's files. The
 		// workspaces service is created only once workspaces are enabled.
-		const workspacesEnabled = observableSessionWorkspacesEnabled(this.configurationService, productService);
+		this._workspacesEnabled = observableSessionWorkspacesEnabled(this.configurationService, productService);
 		this._register(autorun(reader => {
-			if (workspacesEnabled.read(reader)) {
+			if (this._workspacesEnabled.read(reader)) {
 				reader.store.add(runOnChange(this.workspacesService.workspaces, () => {
 					if (this.options.grouping() === SessionsGrouping.Workspace) {
 						this.scheduleListUpdate();
@@ -6176,7 +6177,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// The rows exist while workspaces are enabled, as they are while separate. Without pins, only a separate row's former
 		// keys, for its collapse state and group, are needed.
 		const pinned = this._sessionsListModelService.pinnedSectionIds.get().length > 0;
-		if (!separate && (!pinned || !this.configurationService.getValue<boolean>(SESSIONS_WORKSPACES_ENABLED_SETTING))) {
+		if (!separate && (!pinned || !this._workspacesEnabled.get())) {
 			return new Map();
 		}
 		const inventory = this.getWorkspaceKeyInventory();
