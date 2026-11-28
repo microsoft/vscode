@@ -640,18 +640,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								// might be idle render request's ack
 								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
 								if (outputRequest) {
-									const inset = this.pendingWebviewIdleInsetMapping.get(outputRequest)!;
+									const inset = this.pendingWebviewIdleInsetMapping.get(outputRequest);
 
 									// clear the pending mapping
 									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
-									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
+									this.pendingWebviewIdleInsetMapping.delete(outputRequest);
 
-									const cellInfo = inset.cellInfo;
-									this.reversedInsetMapping.set(update.id, outputRequest);
-									this.insetMapping.set(outputRequest, inset);
-									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
-									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
-
+									if (inset) {
+										const cellInfo = inset.cellInfo;
+										this.reversedInsetMapping.set(update.id, outputRequest);
+										this.insetMapping.set(outputRequest, inset);
+										this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+										this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+									}
 								}
 
 								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
