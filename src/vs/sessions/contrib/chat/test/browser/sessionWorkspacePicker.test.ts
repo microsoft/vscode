@@ -22,6 +22,7 @@ import { autorun, constObservable, derived, IObservable, ISettableObservable, ob
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -406,7 +407,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService>; readonly sessionWorkspacesService?: Partial<ISessionWorkspacesService> },
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly quality?: string; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService; readonly commandService?: Partial<ICommandService>; readonly sessionWorkspacesService?: Partial<ISessionWorkspacesService> },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -455,6 +456,7 @@ function createTestPicker(
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
 	instantiationService.stub(ISessionWorkspacesService, options?.sessionWorkspacesService ?? { workspaces: constObservable([]), getWorkspace: () => undefined, touchWorkspace: () => { } });
 	instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: uri => uri.path }));
+	instantiationService.stub(IProductService, upcastPartial<IProductService>({ quality: options?.quality }));
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService ?? {});
@@ -539,7 +541,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 	const formerProductUri = URI.file('/ws/old-product.code-workspace');
 	const gone: IRecentSessionWorkspace = { uri: URI.file('/ws/gone.code-workspace'), name: 'Gone', folders: [docs], owned: true, missing: true };
 
-	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>) {
+	function setupPicker(enabled = true, allowedFolders?: IObservable<readonly URI[]>, quality?: string) {
 		const touched: URI[] = [];
 		const commands: [string, unknown][] = [];
 		const providersService = store.add(new MockSessionsProvidersService());
@@ -549,6 +551,7 @@ suite('WorkspacePicker - Workspaces group', () => {
 			restoreFromSessions: false,
 			allowedFolders,
 			configuration: { [SESSIONS_WORKSPACES_ENABLED_SETTING]: enabled },
+			quality,
 			commandService: { executeCommand: async (id: string, arg: unknown) => { commands.push([id, arg]); return undefined; } },
 			sessionWorkspacesService: {
 				workspaces: constObservable(workspaces),
@@ -569,6 +572,13 @@ suite('WorkspacePicker - Workspaces group', () => {
 		};
 		return { picker, touched, commands, workspaceRows };
 	}
+
+	test('lists no workspaces in Stable, also with workspaces enabled in settings.json by hand', () => {
+		assert.deepStrictEqual({
+			stable: setupPicker(true, undefined, 'stable').workspaceRows().length,
+			insiders: setupPicker(true, undefined, 'insider').workspaceRows().length,
+		}, { stable: 0, insiders: 2 });
+	});
 
 	test('lists workspaces with their folders, and a missing workspace file that cannot be picked', () => {
 		const { workspaceRows } = setupPicker();
@@ -7871,6 +7881,7 @@ function createTestablePicker(
 	instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 	instantiationService.stub(ISessionsRecentWorkspacesService, disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IProductService, upcastPartial<IProductService>({}));
 	return disposables.add(instantiationService.createInstance(TestablePicker, options));
 }
 
@@ -9175,6 +9186,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 		instantiationService.stub(ISessionsRecentWorkspacesService, disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({}));
 		const picker = disposables.add(instantiationService.createInstance(TestablePicker, {}));
 		// Recent workspace group ('Cloud') is not added as a tab — only
 		// browse actions and the always-present Remote group contribute tabs.

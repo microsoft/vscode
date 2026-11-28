@@ -27,6 +27,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../workbench/services/sessions/common/session.js';
@@ -85,6 +86,8 @@ async function renderPicker(context: ComponentFixtureContext, pick: boolean, ope
 	}();
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
 	instantiationService.set(IConfigurationService, new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true }));
+	// Workspaces are Insiders only
+	instantiationService.set(IProductService, new class extends mock<IProductService>() { override readonly quality = 'insider'; }());
 	instantiationService.set(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return [provider]; }

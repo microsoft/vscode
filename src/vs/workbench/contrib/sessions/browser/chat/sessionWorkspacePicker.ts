@@ -34,7 +34,6 @@ import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -54,7 +53,8 @@ import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../ses
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../common/contextkeys.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common/sessionWorkspaces.js';
-import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { observableSessionWorkspacesEnabled } from '../../common/sessionConfig.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { getSessionWorkspaceIcon } from '../workspaceEditor/sessionWorkspaceAppearance.js';
 import { EDIT_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from '../workspaceEditor/sessionWorkspaceEditorInput.js';
@@ -677,10 +677,11 @@ export class WorkspacePicker extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@ISessionWorkspacesService private readonly sessionWorkspacesService: ISessionWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IProductService productService: IProductService,
 	) {
 		super();
-		// Read from the setting, so that the workspaces service is only created while workspaces are on
-		this._workspacesEnabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, this.configurationService);
+		// Read from the configuration, not the workspaces service, so that the service is only created while workspaces are on
+		this._workspacesEnabled = observableSessionWorkspacesEnabled(this.configurationService, productService);
 		let initialized = false;
 		this._register(autorun(reader => {
 			if (this._workspacesEnabled.read(reader)) {
