@@ -17,7 +17,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IURLService } from '../../url/common/url.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowSettings } from '../../window/common/window.js';
-import { IOpenConfiguration, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IOpenConfiguration, isHiddenWindowMode, isInactiveWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IProtocolUrl } from '../../url/electron-main/url.js';
 
 export const ID = 'launchMainService';
@@ -61,8 +61,8 @@ export class LaunchMainService implements ILaunchMainService {
 		// is not in the foreground and since we got instructed
 		// to open a new window from another instance, we ensure
 		// that the app has focus.
-		// A hidden instance running extension tests must never activate the app.
-		if (isMacintosh && !isHiddenWindowMode(this.environmentMainService)) {
+		// A hidden or inactive instance must never activate the app.
+		if (isMacintosh && !isHiddenWindowMode(this.environmentMainService) && !isInactiveWindowMode(this.environmentMainService)) {
 			app.focus({ steal: true });
 		}
 

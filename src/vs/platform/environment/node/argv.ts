@@ -168,6 +168,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensionDevelopmentKind': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
 	'hidden-window': { type: 'boolean' },
+	'inactive-window': { type: 'boolean' },
 	'extensionEnvironment': { type: 'string' },
 	'debugId': { type: 'string' },
 	'debugRenderer': { type: 'boolean' },

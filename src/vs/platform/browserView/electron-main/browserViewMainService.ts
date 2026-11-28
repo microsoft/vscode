@@ -13,7 +13,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { BrowserView } from './browserView.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { isInactiveWindowMode, IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { computeRemoteFileAccess } from './browserSessionFiles.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
@@ -286,7 +286,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async focus(id: string, force?: boolean): Promise<void> {
-		return this._getBrowserView(id).focus(force);
+		// Forcing focus into a view of an unfocused window would activate the application
+		return this._getBrowserView(id).focus(force && !isInactiveWindowMode(this.environmentMainService));
 	}
 
 	async findInPage(id: string, text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
