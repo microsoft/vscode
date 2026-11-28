@@ -611,6 +611,32 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(local.dispatched.map(entry => entry.channel), [sender]);
 	});
 
+	test('"sender" reaches a recorded default chat that the catalog lists stale, and never falls back for a missing chat', async () => {
+		const { router, first, second, sessions } = setup();
+		const recordedDefault = URI.parse(buildDefaultChatUri(backendSession)).with({ query: 'generation=1' }).toString();
+		first.sessionState.set({ ...first.sessionState.verifiedValue!, defaultChat: recordedDefault });
+		first.chatStates.set(recordedDefault, new TestSubscription<ChatState>({ ...first.sessionState.verifiedValue!.chats[0], resource: recordedDefault, turns: [] }, store));
+		const state = second.chatStates.get(buildDefaultChatUri(backendSession))!;
+		const reply = async (id: string, sourceChat: string) => {
+			state.set(chatReducer(state.verifiedValue!, {
+				...chatTurnStarted(id, 'Task', new Date(0).toISOString()),
+				message: { text: 'Task', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: sessions[1].resource.toString(), sourceChat }) },
+			}));
+			try {
+				await router.send(sessions[2].resource, { session: 'sender', message: 'Result' }, id, CancellationToken.None);
+				return first.dispatched.at(-1)?.channel;
+			} catch (error) {
+				return (error as Error).message;
+			} finally {
+				state.set(chatReducer(state.verifiedValue!, chatTurnComplete(id, 1)));
+			}
+		};
+		assert.deepStrictEqual([await reply('default', recordedDefault), await reply('missing', buildChatUri(backendSession, 'missing'))], [
+			recordedDefault,
+			'The exact target chat no longer exists on its agent host.',
+		]);
+	});
+
 	test('"sender" requires a current turn started by another chat', async () => {
 		const { router, first, sessions } = setup();
 		await assert.rejects(router.send(sessions[1].resource, { session: 'sender', message: 'No' }, 'idle', CancellationToken.None), /not started by a message from another chat/);
