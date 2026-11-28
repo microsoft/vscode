@@ -1253,3 +1253,96 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 		);
 	});
 });
+
+suite('Editor Contrib - Line Comment As Block Comment - existing block comments', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const testLineCommentCommand = createTestCommandHelper(
+		{ lineComment: null, blockComment: ['/*', '*/'] },
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
+	);
+
+	test('#330214: does not uncomment only the last line of a multi-line selection', function () {
+		testLineCommentCommand(
+			[
+				'.select  {}',
+				'',
+				'/*.select {*/',
+				'/*    color: red; */',
+				'/*}*/',
+			],
+			new Selection(1, 1, 5, 6),
+			[
+				'/* .select  {}',
+				'',
+				'/*.select {*/',
+				'/*    color: red; */',
+				'/*}*/ */',
+			],
+			new Selection(1, 4, 5, 6)
+		);
+	});
+
+	test('#330214: does not uncomment only the first line of a multi-line selection', function () {
+		testLineCommentCommand(
+			[
+				'/*first*/',
+				'second',
+			],
+			new Selection(1, 1, 2, 7),
+			[
+				'/* /*first*/',
+				'second */',
+			],
+			new Selection(1, 4, 2, 7)
+		);
+	});
+
+	test('#330214: does not join separate block comments on the first and last lines', function () {
+		testLineCommentCommand(
+			[
+				'/*first*/',
+				'second',
+				'/*third*/',
+			],
+			new Selection(1, 1, 3, 10),
+			[
+				'/* /*first*/',
+				'second',
+				'/*third*/ */',
+			],
+			new Selection(1, 4, 3, 10)
+		);
+	});
+
+	test('#330214: does not join separate block comments on a single line', function () {
+		testLineCommentCommand(
+			[
+				'/*first*/ second /*third*/',
+			],
+			new Selection(1, 1, 1, 27),
+			[
+				'/* /*first*/ second /*third*/ */',
+			],
+			new Selection(1, 4, 1, 30)
+		);
+	});
+
+	test('still uncomments a block comment spanning the whole selection', function () {
+		testLineCommentCommand(
+			[
+				'/* first',
+				'second',
+				'third */',
+			],
+			new Selection(1, 1, 3, 9),
+			[
+				'first',
+				'second',
+				'third',
+			],
+			new Selection(1, 1, 3, 6)
+		);
+	});
+});

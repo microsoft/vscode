@@ -234,8 +234,8 @@ export class LineCommentCommand implements ICommand {
 	}
 
 	private _attemptRemoveBlockComment(model: ITextModel, s: Selection, startToken: string, endToken: string): ISingleEditOperation[] | null {
-		let startLineNumber = s.startLineNumber;
-		let endLineNumber = s.endLineNumber;
+		const startLineNumber = s.startLineNumber;
+		const endLineNumber = s.endLineNumber;
 
 		const startTokenAllowedBeforeColumn = endToken.length + Math.max(
 			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
@@ -245,20 +245,36 @@ export class LineCommentCommand implements ICommand {
 		let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
 		let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
 
-		if (startTokenIndex !== -1 && endTokenIndex === -1) {
-			endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
-			endLineNumber = startLineNumber;
-		}
+		// A block comment found only on the first or last line of a multi-line
+		// selection does not enclose the selection, so it must not be removed.
+		if (startLineNumber === endLineNumber) {
+			if (startTokenIndex !== -1 && endTokenIndex === -1) {
+				endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
+			}
 
-		if (startTokenIndex === -1 && endTokenIndex !== -1) {
-			startTokenIndex = model.getLineContent(endLineNumber).lastIndexOf(startToken, endTokenIndex);
-			startLineNumber = endLineNumber;
+			if (startTokenIndex === -1 && endTokenIndex !== -1) {
+				startTokenIndex = model.getLineContent(endLineNumber).lastIndexOf(startToken, endTokenIndex);
+			}
 		}
 
 		if (s.isEmpty() && (startTokenIndex === -1 || endTokenIndex === -1)) {
 			startTokenIndex = model.getLineContent(startLineNumber).indexOf(startToken);
 			if (startTokenIndex !== -1) {
 				endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
+			}
+		}
+
+		// The start and end tokens must belong to the same block comment. If an end
+		// token appears between them, they belong to different comments and removing
+		// them would leave both comments unbalanced.
+		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
+			const startLineText = model.getLineContent(startLineNumber);
+			const endLineText = model.getLineContent(endLineNumber);
+			const textBetweenTokens = startLineNumber === endLineNumber
+				? [startLineText.substring(startTokenIndex + startToken.length, endTokenIndex)]
+				: [startLineText.substring(startTokenIndex + startToken.length), endLineText.substring(0, endTokenIndex)];
+			if (textBetweenTokens.some(text => text.includes(endToken))) {
+				return null;
 			}
 		}
 
