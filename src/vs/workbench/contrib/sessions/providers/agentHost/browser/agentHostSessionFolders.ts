@@ -5,7 +5,7 @@
 
 import { distinct } from '../../../../../../base/common/arrays.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { WORKSPACE_SUFFIX } from '../../../../../../platform/workspace/common/workspace.js';
 import { readChangesetFolderFailures } from '../../../../../../platform/agentHost/common/meta/agentChangesetFolderFailuresMeta.js';
@@ -69,12 +69,14 @@ export function getSessionWorkingDirectories(defaultFolder: URI, workspaceConfig
 /**
  * Adds what the host reports about the folders of a session to its workspace: each folder other than the first gets its
  * own Git state, or is marked as not being a repository, and the workspace lists the repositories found in its folders,
- * also those nested in a session's only folder. A folder the host has not read yet keeps what the workspace had.
+ * also those nested in a session's only folder. A folder the host has not read yet keeps what the workspace had; the
+ * workspace lists no repositories once the host no longer records them.
  *
  * @param toHost Maps a client URI into the host's URI space, for the host's records keyed by working directory.
  * @param toClient Maps a host URI into the client's URI space.
+ * @param extUri Compares repository roots in the client's URI space, as their file system compares paths.
  */
-export function withSessionFolderState(workspace: ISessionWorkspace | undefined, meta: SessionMeta | undefined, toHost: AgentHostUriSpaceMapper, toClient: AgentHostUriSpaceMapper): ISessionWorkspace | undefined {
+export function withSessionFolderState(workspace: ISessionWorkspace | undefined, meta: SessionMeta | undefined, toHost: AgentHostUriSpaceMapper, toClient: AgentHostUriSpaceMapper, extUri: IExtUri): ISessionWorkspace | undefined {
 	if (!workspace) {
 		return workspace;
 	}
@@ -94,15 +96,16 @@ export function withSessionFolderState(workspace: ISessionWorkspace | undefined,
 		}
 		return folder;
 	});
-	const repositories = readFolderRepositories(folders, meta, folderKey, toClient, root => readFolderScopeGitState(meta, readWorkingDirectoryScopeId(meta, [hostDirectory(root)])));
-	if (!repositories && folders.every((folder, index) => folder === workspace.folders[index])) {
+	const repositories = readFolderRepositories(folders, meta, folderKey, toClient, extUri, root => readFolderScopeGitState(meta, readWorkingDirectoryScopeId(meta, [hostDirectory(root)])));
+	if (!repositories && !workspace.repositories && folders.every((folder, index) => folder === workspace.folders[index])) {
 		return workspace;
 	}
-	return { ...workspace, folders, ...(repositories ? { repositories } : {}) };
+	const { repositories: _previousRepositories, ...rest } = workspace;
+	return { ...rest, folders, ...(repositories ? { repositories } : {}) };
 }
 
 /** The repositories the host found for each folder, in folder order; `undefined` when it has not said. */
-function readFolderRepositories(folders: readonly ISessionFolder[], meta: SessionMeta | undefined, folderKey: (folder: URI) => string, toClient: AgentHostUriSpaceMapper, rootGitState: (root: URI) => ISessionGitState | undefined): ISessionRepository[] | undefined {
+function readFolderRepositories(folders: readonly ISessionFolder[], meta: SessionMeta | undefined, folderKey: (folder: URI) => string, toClient: AgentHostUriSpaceMapper, extUri: IExtUri, rootGitState: (root: URI) => ISessionGitState | undefined): ISessionRepository[] | undefined {
 	const repositories = readSessionRepositories(meta);
 	if (!repositories) {
 		return undefined;
@@ -113,7 +116,7 @@ function readFolderRepositories(folders: readonly ISessionFolder[], meta: Sessio
 		for (const entry of repositories[folderKey(folder.workingDirectory)] ?? []) {
 			const root = toClient(URI.parse(entry.root));
 			// Two folders in one repository share it: list it once, under the first
-			const rootKey = extUriBiasedIgnorePathCase.getComparisonKey(root);
+			const rootKey = extUri.getComparisonKey(root);
 			if (roots.has(rootKey)) {
 				continue;
 			}

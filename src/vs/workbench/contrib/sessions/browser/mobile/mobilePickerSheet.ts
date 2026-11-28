@@ -493,7 +493,7 @@ export function showMobilePickerSheet(
 		};
 		const focusItem = (id: string | undefined) => {
 			const row = id ? [...rowsBySection.values()].flat().find(entry => entry.id === id && !entry.row.disabled)?.row : undefined;
-			(row ?? renderState.firstCheckedRow ?? renderState.firstRow)?.focus();
+			(row ?? renderState.firstCheckedRow ?? renderState.firstRow ?? shell.doneButton)?.focus();
 		};
 		const refreshItems = (change: IMobilePickerSheetItemsChangeEvent | void) => {
 			itemsChangedWhileSelecting = false;
@@ -786,6 +786,8 @@ interface IMobileSheetShell {
 	readonly sheet: HTMLElement;
 	/** Disposable store tied to the sheet's lifetime; cleared on close. */
 	readonly disposables: DisposableStore;
+	/** The Done button, unless the sheet hides it. */
+	readonly doneButton: HTMLElement | undefined;
 	setBodyFocusTargets(targets: readonly HTMLElement[]): void;
 	/**
 	 * Play the close animation, dispose listeners, and remove the DOM
@@ -916,8 +918,9 @@ function buildMobileSheetShell(
 		}
 	}
 
+	let doneButton: HTMLButtonElement | undefined;
 	if (!options.hideDoneButton) {
-		const doneBtn = DOM.append(titleRow, $('button.mobile-picker-sheet-done', { type: 'button' })) as HTMLButtonElement;
+		const doneBtn = doneButton = DOM.append(titleRow, $('button.mobile-picker-sheet-done', { type: 'button' })) as HTMLButtonElement;
 		const closeLabel = localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title);
 		headerFocusTargets.push(doneBtn);
 		doneBtn.setAttribute('aria-label', closeLabel);
@@ -1042,7 +1045,7 @@ function buildMobileSheetShell(
 		options.onDismiss();
 	}));
 
-	return { overlay, backdrop, sheet, disposables, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; } };
+	return { overlay, backdrop, sheet, disposables, doneButton, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; } };
 }
 
 /** Mutable bookkeeping passed through {@link renderRow} so we can track section dividers and the row to focus. */
@@ -1100,9 +1103,12 @@ function renderRow(
 		row.disabled = true;
 		row.setAttribute('aria-disabled', 'true');
 	}
-	state.firstRow ??= row;
-	if (item.checked && !state.firstCheckedRow) {
-		state.firstCheckedRow = row;
+	// A disabled row cannot take focus, so the sheet focuses only rows the user can pick
+	if (!item.disabled) {
+		state.firstRow ??= row;
+		if (item.checked) {
+			state.firstCheckedRow ??= row;
+		}
 	}
 
 	// Icon slot — square tile so rows align even when an item has no icon.

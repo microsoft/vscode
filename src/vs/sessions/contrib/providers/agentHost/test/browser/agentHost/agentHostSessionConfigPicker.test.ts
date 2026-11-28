@@ -805,15 +805,15 @@ suite('Agent Host Session Config Picker', () => {
 			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
 			const item = services.actionWidget.items.find(item => item.item?.value === 'worktree:allFolders');
-			return { label: isolationSlot(container)?.textContent, properties: properties(), item: item && { checked: item.item?.checked, disabled: !!item.disabled, detail: item.detail } };
+			return { label: isolationSlot(container)?.textContent, properties: properties(), item: item && { checked: item.item?.checked, disabled: !!item.disabled, focusable: !!item.focusableWhenDisabled, detail: item.detail } };
 		};
 		const offered = await state();
 		// The second repository is removed from the session
 		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo']), undefined);
 		const kept = await state();
 		assert.deepStrictEqual({ offered, kept, writes: services.provider.setSessionConfigValueArguments }, {
-			offered: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch], item: { checked: true, disabled: false, detail: 'Creates a separate copy of each Git folder for this session' } },
-			kept: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch], item: { checked: true, disabled: true, detail: 'Kept from your choice; the folders are no longer in several Git repositories' } },
+			offered: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch], item: { checked: true, disabled: false, focusable: false, detail: 'Creates a separate copy of each Git folder for this session' } },
+			kept: { label: 'New Worktree for All Folders', properties: [SessionConfigKey.Isolation, SessionConfigKey.Branch, SessionConfigKey.WorktreeFolders], item: { checked: true, disabled: true, focusable: true, detail: 'Saved choice; not available here' } },
 			writes: [],
 		});
 	});

@@ -1697,6 +1697,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -3159,7 +3160,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _withFolders(built: ISessionWorkspace | undefined): ISessionWorkspace | undefined {
 		const toHost = (uri: URI) => this._options.mapWorkingDirectoryToHost?.(uri) ?? uri;
 		const toClient = (uri: URI) => this._mapWorkingDirectory(uri);
-		const workspace = withSessionFolderState(built, this._meta, toHost, toClient);
+		const workspace = withSessionFolderState(built, this._meta, toHost, toClient, this._uriIdentityService.extUri);
 		// A configuration without folders takes the session's: its default folder (the repository a worktree belongs to), then the others
 		const workspaceConfig = workspace && readSessionWorkspaceConfig(this._meta, toClient, workspace.folders.map((folder, index) => index === 0 ? folder.root : folder.workingDirectory));
 		return workspaceConfig ? { ...workspace, workspaceConfig } : workspace;
@@ -3762,6 +3763,7 @@ class NewSession extends Disposable {
 		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const initialSessionTemplate = ctx.initialSessionTemplate;
@@ -4035,7 +4037,7 @@ class NewSession extends Disposable {
 	 */
 	applyFolderState(meta: SessionMeta | undefined, toHost: (uri: URI) => URI, toClient: (uri: URI) => URI, tx?: ITransaction): void {
 		const workspace = this._workspace.get();
-		const next = withSessionFolderState(workspace, meta, toHost, toClient);
+		const next = withSessionFolderState(workspace, meta, toHost, toClient, this._uriIdentityService.extUri);
 		// The workspace's equality leaves out its repositories, which can change alone
 		const sameRepositories = (workspace?.repositories ?? []).length === (next?.repositories ?? []).length
 			&& (workspace?.repositories ?? []).every((repository, index) => {

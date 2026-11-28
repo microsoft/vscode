@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
+import { extUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { withChangesetFolderFailures } from '../../../../../../platform/agentHost/common/meta/agentChangesetFolderFailuresMeta.js';
 import { withSessionNonRepositoryFolders } from '../../../../../../platform/agentHost/common/meta/agentSessionNonRepositoryFoldersMeta.js';
@@ -58,7 +59,7 @@ suite('agentHostSessionFolders', () => {
 		meta = withSessionRepositories(meta, {
 			[getWorkingDirectoryKey(hostWeb)]: [{ root: hostWeb, kind: 'folder' }, { root: 'file:///c%3A/work/WEB', kind: 'folder' }],
 		});
-		const result = withSessionFolderState(workspace([encoded, winWeb]), meta, uri => uri, uri => uri);
+		const result = withSessionFolderState(workspace([encoded, winWeb]), meta, uri => uri, uri => uri, extUriBiasedIgnorePathCase);
 		const config = { uri: URI.parse('file:///c%3A/work/project.code-workspace'), name: 'project', folders: [upper, winWeb] };
 		assert.deepStrictEqual({
 			folders: getSessionWorkingDirectories(encoded, undefined, [encoded, upper, winWeb]).length,
@@ -107,7 +108,7 @@ suite('agentHostSessionFolders', () => {
 					[hostKey(api)]: [{ root: api.toString(), kind: 'folder' }, { root: URI.file('/work/api/lib').toString(), kind: 'nested' }],
 					[hostKey(web)]: [{ root: web.toString(), kind: 'folder' }, { root: api.toString(), kind: 'folder' }],
 				});
-				const result = withSessionFolderState(workspace([clientApi, clientWeb, clientDocs]), meta, toHost, toClient);
+				const result = withSessionFolderState(workspace([clientApi, clientWeb, clientDocs]), meta, toHost, toClient, extUri);
 				assert.deepStrictEqual({
 					folders: result?.folders.map(folder => ({ folder: folder.workingDirectory.toString(), branch: folder.gitRepository?.branchName, isRepository: folder.gitRepository?.isRepository?.get() })),
 					repositories: result?.repositories?.map(repository => ({ root: repository.root.toString(), folder: repository.folder.toString(), kind: repository.kind, branch: repository.gitRepository?.branchName })),
@@ -129,12 +130,12 @@ suite('agentHostSessionFolders', () => {
 
 			test('leaves a workspace without repository records as it is, and lists the repositories nested in its only folder', () => {
 				const single = workspace([clientApi]);
-				const multi = withSessionFolderState(workspace([clientApi, clientWeb]), undefined, toHost, toClient);
+				const multi = withSessionFolderState(workspace([clientApi, clientWeb]), undefined, toHost, toClient, extUri);
 				const nested = withSessionFolderState(single, withSessionRepositories(undefined, {
 					[hostKey(api)]: [{ root: api.toString(), kind: 'folder' }, { root: URI.file('/work/api/lib').toString(), kind: 'nested' }],
-				}), toHost, toClient);
+				}), toHost, toClient, extUri);
 				assert.deepStrictEqual({
-					single: withSessionFolderState(single, withSessionNonRepositoryFolders(undefined, [hostKey(api)]), toHost, toClient) === single,
+					single: withSessionFolderState(single, withSessionNonRepositoryFolders(undefined, [hostKey(api)]), toHost, toClient, extUri) === single,
 					repositories: multi?.repositories,
 					webRepository: multi?.folders[1].gitRepository,
 					nested: nested?.repositories?.map(repository => [repository.root.toString(), repository.kind]),
@@ -143,6 +144,24 @@ suite('agentHostSessionFolders', () => {
 					repositories: undefined,
 					webRepository: undefined,
 					nested: [[clientApi.toString(), 'folder'], [kind.toClient(URI.file('/work/api/lib')).toString(), 'nested']],
+				});
+			});
+
+			test('lists roots that differ only in case separately on a case-sensitive file system, and drops repositories the host no longer records', () => {
+				// Each folder is in a repository above it, and the two roots differ only in case
+				const meta = withSessionRepositories(undefined, {
+					[hostKey(api)]: [{ root: URI.file('/work').toString(), kind: 'folder' }],
+					[hostKey(web)]: [{ root: URI.file('/Work').toString(), kind: 'folder' }],
+				});
+				const reported = withSessionFolderState(workspace([clientApi, clientWeb]), meta, toHost, toClient, extUri);
+				// The host stops recording repositories, as when the folders turn out to be in one repository
+				const cleared = withSessionFolderState(reported, withSessionNonRepositoryFolders(undefined, []), toHost, toClient, extUri);
+				assert.deepStrictEqual({
+					reported: reported?.repositories?.map(repository => repository.root.toString()),
+					cleared: cleared && Object.keys(cleared).includes('repositories'),
+				}, {
+					reported: [URI.file('/work'), URI.file('/Work')].map(uri => kind.toClient(uri).toString()),
+					cleared: false,
 				});
 			});
 

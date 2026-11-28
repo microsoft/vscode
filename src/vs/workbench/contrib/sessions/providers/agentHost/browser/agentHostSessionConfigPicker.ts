@@ -202,6 +202,8 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
 			disabled,
+			// The session's current choice stays reachable when it cannot be picked, so its reason can be read
+			focusableWhenDisabled: disabled && checked && property === SessionConfigKey.Isolation,
 			item: { ...item, checked: property === SessionConfigKey.Branch ? undefined : checked, ...(property === SessionConfigKey.Branch || property === SessionConfigKey.Isolation ? { id: item.value } : {}) },
 			toolbarActions: property === SessionConfigKey.Branch && item.value === branchContext?.branchName && branchContext.onShowChanges
 				? [toAction({
@@ -700,7 +702,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
 				continue;
 			}
-			if (property === SessionConfigKey.WorktreeFolders && this._isolationShowsWorktreeForAllFolders(provider, session.sessionId)) {
+			if (property === SessionConfigKey.WorktreeFolders && this._isolationOffersWorktreeForAllFolders(provider, session.sessionId)) {
 				continue;
 			}
 			const value = this._getPickerValue(provider, session.sessionId, property, schema, resolvedConfig.values[property] ?? schema.default);
@@ -1426,7 +1428,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/**
 	 * The isolation item that creates a worktree for every Git folder, when the new session offers it, or as the session's
-	 * choice once its folders no longer offer it, which it keeps until the user picks another.
+	 * choice when its folders don't offer it, which it keeps until the user picks another.
 	 */
 	private _getWorktreeForAllFoldersItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, worktreeDisabled: boolean): IConfigPickerItem[] {
 		if (!this._isNewSessionIsolationChoice(sessionId, property, schema)) {
@@ -1443,20 +1445,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
 				: offered
 					? localize('agentHostSessionConfig.isolation.worktreeForAllFoldersDescription', "Creates a separate copy of each Git folder for this session")
-					: localize('agentHostSessionConfig.isolation.worktreeForAllFoldersKept', "Kept from your choice; the folders are no longer in several Git repositories"),
+					: localize('agentHostSessionConfig.isolation.worktreeForAllFoldersKept', "Saved choice; not available here"),
 			disabled: worktreeDisabled || !offered,
 		}];
-	}
-
-	/**
-	 * Whether the isolation choice shows worktrees for all folders, which then replaces the
-	 * {@link SessionConfigKey.WorktreeFolders} picker: as it offers them, or as the session's kept choice.
-	 */
-	private _isolationShowsWorktreeForAllFolders(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
-		const config = this._getSessionConfig(provider, sessionId);
-		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
-		return !!isolation && (this._isolationOffersWorktreeForAllFolders(provider, sessionId)
-			|| this._getPickerValue(provider, sessionId, isolation.key, isolation.schema, config.values[isolation.key]) === WORKTREE_FOR_ALL_FOLDERS_VALUE);
 	}
 
 	private _fromCompletionItem(item: SessionConfigValueItem): IConfigPickerItem {
@@ -1539,7 +1530,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/**
 	 * The isolation picker's value of `property`: {@link WORKTREE_FOR_ALL_FOLDERS_VALUE} when the session isolates all
-	 * of its folders, also once its folders no longer offer it, as the choice still applies; else `value`.
+	 * of its folders, also when its folders don't offer it, as the choice still applies; else `value`.
 	 */
 	protected _getPickerValue(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown): unknown {
 		return value === 'worktree'

@@ -40,6 +40,25 @@ suite('MobilePickerSheet', () => {
 		});
 	});
 
+	for (const allDisabled of [false, true]) {
+		test(`opens on a row the user can pick, never on a disabled checked row, and returns focus on Escape (all disabled: ${allDisabled})`, async () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const trigger = dom.append(container, dom.$('button'));
+			trigger.focus();
+			const closed = showMobilePickerSheet(container, 'Worktree', [
+				{ id: 'folder', label: 'Branch', disabled: allDisabled },
+				{ id: 'all', label: 'New Worktree for All Folders', checked: true, disabled: true },
+			]);
+			const focused = dom.getActiveElement();
+			const focus = { inSheet: !!focused && dom.isAncestor(focused, container.querySelector('.mobile-picker-sheet')), text: focused?.textContent };
+			mainWindow.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+			assert.deepStrictEqual({ focus, selected: await closed, focusRestored: dom.getActiveElement() === trigger }, {
+				focus: { inSheet: true, text: allDisabled ? 'Done' : 'Branch' }, selected: undefined, focusRestored: true,
+			});
+		});
+	}
+
 	for (const alreadyCancelled of [false, true]) {
 		test(`owner cancellation dismisses the picker without selection (${alreadyCancelled ? 'before' : 'after'} opening)`, async () => {
 			const container = dom.append(mainWindow.document.body, dom.$('div'));

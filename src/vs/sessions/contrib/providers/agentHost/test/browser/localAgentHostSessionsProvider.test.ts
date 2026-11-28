@@ -15097,6 +15097,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
+			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
 			const options: IAgentHostAdapterOptions = {
 				environment: 'local',
 				icon: Codicon.copilot,
