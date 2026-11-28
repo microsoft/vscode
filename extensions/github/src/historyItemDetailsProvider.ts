@@ -5,7 +5,7 @@
 
 import { Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import type { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.d.ts';
-import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
+import { DisposableStore, getRepositoryDefaultRemote, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
 import { AuthenticationError, GitHubService } from './auth.js';
 import { getAvatarLink } from './links.js';
 
@@ -171,16 +171,17 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {
 		// origin -> upstream -> first
-		const url = getRepositoryDefaultRemoteUrl(repository, ['origin', 'upstream']);
-		if (!url) {
+		const descriptor = getRepositoryDefaultRemote(repository, ['origin', 'upstream']);
+		if (!descriptor) {
 			return undefined;
 		}
 
+		// Do not pass the remote url as it may contain credentials
 		return [{
 			title: l10n.t('{0} Open on GitHub', '$(github)'),
 			tooltip: l10n.t('Open on GitHub'),
 			command: 'github.openOnGitHub',
-			arguments: [url]
+			arguments: [`https://github.com/${descriptor.owner}/${descriptor.repo}`]
 		}];
 	}
 

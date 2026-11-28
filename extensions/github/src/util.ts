@@ -72,8 +72,9 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 }
 
 export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
-	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
-		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	// The https URL may contain user info (ex: https://user:token@github.com/owner/repo.git)
+	const match = /^https:\/\/(?:[^/@]+@)?github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
+		|| /^(?:git@github\.com:|ssh:\/\/git@github\.com\/)([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	return match ? { owner: match[1], repo: match[2] } : undefined;
 }
 
