@@ -491,9 +491,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					const db = new DatabaseSync(joinPath(dataDir, id, 'session.db').fsPath, { readOnly: true });
 					try {
 						// Match CopilotAgent's ownership check; history and checkpoint reads can create empty databases.
-						const row = db.prepare('SELECT value FROM session_metadata WHERE key = ? AND turn_id IS NULL').get('copilot.workingDirectory');
-						if (typeof row?.value === 'string' && row.value.length > 0) {
-							owned.add(id);
+						// In pre-v20 session databases, session_metadata had only (key, value) columns without turn_id.
+						const columns = new Set((db.prepare('PRAGMA table_info(session_metadata)').all() as { name: string }[]).map(c => c.name));
+						if (columns.has('key') && columns.has('value')) {
+							const query = columns.has('turn_id')
+								? 'SELECT value FROM session_metadata WHERE key = ? AND turn_id IS NULL'
+								: 'SELECT value FROM session_metadata WHERE key = ?';
+							const row = db.prepare(query).get('copilot.workingDirectory');
+							if (typeof row?.value === 'string' && row.value.length > 0) {
+								owned.add(id);
+							}
 						}
 					} finally {
 						db.close();
