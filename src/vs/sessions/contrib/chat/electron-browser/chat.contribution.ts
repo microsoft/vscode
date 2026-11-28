@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI, UriComponents, isUriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
@@ -44,7 +44,7 @@ import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentR
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
 import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
+import { AgentsWindowWorkspaceHandoff, IAgentsWindowWorkspaceFolders } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
 import { AgentsWindowInvitationOnboarding } from '../../onboardingTours/browser/agentsWindowInvitationOnboarding.js';
 import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/chat/common/agentsWindowInvitation.js';
@@ -139,6 +139,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const onboardingSessionResource = isAgentsWindowInvitationSource(source) && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
 			const revealRemoteAuthority = sessionResource && typeof args[6] === 'string' ? args[6] : undefined;
+			const workspace = sessionResource ? undefined : this._reviveWorkspace(args[7]);
 			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
 			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
@@ -158,7 +159,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			// A remote window's session has another resource once this window opens it from its remote agent host.
 			let openedRemoteSession: URI | undefined;
 			const handoff = async () => {
-				openedRemoteSession = await this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority);
+				openedRemoteSession = await this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority, workspace);
 			};
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
@@ -206,9 +207,21 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	}
 
 	/** Returns the resource of a remote window's session once this window opened it. */
-	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string): Promise<URI | undefined> {
+	/** Revives the editor window's multi-root workspace sent with the opening intent; `undefined` for anything else. */
+	private _reviveWorkspace(value: unknown): IAgentsWindowWorkspaceFolders | undefined {
+		if (!value || typeof value !== 'object') {
+			return undefined;
+		}
+		const { file, folders } = value as { readonly file?: unknown; readonly folders?: unknown };
+		if (!Array.isArray(folders) || folders.length === 0 || !folders.every(isUriComponents) || (file !== undefined && !isUriComponents(file))) {
+			return undefined;
+		}
+		return { ...(file ? { file: URI.revive(file) } : {}), folders: folders.map(folder => URI.revive(folder)) };
+	}
+
+	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string, workspace?: IAgentsWindowWorkspaceFolders): Promise<URI | undefined> {
 		try {
-			return await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority);
+			return await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority, workspace);
 		} catch (error) {
 			telemetry?.recordWorkspaceHandoffState('error');
 			throw error;
@@ -241,7 +254,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	}
 
 	/** Returns the resource of a remote window's session once this window opened it. */
-	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string): Promise<URI | undefined> {
+	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string, workspace?: IAgentsWindowWorkspaceFolders): Promise<URI | undefined> {
 		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
@@ -269,7 +282,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				this.newSessionComposerService.notifyUserNavigation();
 			}
 			await this._workspaceHandoff.selectWorkspace({
-				folderUri, ...(resolved.remote ? { remote: resolved.remote } : {}), preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace, revealNewSession: showNewSession,
+				folderUri, ...(resolved.remote ? { remote: resolved.remote } : {}), ...(workspace && folderUri ? { workspace } : {}), preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace, revealNewSession: showNewSession,
 			}, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 		return undefined;

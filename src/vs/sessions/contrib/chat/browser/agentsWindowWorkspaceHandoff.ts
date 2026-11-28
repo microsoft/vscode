@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { raceCancellationError, timeout } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -30,7 +31,8 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
-import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionWorkspaceConfig, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -42,11 +44,32 @@ export interface IAgentsWindowWorkspaceHandoff {
 	 * without a workspace rather than with an unrelated local one.
 	 */
 	readonly remote?: IAgentsWindowRemoteWorkspace;
+	/**
+	 * The multi-root workspace of the editor window. Where workspaces are enabled, a non-draft intent selects it instead
+	 * of {@link folderUri}: a workspace file selects that workspace, adding it when it isn't known yet; an untitled
+	 * workspace selects its folders.
+	 */
+	readonly workspace?: IAgentsWindowWorkspaceFolders;
 	readonly preferDevContainer: boolean;
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
 	readonly noWorkspace?: boolean;
 	readonly revealNewSession?: boolean;
+}
+
+/** The multi-root workspace of the editor window that opened the Agents window. */
+export interface IAgentsWindowWorkspaceFolders {
+	/** The `.code-workspace` file; absent for an untitled workspace. */
+	readonly file?: URI;
+	/** The workspace's folders, in their order. Never empty. */
+	readonly folders: readonly URI[];
+}
+
+/** What selecting a handed-off workspace selects: its first folder, with the workspace or the other folders. */
+interface IWorkspaceSelection {
+	readonly folderUri: URI;
+	readonly workspaceConfig?: ISessionWorkspaceConfig;
+	readonly folders?: readonly URI[];
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -76,6 +99,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
+		@ISessionWorkspacesService private readonly sessionWorkspacesService: ISessionWorkspacesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
@@ -196,6 +221,12 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				onState('waitingForProvider');
 				await raceCancellationError(this.whenStartupProvidersRegistered.catch(() => undefined), source.token);
 			}
+			// Resolving can add the workspace to the known workspaces. As for a remote host, an inferred default does so only
+			// once restore leaves no session to keep.
+			const resolvesWorkspace = !!intent.workspace && !intent.remote && !intent.draft
+				&& !(inferredDefault && isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get()));
+			const workspaceSelection = resolvesWorkspace && intent.workspace ? await raceCancellationError(this._resolveWorkspaceSelection(intent.workspace, source.token), source.token) : undefined;
+			folderUri = workspaceSelection?.folderUri ?? folderUri;
 			// A remote editor window must not fall back to an unrelated local folder.
 			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;
 			let draftNeedsNavigation = !!intent.draft && !intent.revealNewSession;
@@ -248,6 +279,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					preferDevContainer: intent.preferDevContainer,
 					selectionOrigin: intent.isDefault && !intent.draft ? WorkspaceSelectionOrigin.WindowContext : WorkspaceSelectionOrigin.WindowOpen,
 					isDefault: intent.isDefault && !intent.draft,
+					...(workspaceSelection?.workspaceConfig ? { workspaceConfig: workspaceSelection.workspaceConfig } : undefined),
+					...(workspaceSelection?.folders ? { folders: workspaceSelection.folders } : undefined),
 				};
 				const result = intent.draft
 					? providerReady ? await view?.applyDraft(intent.draft, folderUri, options, source.token) : undefined
@@ -322,6 +355,43 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				{ label: localize('agentsHandoff.chooseWorkspace', "Choose Workspace"), run: () => this.commandService.executeCommand('workbench.action.sessions.newSession.pickFolderQuickPick') },
 			]);
 		this._notification.value = toDisposable(() => notification.close());
+	}
+
+	/**
+	 * What to select for the editor window's workspace where workspaces are enabled: the workspace of its file, also of
+	 * one folder, as the file is now and kept as a known workspace, with its first folder as the selected one; the
+	 * folders of an untitled workspace, or of a workspace file that can't be read.
+	 */
+	private async _resolveWorkspaceSelection(workspace: IAgentsWindowWorkspaceFolders, token: CancellationToken): Promise<IWorkspaceSelection | undefined> {
+		if (!this.sessionWorkspacesService.enabled.get() || workspace.folders.length === 0) {
+			return undefined;
+		}
+		const folders: IWorkspaceSelection | undefined = workspace.folders.length > 1 ? { folderUri: workspace.folders[0], folders: workspace.folders } : undefined;
+		if (!workspace.file) {
+			return folders;
+		}
+		// A superseded handoff adds nothing. Once started, adding the workspace is the effect of opening the Agents
+		// window on it, even when a newer intent supersedes the handoff while the file is read.
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		// Read from its file as it is now, which may have changed while the Agents window was closed, under its current
+		// URI when it is known by an earlier one, and kept as a known workspace
+		let known: IRecentSessionWorkspace;
+		try {
+			known = await this.sessionWorkspacesService.openWorkspace(this.sessionWorkspacesService.getWorkspace(workspace.file)?.uri ?? workspace.file);
+		} catch (error) {
+			this.logService.warn('[AgentsHandoff] Could not add the editor window\'s workspace; selecting its folders', error);
+			return folders;
+		}
+		// A file it can't read the folders of now leaves the workspace as it last read it, marked missing, or, when it can't
+		// tell whether they are on this computer, unmarked: the editor window has the folders the file has now, so a
+		// workspace whose folders are not those selects the editor window's folders
+		const extUri = this.uriIdentityService.extUri;
+		if (known.missing || known.folders.length !== workspace.folders.length || known.folders.some((folder, index) => !extUri.isEqual(folder, workspace.folders[index]))) {
+			return folders;
+		}
+		return { folderUri: known.folders[0], workspaceConfig: { uri: known.uri, name: known.name, folders: known.folders } };
 	}
 
 	/** Explains why the remote editor window's folder is not selected after starting without a workspace. */

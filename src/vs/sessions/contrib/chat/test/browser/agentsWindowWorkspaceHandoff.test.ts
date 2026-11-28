@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -27,7 +29,8 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { AgentsWindowWorkspaceHandoff, IAgentsWindowWorkspaceFolders, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -73,6 +76,21 @@ suite('Agents Window workspace handoff', () => {
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
+		const workspacesEnabled = observableValue('workspacesEnabled', true);
+		const knownWorkspaces: IRecentSessionWorkspace[] = [];
+		const openedWorkspaceFiles: URI[] = [];
+		let openWorkspace = async (file: URI): Promise<IRecentSessionWorkspace> => { throw new Error(`Cannot read ${file.path}`); };
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(ISessionWorkspacesService, upcastPartial<ISessionWorkspacesService>({
+			enabled: workspacesEnabled,
+			getWorkspace: uri => knownWorkspaces.find(workspace => [workspace.uri, ...workspace.previousUris ?? []].some(candidate => candidate.toString() === uri.toString())),
+			// Rereads the managed workspaces only, which leaves a VS Code recent as it was
+			refresh: async () => { },
+			openWorkspace: file => {
+				openedWorkspaceFiles.push(file);
+				return openWorkspace(file);
+			},
+		}));
 		const sessionsService = upcastPartial<ITestSessionsService>({
 			activeSession,
 			initialRestoreComplete,
@@ -162,7 +180,8 @@ suite('Agents Window workspace handoff', () => {
 		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff, whenStartupProvidersRegistered));
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
-			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests,
+			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests, workspacesEnabled, knownWorkspaces, openedWorkspaceFiles,
+			set openWorkspaceResult(value: (file: URI) => Promise<IRecentSessionWorkspace>) { openWorkspace = value; },
 			set providerReady(value: boolean) { providerReady = value; },
 			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
@@ -180,6 +199,7 @@ suite('Agents Window workspace handoff', () => {
 			notifyInputChanged: () => inputChanged.fire(),
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
+			openWorkspace: (workspace: IAgentsWindowWorkspaceFolders, draft?: IChatDraft, isDefault = false) => handoff.selectWorkspace({ folderUri, workspace, preferDevContainer: false, isDefault, ...(draft ? { draft: serializeChatDraft(draft) } : undefined) }, state => states.push(state)),
 		};
 	}
 
@@ -764,4 +784,99 @@ suite('Agents Window workspace handoff', () => {
 			});
 		});
 	}
+
+	test('selects the editor window\'s multi-root workspace where workspaces are enabled', async () => {
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const workspace = { uri: file, name: 'App', folders, owned: false };
+		const run = async (name: string, setUp: (harness: ReturnType<typeof createHarness>) => void, handedOff: IAgentsWindowWorkspaceFolders, draft?: IChatDraft) => {
+			const harness = createHarness();
+			setUp(harness);
+			await harness.openWorkspace(handedOff, draft);
+			const selection = harness.selections[0];
+			return {
+				name,
+				state: harness.states.at(-1),
+				opened: harness.openedWorkspaceFiles.map(uri => uri.path),
+				folder: selection?.folder.path,
+				workspaceConfig: selection?.options?.workspaceConfig && { uri: selection.options.workspaceConfig.uri.path, name: selection.options.workspaceConfig.name, folders: selection.options.workspaceConfig.folders.map(uri => uri.path) },
+				folders: selection?.options?.folders?.map(uri => uri.path),
+			};
+		};
+		const appConfig = { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/client', '/work/server'] };
+		const renamed = URI.file('/work/app-renamed.code-workspace');
+		const results = [
+			await run('known file is read as it is now', harness => {
+				harness.knownWorkspaces.push(workspace);
+				harness.openWorkspaceResult = async () => workspace;
+			}, { file, folders }),
+			await run('unknown file is added', harness => harness.openWorkspaceResult = async () => workspace, { file, folders }),
+			await run('unreadable file selects its folders', () => { }, { file, folders }),
+			await run('untitled workspace selects its folders', () => { }, { folders }),
+			await run('workspace file of one folder', harness => harness.openWorkspaceResult = async () => ({ uri: file, name: 'App', folders: [folders[1]], owned: false }), { file, folders: [folders[1]] }),
+			await run('known workspace, also a VS Code recent, whose file changed while the Agents window was closed', harness => {
+				// The catalogue still has the folders as the file had them, which the file no longer does
+				harness.knownWorkspaces.push(workspace);
+				harness.openWorkspaceResult = async () => ({ ...workspace, folders: [folders[1], folders[0]] });
+			}, { file, folders: [folders[1], folders[0]] }),
+			await run('workspace known by its earlier file is read under its current one', harness => {
+				harness.knownWorkspaces.push({ ...workspace, uri: renamed, previousUris: [file] });
+				harness.openWorkspaceResult = async uri => ({ ...workspace, uri });
+			}, { file, folders }),
+			await run('file whose folders cannot be read now selects the folders', harness => {
+				harness.knownWorkspaces.push(workspace);
+				// The workspace as last read, which reading the file again leaves marked missing
+				harness.openWorkspaceResult = async () => ({ ...workspace, missing: true });
+			}, { file, folders }),
+			await run('known workspace whose folders cannot be confirmed now, and which the file no longer has, selects the editor window\'s folders', harness => {
+				harness.knownWorkspaces.push(workspace);
+				// As the workspaces service returns a known workspace when it can't tell whether the file's folders are on
+				// this computer: as last read, not marked missing
+				harness.openWorkspaceResult = async () => workspace;
+			}, { file, folders: [folders[1], URI.file('/work/docs')] }),
+			await run('workspaces disabled', harness => harness.workspacesEnabled.set(false, undefined), { file, folders }),
+			await run('draft keeps its folder', harness => harness.knownWorkspaces.push(workspace), { file, folders }, { inputText: 'Continue here', attachments: [] }),
+		];
+		assert.deepStrictEqual(results, [
+			{ name: 'known file is read as it is now', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'unknown file is added', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: appConfig, folders: undefined },
+			{ name: 'unreadable file selects its folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'untitled workspace selects its folders', state: 'applied', opened: [], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'workspace file of one folder', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server'] }, folders: undefined },
+			{ name: 'known workspace, also a VS Code recent, whose file changed while the Agents window was closed', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: { uri: '/work/app.code-workspace', name: 'App', folders: ['/work/server', '/work/client'] }, folders: undefined },
+			{ name: 'workspace known by its earlier file is read under its current one', state: 'applied', opened: ['/work/app-renamed.code-workspace'], folder: '/work/client', workspaceConfig: { ...appConfig, uri: '/work/app-renamed.code-workspace' }, folders: undefined },
+			{ name: 'file whose folders cannot be read now selects the folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/client', workspaceConfig: undefined, folders: ['/work/client', '/work/server'] },
+			{ name: 'known workspace whose folders cannot be confirmed now, and which the file no longer has, selects the editor window\'s folders', state: 'applied', opened: ['/work/app.code-workspace'], folder: '/work/server', workspaceConfig: undefined, folders: ['/work/server', '/work/docs'] },
+			{ name: 'workspaces disabled', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+			{ name: 'draft keeps its folder', state: 'applied', opened: [], folder: '/private/from-editor', workspaceConfig: undefined, folders: undefined },
+		]);
+	});
+
+	test('adds the editor window\'s workspace neither for an inferred default that keeps a restored session nor after the handoff is superseded', async () => {
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const workspace = { uri: file, name: 'App', folders, owned: false };
+
+		const restored = createHarness();
+		restored.openWorkspaceResult = async () => workspace;
+		restored.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
+		await restored.openWorkspace({ file, folders }, undefined, true);
+
+		const providers = new DeferredPromise<void>();
+		const superseded = createHarness(providers.p);
+		superseded.openWorkspaceResult = async () => workspace;
+		const opening = superseded.openWorkspace({ file, folders });
+		await timeout(0);
+		superseded.handoff.cancel();
+		await providers.complete();
+		await opening;
+
+		assert.deepStrictEqual({
+			restored: { state: restored.states.at(-1), opened: restored.openedWorkspaceFiles.length, selections: restored.selections.length },
+			superseded: { opened: superseded.openedWorkspaceFiles.length, selections: superseded.selections.length },
+		}, {
+			restored: { state: 'preservedSession', opened: 0, selections: 0 },
+			superseded: { opened: 0, selections: 0 },
+		});
+	});
 });

@@ -4117,7 +4117,13 @@ export class NewChatWidget extends Disposable {
 			this._reconcileWorkspaceEnvironment(options);
 		}
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
-		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer, origin: options?.selectionOrigin });
+		this._workspacePicker.setSelectedWorkspace(folderUri, {
+			providerId: options?.providerId,
+			preferDevContainer: options?.preferDevContainer,
+			origin: options?.selectionOrigin,
+			...(options?.workspaceConfig ? { sessionWorkspaceUri: options.workspaceConfig.uri } : undefined),
+			...(options?.folders ? { sessionFolders: options.folders } : undefined),
+		});
 		const selection = this._workspacePicker.selectionSnapshot;
 		return selection.state === 'selected' && this.uriIdentityService.extUri.isEqual(selection.folderUri, folderUri) ? 'applied' : 'notReady';
 	}

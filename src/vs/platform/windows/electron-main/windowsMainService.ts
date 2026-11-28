@@ -37,7 +37,7 @@ import product from '../../product/common/product.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IAgentsWindowWorkspace, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
@@ -316,7 +316,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string, workspace?: IAgentsWindowWorkspace): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		const existingWindows = this.getWindows();
@@ -326,7 +326,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
 
 		if (windows.length > 0) {
-			sendAgentsWindowOpenIntent(windows[0], existingWindows.includes(windows[0]), openConfig, { folderUri, reveal, revealRemoteAuthority, source, folderUriIsDefault, draft, onboardingSessionResource });
+			sendAgentsWindowOpenIntent(windows[0], existingWindows.includes(windows[0]), openConfig, { folderUri, reveal, revealRemoteAuthority, source, folderUriIsDefault, draft, onboardingSessionResource, workspace });
 		}
 
 		return windows;

@@ -25,6 +25,8 @@ import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { hasWorkspaceFileExtension } from '../../../../../platform/workspace/common/workspace.js';
+import { IWindowOpenable } from '../../../../../platform/window/common/window.js';
+import { IExtUri } from '../../../../../base/common/resources.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Menus } from '../menus.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
@@ -36,7 +38,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService, SessionWorkspaceErr
 import { getSessionWorkspaceIcon } from './sessionWorkspaceAppearance.js';
 import { SessionWorkspaceEditor } from './sessionWorkspaceEditor.js';
 import { SessionGroupEditorAccessibilityHelp, SessionWorkspaceEditorAccessibilityHelp } from './sessionWorkspaceEditorAccessibilityHelp.js';
-import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
+import { EDIT_SESSION_GROUP_COMMAND_ID, EDIT_SESSION_WORKSPACE_COMMAND_ID, NEW_SESSION_WORKSPACE_COMMAND_ID, OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID, SESSION_WORKSPACE_EDITOR_WHEN, SessionWorkspaceEditorAvailableContext } from './sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from './sessionWorkspaceEditorInput.js';
 import { SessionWorkspaceRenamePlacementContribution } from './sessionWorkspaceRenamePlacement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -64,12 +66,15 @@ AccessibleViewRegistry.register(new SessionGroupEditorAccessibilityHelp());
 
 /** A command on a workspace, which the user picks when the command is not given one. */
 abstract class SessionWorkspacePickAction extends Action2 {
-	/** The workspace of `uri`, else one that the user picks among the workspaces. */
-	protected async resolveWorkspace(uri: URI | undefined, placeholder: string, workspacesService: ISessionWorkspacesService, labelService: ILabelService, quickInputService: IQuickInputService): Promise<IRecentSessionWorkspace | undefined> {
+	/**
+	 * The workspace of `uri`, else one that the user picks among the workspaces.
+	 * @param pickable Which workspaces the user can pick from; all by default.
+	 */
+	protected async resolveWorkspace(uri: URI | undefined, placeholder: string, workspacesService: ISessionWorkspacesService, labelService: ILabelService, quickInputService: IQuickInputService, pickable: (workspace: IRecentSessionWorkspace) => boolean = () => true): Promise<IRecentSessionWorkspace | undefined> {
 		if (URI.isUri(uri)) {
 			return workspacesService.getWorkspace(uri);
 		}
-		const items = workspacesService.workspaces.get().map((workspace): IQuickPickItem & { workspace: IRecentSessionWorkspace } => ({
+		const items = workspacesService.workspaces.get().filter(pickable).map((workspace): IQuickPickItem & { workspace: IRecentSessionWorkspace } => ({
 			workspace,
 			label: workspace.name,
 			description: workspace.folders.map(folder => labelService.getUriLabel(folder, { relative: false })).join(', '),
@@ -119,6 +124,65 @@ registerAction2(class EditSessionWorkspaceAction extends SessionWorkspacePickAct
 		if (workspace) {
 			await editorService.openEditor(new SessionWorkspaceEditorInput({ kind: 'edit', workspace }, extUri), { pinned: true });
 		}
+	}
+});
+
+registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspacePickAction {
+	constructor() {
+		super({
+			id: OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID,
+			title: localize2('openWorkspaceInEditor', "Open Workspace in Editor Window..."),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: SESSION_WORKSPACE_EDITOR_WHEN,
+		});
+	}
+
+	/**
+	 * Opens a new editor window on the workspace's `.code-workspace` file, or on the folder of a workspace that has no
+	 * file; a URI the workspaces service doesn't know, such as a folder's row, opens as itself. A workspace whose file is
+	 * missing can't be opened: it is there to repair or remove. An editor window opens only what is on this computer.
+	 */
+	override async run(accessor: ServicesAccessor, uri?: URI): Promise<void> {
+		const hostService = accessor.get(IHostService);
+		const notificationService = accessor.get(INotificationService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const workspace = await this.resolveWorkspace(uri, localize('openWorkspaceInEditor.pick', "Select a workspace to open in an editor window"), accessor.get(ISessionWorkspacesService), accessor.get(ILabelService), accessor.get(IQuickInputService), candidate => !candidate.missing && !!this._getWindowToOpen(extUri, candidate));
+		if (workspace?.missing) {
+			notificationService.info(localize('openWorkspaceInEditor.missing', "The workspace file of '{0}' is missing. Edit the workspace to repair it, or remove it.", workspace.name));
+			return;
+		}
+		const toOpen = workspace ? this._getWindowToOpen(extUri, workspace) : URI.isUri(uri) ? this._getWindowToOpenOfUnknownUri(uri) : undefined;
+		if (toOpen) {
+			await hostService.openWindow([toOpen], { forceNewWindow: true });
+		}
+	}
+
+	/**
+	 * The workspace file of the workspace, else its standalone folder, also one whose name ends in `.code-workspace`;
+	 * `undefined` when it is not on this computer.
+	 */
+	private _getWindowToOpen(extUri: IExtUri, workspace: IRecentSessionWorkspace): IWindowOpenable | undefined {
+		if (SessionWorkspaceEditorInput.hasWorkspaceFile(extUri, workspace)) {
+			return this._isOnThisComputer(workspace.uri) ? { workspaceUri: workspace.uri } : undefined;
+		}
+		const folder = workspace.folders[0];
+		return folder && this._isOnThisComputer(folder) ? { folderUri: folder } : undefined;
+	}
+
+	/**
+	 * What a URI that the workspaces service doesn't know is, such as a folder's row: a `.code-workspace` file is a
+	 * workspace, anything else a folder; `undefined` when it is not on this computer.
+	 */
+	private _getWindowToOpenOfUnknownUri(uri: URI): IWindowOpenable | undefined {
+		if (!this._isOnThisComputer(uri)) {
+			return undefined;
+		}
+		return hasWorkspaceFileExtension(uri) ? { workspaceUri: uri } : { folderUri: uri };
+	}
+
+	private _isOnThisComputer(uri: URI): boolean {
+		return uri.scheme === Schemas.file;
 	}
 });
 
@@ -222,13 +286,9 @@ registerAction2(class OpenWorkspaceRowInEditorWindowAction extends SessionWorksp
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+	override run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> | undefined {
 		const workspace = this.getRowWorkspace(section);
-		if (!workspace || workspace.uri.scheme !== Schemas.file) {
-			return;
-		}
-		const toOpen = hasWorkspaceFileExtension(workspace.uri) ? { workspaceUri: workspace.uri } : { folderUri: workspace.uri };
-		await accessor.get(IHostService).openWindow([toOpen], { forceNewWindow: true });
+		return workspace ? accessor.get(ICommandService).executeCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, workspace.uri) : undefined;
 	}
 });
 

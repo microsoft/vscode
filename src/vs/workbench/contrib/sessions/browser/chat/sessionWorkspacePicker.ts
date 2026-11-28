@@ -56,7 +56,7 @@ import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../common
 import { observableSessionWorkspacesEnabled } from '../../common/sessionConfig.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { getSessionWorkspaceIcon } from '../workspaceEditor/sessionWorkspaceAppearance.js';
-import { EDIT_SESSION_WORKSPACE_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
+import { EDIT_SESSION_WORKSPACE_COMMAND_ID, OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, REMOVE_SESSION_WORKSPACE_COMMAND_ID } from '../workspaceEditor/sessionWorkspaceEditorCommands.js';
 import { SessionWorkspaceEditorInput } from '../workspaceEditor/sessionWorkspaceEditorInput.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
@@ -3410,6 +3410,14 @@ export class WorkspacePicker extends Disposable {
 						checked: (!!selectedWorkspaceUri && extUri.isEqual(selectedWorkspaceUri, workspace.uri)) || undefined,
 					},
 				toolbarActions: [
+					// A missing workspace's file can't be opened: it is there to repair or remove; an editor window opens only
+					// a workspace on this computer
+					...(workspace.missing || workspace.uri.scheme !== Schemas.file ? [] : [toAction({
+						id: 'workspacePicker.sessionWorkspace.openInEditor',
+						label: localize('workspacePicker.sessionWorkspace.openInEditor', "Open in Editor Window"),
+						class: ThemeIcon.asClassName(Codicon.window),
+						run: () => this._runSessionWorkspaceCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, workspace.uri),
+					})]),
 					toAction({
 						id: 'workspacePicker.sessionWorkspace.edit',
 						label: localize('workspacePicker.sessionWorkspace.edit', "Edit Workspace"),

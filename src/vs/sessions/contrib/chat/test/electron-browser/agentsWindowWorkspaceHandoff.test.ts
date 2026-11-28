@@ -21,7 +21,7 @@ import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { IAgentsWindowWorkspaceFolders, IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
@@ -186,6 +186,44 @@ suite('Agents Window workspace handoff telemetry', () => {
 				{ folderUri: folder, preferDevContainer: false, isDefault: true, draft: undefined, noWorkspace: false, revealNewSession: true },
 				{ folderUri: undefined, preferDevContainer: false, isDefault: false, draft, noWorkspace: false, revealNewSession: true },
 			],
+		});
+	});
+
+	test('revives the editor window\'s multi-root workspace and hands it to the handoff, rejecting a malformed one', async () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const intents: IAgentsWindowWorkspaceHandoff[] = [];
+		const harness = {
+			configurationService,
+			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { intents.push(intent); } },
+			handleOpenIntent: Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+				workspace: URI | undefined, session: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: undefined,
+				draft: IAgentsWindowDraft | undefined, noWorkspace: boolean, showNewSession: boolean, revealRemoteAuthority: string | undefined, handedOff: IAgentsWindowWorkspaceFolders | undefined
+			) => Promise<void>,
+			reviveWorkspace: Reflect.get(SelectAgentsFolderContribution.prototype, '_reviveWorkspace') as (value: unknown) => IAgentsWindowWorkspaceFolders | undefined,
+		};
+		const file = URI.file('/work/app.code-workspace');
+		const folders = [URI.file('/work/client'), URI.file('/work/server')];
+		const revived = [
+			harness.reviveWorkspace({ file: file.toJSON(), folders: folders.map(folder => folder.toJSON()) }),
+			harness.reviveWorkspace({ folders: folders.map(folder => folder.toJSON()) }),
+			harness.reviveWorkspace({ file: file.toJSON(), folders: [] }),
+			harness.reviveWorkspace({ file: 'app.code-workspace', folders: folders.map(folder => folder.toJSON()) }),
+			harness.reviveWorkspace(undefined),
+		];
+		await harness.handleOpenIntent(folders[0], undefined, true, CancellationToken.None, undefined, undefined, false, false, undefined, revived[0]);
+		assert.deepStrictEqual({
+			revived: revived.map(workspace => workspace && { file: workspace.file?.toString(), folders: workspace.folders.map(folder => folder.toString()) }),
+			workspace: intents.map(intent => intent.workspace?.file?.toString()),
+		}, {
+			revived: [
+				{ file: file.toString(), folders: folders.map(folder => folder.toString()) },
+				{ file: undefined, folders: folders.map(folder => folder.toString()) },
+				undefined,
+				undefined,
+				undefined,
+			],
+			workspace: [file.toString()],
 		});
 	});
 

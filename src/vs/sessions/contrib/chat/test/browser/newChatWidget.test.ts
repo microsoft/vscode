@@ -8061,6 +8061,35 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('selects the requested workspace and folders with the folder', () => {
+		const folder = URI.file('/work/client');
+		const forwarded: Parameters<WorkspacePicker['setSelectedWorkspace']>[1][] = [];
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			_environment: constObservable(undefined),
+			uriIdentityService: { extUri },
+			_workspacePicker: {
+				selectionSnapshot: { folderUri: folder, state: 'selected' },
+				setSelectedWorkspace: (_folder: URI, options: Parameters<WorkspacePicker['setSelectedWorkspace']>[1]) => forwarded.push(options),
+			},
+		});
+		const workspaceConfig = { uri: URI.file('/work/app.code-workspace'), name: 'App', folders: [folder, URI.file('/work/server')] };
+		const folders = [folder, URI.file('/work/server')];
+		const origin = WorkspaceSelectionOrigin.WindowOpen;
+		const results = [
+			widget.selectWorkspace(folder, { selectionOrigin: origin, workspaceConfig }),
+			widget.selectWorkspace(folder, { selectionOrigin: origin, folders }),
+			widget.selectWorkspace(folder, { selectionOrigin: origin }),
+		];
+		assert.deepStrictEqual({ results, forwarded }, {
+			results: ['applied', 'applied', 'applied'],
+			forwarded: [
+				{ providerId: undefined, preferDevContainer: undefined, origin, sessionWorkspaceUri: workspaceConfig.uri },
+				{ providerId: undefined, preferDevContainer: undefined, origin, sessionFolders: folders },
+				{ providerId: undefined, preferDevContainer: undefined, origin },
+			],
+		});
+	});
+
 	test('retains comparison models from every harness and Fusion, but not legacy routing models, during model refresh', () => {
 		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 			identifier,

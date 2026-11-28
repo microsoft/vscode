@@ -46,6 +46,14 @@ const SESSION_WORKSPACES: readonly IRecentSessionWorkspace[] = [
 	{ uri: URI.file('/Users/me/workspaces/archive.code-workspace'), name: 'Archive', folders: [WEBSITE], owned: true, missing: true },
 ];
 
+/** A workspace on a remote, which an editor window on this computer can't open. */
+const REMOTE_WORKSPACE: IRecentSessionWorkspace = {
+	uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+devbox', path: '/home/me/workspaces/server.code-workspace' }),
+	name: 'Server',
+	folders: [URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+devbox', path: '/home/me/code/server' })],
+	owned: false,
+};
+
 class FixtureWorkspacePicker extends WorkspacePicker {
 	pickSessionWorkspace(): Promise<boolean> {
 		const item = this._buildItems().find(candidate => candidate.item?.sessionWorkspaceUri)?.item;
@@ -66,7 +74,7 @@ function createFolderWorkspace(folder: URI): ISessionWorkspace {
 	};
 }
 
-async function renderPicker(context: ComponentFixtureContext, pick: boolean, open: boolean, focus?: 'missingRow' | 'missingRowAction'): Promise<void> {
+async function renderPicker(context: ComponentFixtureContext, pick: boolean, open: boolean, focus?: 'workspaceRow' | 'missingRow' | 'missingRowAction', workspaces: readonly IRecentSessionWorkspace[] = SESSION_WORKSPACES): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.style.position = 'relative';
@@ -105,8 +113,8 @@ async function renderPicker(context: ComponentFixtureContext, pick: boolean, ope
 		override checkNoWorkspace(): void { }
 	}());
 	instantiationService.set(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
-		override readonly workspaces = constObservable(SESSION_WORKSPACES);
-		override getWorkspace(uri: URI) { return SESSION_WORKSPACES.find(candidate => candidate.uri.toString() === uri.toString()); }
+		override readonly workspaces = constObservable(workspaces);
+		override getWorkspace(uri: URI) { return workspaces.find(candidate => candidate.uri.toString() === uri.toString()); }
 		override touchWorkspace(): void { }
 	}());
 	instantiationService.stub(IUriIdentityService, { extUri });
@@ -148,8 +156,12 @@ async function renderPicker(context: ComponentFixtureContext, pick: boolean, ope
 		const targetWindow = dom.getWindow(container);
 		// As a user who reads the opened picker first: after its rows settle, which refreshes them
 		await new Promise<void>(resolve => setTimeout(resolve, 300));
-		// As Up Arrow moves from the selected recent folder to the missing workspace above it
+		// As Up Arrow moves from the selected recent folder to the last workspace above it, the missing one
 		actionWidgetService.focusPrevious();
+		if (focus === 'workspaceRow') {
+			// And once more to the Product workspace above it
+			actionWidgetService.focusPrevious();
+		}
 		if (focus === 'missingRowAction') {
 			await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 			const list = targetWindow.document.querySelector<HTMLElement>('.action-widget .monaco-list');
@@ -174,6 +186,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/' }, {
 		expectedVisualDescriptions: ['After picking the Product workspace, the workspace pill shows a rocket icon and the name Product.'],
 		render: context => renderPicker(context, true, false),
 	}),
+	WorkspaceFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the keyboard, the Product workspace row is focused, showing its Open in Editor Window (window icon), Edit Workspace (gear) and Remove Workspace buttons.'],
+		virtualTime: { enabled: false },
+		render: context => renderPicker(context, false, true, 'workspaceRow'),
+	}),
 	MissingWorkspaceFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['With the keyboard, the Archive workspace row with a warning icon and Workspace file missing is focused, showing its edit and remove buttons.'],
@@ -185,6 +203,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/' }, {
 		expectedVisualDescriptions: ['After Tab from the focused Archive row, its Edit Workspace button has keyboard focus (the fixture fails otherwise); the gear and remove buttons stay shown.'],
 		virtualTime: { enabled: false },
 		render: context => renderPicker(context, false, true, 'missingRowAction'),
+	}),
+	RemoteWorkspaceFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the keyboard, the Server workspace row, a workspace on a remote, is focused, showing only its Edit Workspace (gear) and Remove Workspace buttons, without Open in Editor Window.'],
+		virtualTime: { enabled: false },
+		// The last workspace row is the remote one
+		render: context => renderPicker(context, false, true, 'missingRow', [SESSION_WORKSPACES[0], REMOTE_WORKSPACE]),
 	}),
 	WorkspacePicked: defineComponentFixture({
 		labels: { kind: 'screenshot' },

@@ -14,7 +14,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IAgentsLauncherOptions, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, IAgentsWindowDraft, IAgentsWindowWorkspace, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -107,6 +107,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly source?: AgentsWindowOpenSource;
 	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
+	/** The multi-root workspace of the invoking editor window, to select it instead of {@link folderUri} where workspaces are enabled. */
+	readonly workspace?: IAgentsWindowWorkspace;
 }
 
 export interface ICPUProperties {
