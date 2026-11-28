@@ -60,7 +60,7 @@ if (CutAction) {
 		},
 		group: '5_cutcopypaste',
 		order: 1,
-		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
+		when: ContextKeyExpr.and(ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName), ContextKeyExpr.not('webviewReadonly')),
 	});
 }
 
@@ -84,7 +84,7 @@ if (PasteAction) {
 		},
 		group: '5_cutcopypaste',
 		order: 3,
-		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
+		when: ContextKeyExpr.and(ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName), ContextKeyExpr.not('webviewReadonly')),
 	});
 }
 
