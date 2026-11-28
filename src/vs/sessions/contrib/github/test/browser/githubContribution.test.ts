@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -22,7 +22,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -46,14 +46,13 @@ suite('GitHubPullRequestPollingContribution', () => {
 	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
 	/** The session each host shows; a session appears once per host that shows it. */
 	let shownByHosts: ISettableObservable<readonly ISession[]>;
-	/** The repository the main window's Changes show; `undefined` for all of them, whose checks are the first folder's. */
-	let selectedRepository: ISettableObservable<IChangesRepository | undefined>;
+	/** The repository the main window's Changes show. */
+	const selectedRepository = constObservable<IChangesRepository | undefined>(undefined);
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
 		activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 		shownByHosts = observableValue<readonly ISession[]>('test.shownByHosts', []);
-		selectedRepository = observableValue<IChangesRepository | undefined>('test.selectedRepository', undefined);
 		gitHubService = new TestGitHubService();
 	});
 
@@ -330,31 +329,21 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('refreshes and polls the pull request of the repository the Changes show, also one known only from its metadata', () => {
-		// Repository B's pull request is known only from its repository's metadata: no session folder or artifact records it
+	test('keeps the pull request of the repository the main window\'s Changes show current while a session is active', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		activeSession.set(Object.assign(session, { activeChat: session.mainChat }), undefined);
-		gitHubService.firstFolderGitHubInfo = session.workspace.get()!.folders[0].gitRepository!.gitHubInfo;
-		const repositoryB = makeRepository('b', { owner: 'owner', repo: 'b', pullRequest: { number: 2, uri: URI.parse('https://github.com/owner/b/pull/2') } });
 		store.add(createContribution());
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
-		const snapshot = () => ({ refreshes: gitHubService.refreshSnapshot(), ci: gitHubService.statusModelSnapshot().ci });
-		const steps: Record<string, ReturnType<typeof snapshot>> = {};
+		const steps: Record<string, readonly string[]> = {};
 
-		steps.all = snapshot();
-		// B is selected: its cold pull request is refreshed, so its head commit and then its checks load and are polled
-		selectedRepository.set(repositoryB, undefined);
-		gitHubService.setPullRequestDetails('owner', 'b', 2, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'shaB' });
-		steps.b = snapshot();
-		// All repositories again: the first folder's checks are polled, and B's no longer are
-		selectedRepository.set(undefined, undefined);
-		steps.allAgain = snapshot();
+		steps.noActiveSession = [...gitHubService.selectionEvents];
+		activeSession.set(Object.assign(session, { activeChat: session.mainChat }), undefined);
+		steps.active = [...gitHubService.selectionEvents];
+		activeSession.set(undefined, undefined);
+		steps.noLongerActive = [...gitHubService.selectionEvents];
 
-		const ciA = (startPollingCalls: number, stopPollingCalls: number, refreshCalls: number) => ({ startPollingCalls, stopPollingCalls, refreshCalls });
 		assert.deepStrictEqual(steps, {
-			all: { refreshes: { 'owner/repo/1': 2 }, ci: { 'owner/repo/1/sha1': ciA(2, 0, 2) } },
-			b: { refreshes: { 'owner/repo/1': 2, 'owner/b/2': 1 }, ci: { 'owner/repo/1/sha1': ciA(2, 1, 2), 'owner/b/2/shaB': ciA(1, 0, 1) } },
-			allAgain: { refreshes: { 'owner/repo/1': 3, 'owner/b/2': 1 }, ci: { 'owner/repo/1/sha1': ciA(3, 1, 3), 'owner/b/2/shaB': ciA(1, 1, 1) } },
+			noActiveSession: ['pull request of the selection'],
+			active: ['pull request of the selection', 'kept current'],
+			noLongerActive: ['pull request of the selection', 'kept current', 'no longer kept current'],
 		});
 	});
 
@@ -369,18 +358,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 		);
 	}
 });
-
-function makeRepository(name: string, gitHubInfo: IGitHubInfo): IChangesRepository {
-	const root = URI.from({ scheme: 'test', path: `/workspace/${name}` });
-	return {
-		root,
-		folder: root,
-		name,
-		description: undefined,
-		kind: undefined,
-		gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHubInfo) },
-	};
-}
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
@@ -527,28 +504,25 @@ class TestGitHubService extends mock<IGitHubService>() {
 	override readonly activeSessionPullRequestObs = observableValue('test.activePR', undefined);
 	override readonly activeSessionPullRequestCIObs = observableValue('test.activePRCI', undefined);
 	override readonly activeSessionPullRequestReviewThreadsObs = observableValue('test.activePRReviewThreads', undefined);
-	/** The GitHub information of the main window's session's first folder, whose pull request shows when no repository is selected. */
-	firstFolderGitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined);
+	/** Which pull request the contribution keeps current, and when. */
+	readonly selectionEvents: string[] = [];
+	private readonly _selectedPullRequest = upcastPartial<IGitHubSessionPullRequestObservables>({});
 
-	override getSessionPullRequest(_sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): ReturnType<IGitHubService['getSessionPullRequest']> {
-		const pullRequestObs = derived(reader => {
-			const repository = repositoryObs?.read(reader);
-			const gitHubInfo = repository ? repository.gitRepository?.gitHubInfo.read(reader) : this.firstFolderGitHubInfo.read(reader);
-			return gitHubInfo?.pullRequest ? this.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number).object : undefined;
-		});
-		const pullRequestCIObs = derived(reader => {
-			const pullRequest = pullRequestObs.read(reader);
-			const headSha = pullRequest?.pullRequest.read(reader)?.headSha;
-			return pullRequest && headSha ? this.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.prNumber, headSha).object : undefined;
-		});
-		return { pullRequestObs, pullRequestCIObs, pullRequestReviewThreadsObs: constObservable(undefined) };
+	override getSessionPullRequest(_sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): IGitHubSessionPullRequestObservables {
+		this.selectionEvents.push(repositoryObs ? 'pull request of the selection' : 'pull request of the first folder');
+		return this._selectedPullRequest;
+	}
+
+	override keepSessionPullRequestCurrent(pullRequest: IGitHubSessionPullRequestObservables): IDisposable {
+		this.selectionEvents.push(pullRequest === this._selectedPullRequest ? 'kept current' : 'kept another current');
+		return toDisposable(() => this.selectionEvents.push('no longer kept current'));
 	}
 
 	override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
 		const key = `${owner}/${repo}/${prNumber}`;
 		let model = this._models.get(key);
 		if (!model) {
-			model = new TestPullRequestModel(owner, repo, prNumber);
+			model = new TestPullRequestModel();
 			this._models.set(key, model);
 		}
 		return new ImmortalReference(model as unknown as GitHubPullRequestModel);
@@ -588,10 +562,6 @@ class TestGitHubService extends mock<IGitHubService>() {
 		return Object.fromEntries(entries);
 	}
 
-	refreshSnapshot(): Record<string, number> {
-		return Object.fromEntries([...this._models.entries()].filter(([, model]) => model.refreshCalls > 0).map(([key, model]) => [key, model.refreshCalls] as const));
-	}
-
 	statusModelSnapshot(): { ci: Record<string, { startPollingCalls: number; stopPollingCalls: number; refreshCalls: number }>; reviewThreads: Record<string, { startPollingCalls: number; stopPollingCalls: number; refreshCalls: number }> } {
 		const toRecord = (models: Map<string, TestStatusModel>) => Object.fromEntries(
 			[...models.entries()].map(([key, model]) => [key, { startPollingCalls: model.startPollingCalls, stopPollingCalls: model.stopPollingCalls, refreshCalls: model.refreshCalls }] as const)
@@ -603,7 +573,6 @@ class TestGitHubService extends mock<IGitHubService>() {
 class TestPullRequestModel implements IDisposable {
 
 	startPollingCalls = 0;
-	refreshCalls = 0;
 	stopPollingCalls = 0;
 	disposeCalls = 0;
 
@@ -614,15 +583,12 @@ class TestPullRequestModel implements IDisposable {
 		this._pullRequest.set(pullRequest, undefined);
 	}
 
-	constructor(readonly owner: string, readonly repo: string, readonly prNumber: number) { }
-
 	startPolling(): IDisposable {
 		this.startPollingCalls++;
 		return toDisposable(() => this.stopPollingCalls++);
 	}
 
 	refresh(): Promise<void> {
-		this.refreshCalls++;
 		return Promise.resolve();
 	}
 

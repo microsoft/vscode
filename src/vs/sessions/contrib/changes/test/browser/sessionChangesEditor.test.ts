@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derivedObservableWithWritableCache, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -479,6 +479,7 @@ suite('SessionChangesEditor header', () => {
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: () => undefined }));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			keepSessionPullRequestCurrent: () => Disposable.None,
 			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({ pullRequestCIObs: constObservable(undefined) }),
 		}));
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {

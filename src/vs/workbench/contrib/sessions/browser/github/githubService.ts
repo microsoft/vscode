@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubChangedFile, IGitHubPullRequestChanges, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../../common/github/types.js';
@@ -21,7 +21,7 @@ import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestCon
 import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
 import { PullRequestChecksSource } from './fetchers/githubPRChecksSource.js';
 import { getPullRequestKey } from '../../common/github/utils.js';
-import { derived, derivedOpts, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
@@ -66,6 +66,12 @@ export interface IGitHubService {
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
 	activeSessionPullRequestReviewThreadsObs: IObservable<GitHubPullRequestReviewThreadsModel | undefined>;
+
+	/**
+	 * Refreshes and polls, until disposed, the pull request, its checks and its review threads that the observables
+	 * currently resolve to, following them as they change: as the pull request's head commit moves, its checks follow.
+	 */
+	keepSessionPullRequestCurrent(pullRequest: IGitHubSessionPullRequestObservables): IDisposable;
 
 	/** Obtain repository access before opening the repository picker. */
 	authenticateForRepositoryAccess(token: CancellationToken): Promise<void>;
@@ -267,6 +273,32 @@ export class GitHubService extends Disposable implements IGitHubService {
 		});
 
 		return { pullRequestObs, pullRequestCIObs, pullRequestReviewThreadsObs };
+	}
+
+	keepSessionPullRequestCurrent(pullRequest: IGitHubSessionPullRequestObservables): IDisposable {
+		const store = new DisposableStore();
+		store.add(autorun(reader => {
+			const model = pullRequest.pullRequestObs.read(reader);
+			if (model) {
+				void model.refresh({ priority: 'visible' });
+				reader.store.add(model.startPolling());
+			}
+		}));
+		store.add(autorun(reader => {
+			const model = pullRequest.pullRequestCIObs.read(reader);
+			if (model) {
+				void model.refresh(false, { priority: 'visible' });
+				reader.store.add(model.startPolling());
+			}
+		}));
+		store.add(autorun(reader => {
+			const model = pullRequest.pullRequestReviewThreadsObs.read(reader);
+			if (model) {
+				void model.refresh(false, { priority: 'visible' });
+				reader.store.add(model.startPolling());
+			}
+		}));
+		return store;
 	}
 
 	authenticateForRepositoryAccess(token: CancellationToken): Promise<void> {

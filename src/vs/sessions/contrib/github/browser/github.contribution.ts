@@ -98,47 +98,10 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			return activeSession.resource;
 		});
 
-		// Pull request model
 		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
+			if (activeSessionResourceObs.read(reader)) {
+				reader.store.add(this._gitHubService.keepSessionPullRequestCurrent(selectedPullRequest));
 			}
-
-			const model = selectedPullRequest.pullRequestObs.read(reader);
-			model?.refresh({ priority: 'visible' });
-		}));
-
-		// Pull request CI model
-		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
-			}
-
-			const model = selectedPullRequest.pullRequestCIObs.read(reader);
-			if (!model) {
-				return;
-			}
-
-			model.refresh(false, { priority: 'visible' });
-			reader.store.add(model.startPolling());
-		}));
-
-		// Pull request review threads model
-		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
-				return;
-			}
-
-			const model = selectedPullRequest.pullRequestReviewThreadsObs.read(reader);
-			if (!model) {
-				return;
-			}
-
-			model.refresh(false, { priority: 'visible' });
-			reader.store.add(model.startPolling());
 		}));
 
 		this._sessionsManagementService.onDidChangeSessions(this._onDidChangeSessions, this, this._store);

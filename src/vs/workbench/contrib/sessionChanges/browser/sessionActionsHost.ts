@@ -53,12 +53,21 @@ export class SessionScopeContextKeys extends Disposable {
 		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
 		this._register(bindIsAgentHostSessionContextKey(contextKeyService, scope.session, sessionsProvidersService));
 		this._register(bindChangesetContextKeys(scope.changes, contextKeyService));
+		// Of the repository the Changes show, as their actions are
+		const pullRequest = gitHubService.getSessionPullRequest(scope.session, scope.changes.repositoryObs);
 		this._register(bindSessionActionContextKeys(instantiationService, {
 			session: scope.session,
 			chat: scope.chat,
 			changes: scope.changes,
-			// Of the repository the Changes show, as their actions are
-			pullRequest: gitHubService.getSessionPullRequest(scope.session, scope.changes.repositoryObs),
+			pullRequest,
 		}, contextKeyService));
+		// The main window keeps its own selection current; a scope can select another repository, whose pull request
+		// may be known only from its metadata
+		this._register(autorun(reader => {
+			const session = scope.session.read(reader);
+			if (session && !session.isArchived.read(reader)) {
+				reader.store.add(gitHubService.keepSessionPullRequestCurrent(pullRequest));
+			}
+		}));
 	}
 }

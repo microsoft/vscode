@@ -21,14 +21,19 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { GitHubService } from '../../../browser/github/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../browser/github/pullRequestIconCache.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionGitRepository } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../sessionHostTestUtils.js';
-import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IChangesRepository } from '../../../common/changesRepositories.js';
 
 suite('GitHubService', () => {
+	/** The head commit of each repository's pull request on GitHub, and the repositories whose pull request was fetched. */
+	const headShas = new Map<string, string>();
+	const pullRequestGets: string[] = [];
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: GitHubService;
@@ -37,6 +42,8 @@ suite('GitHubService', () => {
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
 	setup(() => {
+		headShas.clear();
+		pullRequestGets.length = 0;
 		domainCalls = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -77,7 +84,10 @@ suite('GitHubService', () => {
 					}),
 					reviews: upcastPartial<IGitHubAccountClient['reviews']>({ list: async () => [] }),
 					pullRequests: upcastPartial<IGitHubAccountClient['pullRequests']>({
-						get: async (repository, prNumber) => upcastPartial<PullRequest>({ number: prNumber, state: 'open', user: null, head: upcastPartial<PullRequest['head']>({ ref: 'topic', sha: `${repository.repo}-head` }), base: upcastPartial<PullRequest['base']>({ ref: 'main' }) }),
+						get: async (repository, prNumber) => {
+							pullRequestGets.push(repository.repo);
+							return upcastPartial<PullRequest>({ number: prNumber, state: 'open', user: null, head: upcastPartial<PullRequest['head']>({ ref: 'topic', sha: headShas.get(repository.repo) ?? `${repository.repo}-head` }), base: upcastPartial<PullRequest['base']>({ ref: 'main' }) });
+						},
 						list: async (repository, _signal, options) => {
 							domainCalls.push({ operation: 'pullRequests.list', args: [repository, options] });
 							return [upcastPartial<PullRequestSummary>({ number: 42 })];
@@ -154,31 +164,46 @@ suite('GitHubService', () => {
 		});
 	});
 
-	test('getSessionPullRequest follows the selected repository, also a pull request known only from its metadata, and the first folder for all of them', async () => {
+	test('keeps the pull request of the selected repository current, also one known only from its metadata, as its head commit moves, and only while it is selected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const gitHubInfo = (repo: string, prNumber: number) => constObservable({ owner: 'o', repo, pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/${repo}/pull/${prNumber}`) } });
 		const session = upcastPartial<ITestSessionWithChat>({
 			workspace: constObservable({ folders: [{ gitRepository: { gitHubInfo: gitHubInfo('a', 1) } }] }) as unknown as ITestSessionWithChat['workspace'],
 		});
+		// B's pull request is known only from its repository's metadata: nothing else loads it
 		const repositoryB = upcastPartial<IChangesRepository>({ gitRepository: upcastPartial<ISessionGitRepository>({ gitHubInfo: gitHubInfo('b', 2) }) });
 		const selected = observableValue<IChangesRepository | undefined>('test.selected', undefined);
 		const pullRequest = service.getSessionPullRequest(constObservable(session), selected);
-		// Observed, as the Checks, their context and the polling observe it, so that its models stay alive
-		store.add(autorun(reader => pullRequest.pullRequestCIObs.read(reader)));
-		const step = async () => {
-			// Its details, and with them its head commit, load as the pull request is refreshed
-			await pullRequest.pullRequestObs.get()?.refresh();
+		const kept = service.keepSessionPullRequestCurrent(pullRequest);
+		const checksOf = async () => {
+			await timeout(0);
 			const ci = pullRequest.pullRequestCIObs.get();
 			return ci && `${ci.owner}/${ci.repo}#${ci.prNumber}@${ci.headSha}`;
 		};
+		const fetchesOfB = () => pullRequestGets.filter(repo => repo === 'b').length;
 
-		const all = await step();
+		headShas.set('b', 'b1');
+		const all = await checksOf();
 		selected.set(repositoryB, undefined);
-		const b = await step();
+		const b = await checksOf();
+		// Pushed to while it stays selected: the polled pull request moves its checks to the new head
+		headShas.set('b', 'b2');
+		await timeout(120_000);
+		const bPushed = await checksOf();
 		selected.set(undefined, undefined);
-		const allAgain = await step();
+		const allAgain = await checksOf();
+		const fetchesOfBWhenUnselected = fetchesOfB();
+		await timeout(120_000);
+		const fetchesOfBLater = fetchesOfB();
+		kept.dispose();
 
-		assert.deepStrictEqual({ all, b, allAgain }, { all: 'o/a#1@a-head', b: 'o/b#2@b-head', allAgain: 'o/a#1@a-head' });
-	});
+		assert.deepStrictEqual({ all, b, bPushed, allAgain, bNoLongerFetched: fetchesOfBLater === fetchesOfBWhenUnselected }, {
+			all: 'o/a#1@a-head',
+			b: 'o/b#2@b1',
+			bPushed: 'o/b#2@b2',
+			allAgain: 'o/a#1@a-head',
+			bNoLongerFetched: true,
+		});
+	}));
 
 	test('createPullRequestModelReference returns shared model for same key', () => {
 		const ref1 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
