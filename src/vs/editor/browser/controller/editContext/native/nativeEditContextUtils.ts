@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getShadowRoot } from '../../../../../base/browser/dom.js';
-import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export interface ITypeData {
@@ -15,6 +15,8 @@ export interface ITypeData {
 }
 
 export class FocusTracker extends Disposable {
+	private static readonly _instances = new Set<FocusTracker>();
+
 	private _isFocused: boolean = false;
 	private _isPaused: boolean = false;
 
@@ -24,6 +26,8 @@ export class FocusTracker extends Disposable {
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
+		FocusTracker._instances.add(this);
+		this._register(toDisposable(() => FocusTracker._instances.delete(this)));
 		this._register(addDisposableListener(this._domNode, 'focus', () => {
 			_logService.trace('NativeEditContext.focus');
 			if (this._isPaused) {
@@ -55,6 +59,15 @@ export class FocusTracker extends Disposable {
 	private _handleFocusedChanged(focused: boolean): void {
 		if (this._isFocused === focused) {
 			return;
+		}
+		if (focused) {
+			// Without OS focus, the browser dispatches no blur event to the previously
+			// focused element, so trackers that still claim focus need to re-check
+			for (const other of FocusTracker._instances) {
+				if (other !== this && other._isFocused && !other._isPaused) {
+					other.refreshFocusState();
+				}
+			}
 		}
 		this._isFocused = focused;
 		this._onFocusChange(this._isFocused);
