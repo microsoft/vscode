@@ -10,7 +10,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { QuickInputController } from '../../../../platform/quickinput/browser/quickInputController.js';
+import { IQuickInputOptions } from '../../../../platform/quickinput/browser/quickInput.js';
+import { IQuickInputControllerHost, QuickInputController } from '../../../../platform/quickinput/browser/quickInputController.js';
 import { QuickInputService as BaseQuickInputService } from '../../../../platform/quickinput/browser/quickInputService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -39,10 +40,11 @@ export class QuickInputService extends BaseQuickInputService {
 		this._register(this.onHide(() => this.inQuickInputContext.set(false)));
 	}
 
-	protected override createController(): QuickInputController {
-		return super.createController(this.layoutService, {
+	protected override createController(host: IQuickInputControllerHost = this.layoutService, options?: Partial<IQuickInputOptions>): QuickInputController {
+		return super.createController(host, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
+			...options,
 		});
 	}
 }

@@ -64,6 +64,8 @@ export interface IQuickInputOptions {
 	 */
 	hoverDelegate: IHoverDelegate;
 	styles: IQuickInputStyles;
+	/** Minimum row height for lists and trees. Omitted values preserve compact rows. */
+	minimumItemHeight?: number;
 }
 
 export interface IQuickInputStyles {

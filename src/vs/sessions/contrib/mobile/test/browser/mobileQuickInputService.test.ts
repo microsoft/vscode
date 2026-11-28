@@ -9,24 +9,166 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { QuickInputService } from '../../../../../workbench/services/quickinput/browser/quickInputService.js';
+import { TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { MobileQuickInputService } from '../../browser/mobileQuickInputService.js';
+import '../../../../browser/media/phoneLayout.css';
+import '../../../../browser/mobile/media/mobileWorkbench.css';
 
 suite('MobileQuickInputService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const item: IQuickPickItem = { label: 'Choice' };
 
-	function createHarness() {
-		const container = dom.append(mainWindow.document.body, dom.$('div'));
+	function createHarness(mobile = true) {
+		const container = dom.append(mainWindow.document.body, dom.$('.monaco-workbench'));
+		container.classList.toggle('agent-sessions-workbench', mobile);
+		container.classList.toggle('phone-layout', mobile);
+		container.classList.toggle('mobile-workbench', mobile);
+		container.style.cssText = 'position: relative; width: 390px; height: 600px;';
 		store.add(toDisposable(() => container.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store.add(new DisposableStore()));
-		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ mainContainer: container }));
-		return { container, service: store.add(instantiationService.createInstance(MobileQuickInputService)) };
+		const layoutService = Object.assign(new TestLayoutService(), {
+			mainContainer: container,
+			activeContainer: container,
+			containers: [container],
+			mainContainerDimension: { width: 390, height: 600 },
+			activeContainerDimension: { width: 390, height: 600 },
+		});
+		instantiationService.stub(ILayoutService, layoutService);
+		const service = mobile
+			? store.add(instantiationService.createInstance(MobileQuickInputService))
+			: store.add(instantiationService.createInstance(QuickInputService));
+		return { container, service };
+	}
+
+	for (const mobile of [false, true]) {
+		test(`${mobile ? 'mobile' : 'desktop'} advanced picker metrics preserve scrolling, filtering and actions`, async () => {
+			const { service, container } = createHarness(mobile);
+			const picker = store.add(service.createQuickPick());
+			const items: IQuickPickItem[] = Array.from({ length: 30 }, (_, index) => ({
+				label: `Entry ${index}`,
+				detail: index === 1 ? 'Additional detail' : undefined,
+				buttons: index === 0 ? [{ iconClass: 'codicon codicon-close', tooltip: 'Remove', alwaysVisible: true }] : undefined,
+			}));
+			const triggered: string[] = [];
+			let backCount = 0;
+			let accepted: readonly IQuickPickItem[] = [];
+			store.add(picker.onDidTriggerItemButton(e => triggered.push(e.item.label)));
+			store.add(picker.onDidTriggerButton(() => backCount++));
+			store.add(picker.onDidAccept(() => {
+				accepted = picker.selectedItems;
+				picker.hide();
+			}));
+			picker.canSelectMany = true;
+			picker.items = items;
+			picker.buttons = [service.backButton];
+			picker.show();
+			picker.activeItems = [items[0]];
+
+			const row = (index: number) => container.querySelector<HTMLElement>(`.quick-input-list .monaco-list-row[data-index="${index}"]`)!;
+			const first = row(0).getBoundingClientRect();
+			const second = row(1).getBoundingClientRect();
+			const input = container.querySelector<HTMLInputElement>('.quick-input-box input')!;
+			const action = row(0).querySelector<HTMLElement>('.action-label')!;
+			const actionBounds = action.getBoundingClientRect();
+			const initial = {
+				heights: [first.height, second.height],
+				virtualHeights: [row(0).style.height, row(1).style.height],
+				separated: first.bottom <= second.top,
+				inputTouchSized: input.getBoundingClientRect().height >= 44,
+				inputPhoneFont: parseFloat(mainWindow.getComputedStyle(input).fontSize) >= 16,
+				actionInsideRow: actionBounds.top >= first.top && actionBounds.bottom <= first.bottom,
+			};
+			action.click();
+			container.querySelector<HTMLElement>('.quick-input-left-action-bar .action-label')!.click();
+
+			picker.activeItems = [items[29]];
+			const last = row(29).getBoundingClientRect();
+			const viewport = container.querySelector<HTMLElement>('.quick-input-list .monaco-list')!.getBoundingClientRect();
+			const lastVisible = last.top >= viewport.top && last.bottom <= viewport.bottom;
+			picker.value = 'Entry 29';
+			await timeout(0);
+			const filteredRows = container.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row');
+			filteredRows[0].querySelector<HTMLElement>('.monaco-checkbox')!.click();
+			await service.accept();
+
+			assert.deepStrictEqual({ initial, lastVisible, filteredCount: filteredRows.length, accepted: accepted.map(item => item.label), triggered, backCount }, {
+				initial: {
+					heights: [mobile ? 44 : 22, 44],
+					virtualHeights: [`${mobile ? 44 : 22}px`, '44px'],
+					separated: true,
+					inputTouchSized: mobile,
+					inputPhoneFont: mobile,
+					actionInsideRow: true,
+				},
+				lastVisible: true,
+				filteredCount: 1,
+				accepted: ['Entry 29'],
+				triggered: ['Entry 0'],
+				backCount: 1,
+			});
+		});
+
+		test(`${mobile ? 'mobile' : 'desktop'} separator rows do not overlap their items`, () => {
+			const { service, container } = createHarness(mobile);
+			const picker = store.add(service.createQuickPick({ useSeparators: true }));
+			picker.items = [
+				{ type: 'separator', label: 'Group', buttons: [{ iconClass: 'codicon codicon-close', tooltip: 'Remove Group', alwaysVisible: true }] },
+				{ label: 'First' },
+				{ label: 'Second', detail: 'Additional detail' },
+			];
+			picker.show();
+			const rows = Array.from(container.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row'));
+			const bounds = rows.map(row => row.getBoundingClientRect());
+			const result = {
+				virtualHeights: rows.map(row => row.style.height),
+				heights: bounds.map(row => row.height),
+				separated: bounds.every((row, index) => !index || bounds[index - 1].bottom <= row.top),
+			};
+			picker.hide();
+			assert.deepStrictEqual(result, {
+				virtualHeights: mobile ? ['44px', '44px', '44px'] : ['30px', '22px', '44px'],
+				heights: mobile ? [44, 44, 44] : [30, 22, 44],
+				separated: true,
+			});
+		});
+
+		test(`${mobile ? 'mobile' : 'desktop'} quick tree metrics preserve reveal and selection`, () => {
+			const { service, container } = createHarness(mobile);
+			const tree = store.add(service.createQuickTree<IQuickTreeItem>());
+			const items: IQuickTreeItem[] = Array.from({ length: 30 }, (_, index) => ({ label: `File ${index}` }));
+			tree.sortByLabel = false;
+			tree.setItemTree(items);
+			tree.show();
+			const rows = container.querySelectorAll<HTMLElement>('.quick-input-tree .monaco-list-row');
+			const first = rows[0].getBoundingClientRect();
+			const second = rows[1].getBoundingClientRect();
+			const virtualHeights = [rows[0].style.height, rows[1].style.height];
+			tree.reveal(items[29]);
+			const last = container.querySelector<HTMLElement>('.quick-input-tree .monaco-list-row[data-index="29"]')!;
+			const lastBounds = last.getBoundingClientRect();
+			const viewport = container.querySelector<HTMLElement>('.quick-input-tree .monaco-list')!.getBoundingClientRect();
+			last.querySelector<HTMLElement>('.monaco-checkbox')!.click();
+			const result = {
+				heights: [first.height, second.height, lastBounds.height],
+				virtualHeights,
+				separated: first.bottom <= second.top,
+				lastVisible: lastBounds.top >= viewport.top && lastBounds.bottom <= viewport.bottom,
+				checked: tree.checkedLeafItems.map(item => item.label),
+			};
+			tree.hide();
+			assert.deepStrictEqual(result, {
+				heights: Array(3).fill(mobile ? 44 : 22),
+				virtualHeights: Array(2).fill(mobile ? '44px' : '22px'),
+				separated: true,
+				lastVisible: true,
+				checked: ['File 29'],
+			});
+		});
 	}
 
 	test('cancellation closes an open sheet and resolves the pending pick', async () => {

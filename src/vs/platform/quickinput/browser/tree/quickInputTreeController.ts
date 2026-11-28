@@ -80,6 +80,7 @@ export class QuickInputTreeController extends Disposable {
 		container: HTMLElement,
 		hoverDelegate: IHoverDelegate | undefined,
 		styles: IQuickInputStyles,
+		minimumItemHeight = 0,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -99,7 +100,7 @@ export class QuickInputTreeController extends Disposable {
 			WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>,
 			'QuickInputTree',
 			this._container,
-			new QuickInputTreeDelegate(),
+			new QuickInputTreeDelegate(minimumItemHeight),
 			[this._renderer],
 			{
 				accessibilityProvider: new QuickTreeAccessibilityProvider(this.onDidChangeCheckboxState),

@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { QuickInputController } from '../../../../platform/quickinput/browser/quickInputController.js';
 import { IInputOptions, IPickOptions, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { QuickInputService } from '../../../../workbench/services/quickinput/browser/quickInputService.js';
@@ -47,6 +48,10 @@ export class MobileQuickInputService extends QuickInputService {
 		@IOpenerService openerService: IOpenerService,
 	) {
 		super(configurationService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, openerService);
+	}
+
+	protected override createController(): QuickInputController {
+		return super.createController(this.layoutService, { minimumItemHeight: 44 });
 	}
 
 	override async pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: O, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
