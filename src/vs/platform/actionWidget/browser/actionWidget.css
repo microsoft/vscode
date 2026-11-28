@@ -115,6 +115,13 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
+/* A disabled row that keyboard users can reach to hear why it is unavailable shows where focus is,
+ * overriding the outline that disabled rows otherwise remove. */
+.action-widget .monaco-list .monaco-list-row.action.focused.option-focusable-disabled {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
 /* Pointer navigation uses the dashed hover boundary. */
 .action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:is(:hover, .hovered):not(.option-disabled) {
 	outline-style: dashed;
