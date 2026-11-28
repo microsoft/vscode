@@ -26,7 +26,7 @@ import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, t
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, ExtUri, extUriIgnorePathCase, IExtUri, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -793,7 +793,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; untrustedUris?: readonly URI[]; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; untrustedUris?: readonly URI[]; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider; extUri?: IExtUri }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stubInstance(AgentHostArtifactIntegrations, { setConnection: () => { }, dispose: () => { } });
@@ -883,7 +883,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ILogService, new NullLogService());
 	const storageService = options?.storageService ?? disposables.add(new InMemoryStorageService());
 	instantiationService.stub(IStorageService, storageService);
-	instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
+	instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: options?.extUri ?? extUriIgnorePathCase }));
 	instantiationService.stub(ISessionsRecentWorkspacesService, options?.recentWorkspacesService ?? upcastPartial<ISessionsRecentWorkspacesService>({
 		onDidChangeRecentWorkspaces: Event.None,
 		onDidRemoveRecentWorkspaces: Event.None,
@@ -20215,6 +20215,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 				repositories: session.workspace.get()?.repositories?.map(repository => repository.root.toString()),
 				api: session.getRepositoryChangeset?.(api, BRANCH_CHANGES_CHANGESET_ID)?.resource?.toString(),
 			}, { repositories: [api.toString(), web.toString()], api: ownerOf(apiSource) });
+		});
+
+		test('keeps the Agent Merge state of repositories whose roots differ only in case apart on a file system that compares paths by case', async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { extUri: new ExtUri(() => false) });
+			await timeout(0);
+			const [upper, lower] = [URI.file('/work/Mono'), URI.file('/work/mono')];
+			fireSessionAdded(agentHost, 'case', { workingDirectories: [upper.toString(), lower.toString()] });
+			const session = provider.getSessions()[0];
+			const chat = session.mainChat.get().resource;
+			assert.strictEqual(provider.getAgentMergeClientStateObservable(session.sessionId, chat, upper) === provider.getAgentMergeClientStateObservable(session.sessionId, chat, lower), false);
 		});
 
 		test('gives the one repository of a session that also has a folder in no repository its own Branch changeset', async () => {

@@ -16,7 +16,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, Mu
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, runOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -1697,6 +1697,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -1996,7 +1997,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			?? [];
 		// As the Changes list them: a session of several folders, also with one in no repository, or of several repositories
 		const isSeveral = scopes.length > 1 || (workspace?.folders.length ?? 0) > 1;
-		const scope = isSeveral ? scopes.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repositoryRoot))?.scope : undefined;
+		const scope = isSeveral ? scopes.find(candidate => this._uriIdentityService.extUri.isEqual(candidate.root, repositoryRoot))?.scope : undefined;
 		return scope ? (this._options.mapWorkingDirectoryToHost?.(scope) ?? scope).toString() : undefined;
 	}
 
@@ -7413,7 +7414,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getAgentMergeClientStateObservable(sessionId: string, chat?: URI, repository?: URI): IObservable<IAgentMergeClientState | undefined> {
 		let byChat = this._agentMergeSessionStateObservables.get(sessionId);
-		const cacheKey = `${chat?.toString() ?? ''}\u0001${repository ? extUriBiasedIgnorePathCase.getComparisonKey(repository) : ''}`;
+		const cacheKey = `${chat?.toString() ?? ''}\u0001${repository ? this._uriIdentityService.extUri.getComparisonKey(repository) : ''}`;
 		const existing = byChat?.get(cacheKey);
 		if (existing) {
 			return existing;
@@ -7478,7 +7479,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// A repository's own folder's value: a repository found in a folder has that folder's
 		const workspace = session.workspace.get();
 		const resource = repository
-			? workspace?.repositories?.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.root, repository))?.folder ?? repository
+			? workspace?.repositories?.find(candidate => this._uriIdentityService.extUri.isEqual(candidate.root, repository))?.folder ?? repository
 			: (chatAdapter ? chatAdapter.workspace.get() : workspace)?.folders[0]?.root;
 		const inspected = resource ? this._baseConfigurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting, { resource }) : undefined;
 		return inspected?.workspaceFolderValue ?? inspected?.workspaceValue;
