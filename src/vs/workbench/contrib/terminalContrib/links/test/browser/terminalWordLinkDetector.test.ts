@@ -73,6 +73,16 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 			await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
 			await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
 		});
+		for (const wordSeparators of ['z-x', ' -']) {
+			test(`treats the hyphen in ${JSON.stringify(wordSeparators)} as a literal separator`, async () => {
+				await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators } });
+				detector = store.add(instantiationService.createInstance(TerminalWordLinkDetector, xterm));
+				await assertLink('foo-bar', [
+					{ range: [[1, 1], [3, 1]], text: 'foo' },
+					{ range: [[5, 1], [7, 1]], text: 'bar' },
+				]);
+			});
+		}
 	});
 
 	suite('should ignore powerline symbols', () => {
