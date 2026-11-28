@@ -798,6 +798,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.defineInstance(IAgentsModeService, new class extends mock<IAgentsModeService>() {
 				override readonly windowFolders = [];
 				override readonly isActive = false;
+				override readonly onWillChange = Event.None;
 				override readonly onDidChange = Event.None;
 			}());
 			reg.defineInstance(ISessionDraftsService, new class extends mock<ISessionDraftsService>() {
