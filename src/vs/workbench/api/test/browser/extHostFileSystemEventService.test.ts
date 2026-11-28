@@ -161,6 +161,22 @@ suite('ExtHostFileSystemEventService', () => {
 		assert.deepStrictEqual(calls, ['/', '/src', '/src/a.ts']);
 	});
 
+	for (const { name, base, path } of [
+		{ name: 'watcher base', base: '/other/../src', path: '/src/nested/file.ts' },
+		{ name: 'event path', base: '/src', path: '/other/../src/nested/file.ts' },
+	]) {
+		test(`dispatch routes changes with '..' in the ${name}`, () => {
+			const dispatcher = new FileSystemEventDispatcher();
+			const changed: string[] = [];
+			disposables.add(dispatcher.subscribe(new RelativePattern(base, '**/*.ts'), (_session, batch) => {
+				changed.push(...batch.changed.map(event => event.uri.path));
+			}));
+
+			dispatcher.dispatch({ session: undefined, created: [], changed: [URI.file(path)], deleted: [] });
+			assert.deepStrictEqual(changed, [path]);
+		});
+	}
+
 	test('routes a batch to overlapping watcher bases in registration order', () => {
 		const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
 		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = { getWorkspaceFolder: () => undefined };
