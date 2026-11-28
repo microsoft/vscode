@@ -6,12 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { SESSIONS_WORKSPACES_ENABLED_SETTING } from '../common/sessionConfig.js';
+import { observableSessionWorkspacesEnabled } from '../common/sessionConfig.js';
 import { SessionWorkspacesEnabledContext } from '../common/contextkeys.js';
 
-/** Binds {@link SessionWorkspacesEnabledContext} to its setting, without creating the workspaces service. */
+/** Binds {@link SessionWorkspacesEnabledContext} to whether workspaces are enabled, without creating the workspaces service. */
 export class SessionWorkspacesContextKeys extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionWorkspacesContextKeys';
@@ -19,10 +20,11 @@ export class SessionWorkspacesContextKeys extends Disposable implements IWorkben
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 
-		const enabled = observableConfigValue(SESSIONS_WORKSPACES_ENABLED_SETTING, false, configurationService);
+		const enabled = observableSessionWorkspacesEnabled(configurationService, productService);
 		this._register(bindContextKey(SessionWorkspacesEnabledContext, contextKeyService, reader => enabled.read(reader)));
 	}
 }

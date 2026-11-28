@@ -719,6 +719,162 @@ suite('Workbench layout chat part', () => {
 			});
 		});
 
+		test('a chat part shown again that hides the editor area as it shows takes the editor\'s room, not the secondary side bar\'s', () => {
+			const { layout, grid, views } = createGridLayout({ ...configuration, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 296 } });
+			const auxiliaryBar = views.get(Parts.AUXILIARYBAR_PART)!;
+			layout.setEditorHiddenByChat(true);
+			const before = grid.getViewSize(auxiliaryBar).width;
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			// As in Agents mode: the empty editor area hides again as soon as the chat part shows, while the grid shows it
+			const chatPart = views.get(Parts.CHAT_PART)!;
+			const setVisible = chatPart.setVisible;
+			Object.assign(chatPart, {
+				setVisible: (visible: boolean) => {
+					setVisible(visible);
+					if (visible) {
+						layout.setEditorHiddenByChat(true);
+					}
+				}
+			});
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			assert.deepStrictEqual({ state: state(layout), auxiliaryBarWidth: grid.getViewSize(auxiliaryBar).width }, {
+				state: { hiddenByChat: true, editor: false, chat: true, panel: true },
+				auxiliaryBarWidth: before,
+			});
+		});
+
+		test('focus in the chat part that hides goes to the panel or editor once the editor area shows, as before when it already showed, and nowhere without focus', () => {
+			const focusOnHide = (editorHiddenByChat: boolean, chatHasFocus: boolean) => {
+				const { layout } = createGridLayout(configuration);
+				layout.setEditorHiddenByChat(editorHiddenByChat);
+				const editorVisibleOnFocus: boolean[] = [];
+				Object.assign(layout, {
+					hasFocus: (part: Parts) => chatHasFocus && part === Parts.CHAT_PART,
+					focusPanelOrEditor: () => editorVisibleOnFocus.push(layout.isVisible(Parts.EDITOR_PART, mainWindow)),
+				});
+				layout.setPartHidden(true, Parts.CHAT_PART);
+				return editorVisibleOnFocus;
+			};
+			assert.deepStrictEqual({
+				editorHidden: focusOnHide(true, true),
+				editorVisible: focusOnHide(false, true),
+				noFocus: focusOnHide(false, false),
+			}, {
+				editorHidden: [true],
+				editorVisible: [true],
+				noFocus: [],
+			});
+		});
+
+		test('closing the focused chat part and opening a new chat, as in Agents mode, moves no focus to the panel and keeps the secondary side bar\'s width', () => {
+			const { layout, grid, views } = createGridLayout({ ...configuration, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 296 } });
+			const auxiliaryBar = views.get(Parts.AUXILIARYBAR_PART)!;
+			const chatPart = views.get(Parts.CHAT_PART)!;
+			const setVisible = chatPart.setVisible;
+			// As in Agents mode: the empty editor area hides again as soon as the chat part shows, while the grid shows it
+			Object.assign(chatPart, {
+				setVisible: (visible: boolean) => {
+					setVisible(visible);
+					if (visible) {
+						layout.setEditorHiddenByChat(true);
+					}
+				}
+			});
+			const editorVisibleOnFocus: boolean[] = [];
+			Object.assign(layout, {
+				hasFocus: (part: Parts) => part === Parts.CHAT_PART,
+				focusPanelOrEditor: () => editorVisibleOnFocus.push(layout.isVisible(Parts.EDITOR_PART, mainWindow)),
+			});
+			layout.setEditorHiddenByChat(true);
+			const width = grid.getViewSize(auxiliaryBar).width;
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			const closed = { state: state(layout), auxiliaryBarWidth: grid.getViewSize(auxiliaryBar).width };
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			const reopened = { state: state(layout), auxiliaryBarWidth: grid.getViewSize(auxiliaryBar).width };
+			assert.deepStrictEqual({ closed, reopened, editorVisibleOnFocus }, {
+				closed: { state: { hiddenByChat: false, editor: true, chat: false, panel: true }, auxiliaryBarWidth: width },
+				reopened: { state: { hiddenByChat: true, editor: false, chat: true, panel: true }, auxiliaryBarWidth: width },
+				editorVisibleOnFocus: [true],
+			});
+		});
+
+		test('a side bar that shows beside the chat part at its minimum squeezes the secondary side bar, which gets its width back as the side bar hides, as in Agents mode', () => {
+			const { layout, grid, views } = createGridLayout({ ...configuration, sideBar: Position.RIGHT, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1400, sideBar: 296, auxiliaryBar: 296 } });
+			const width = (part: Parts) => layout.isVisible(part) ? grid.getViewSize(views.get(part)!).width : 0;
+			const widths = () => ({ auxiliaryBar: width(Parts.AUXILIARYBAR_PART), sideBar: width(Parts.SIDEBAR_PART), chat: width(Parts.CHAT_PART) });
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			layout.setEditorHiddenByChat(true);
+			// A narrower window leaves the chat part less room than the side bar needs
+			grid.layout(800, 900);
+			const before = widths();
+			layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			const shown = widths();
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			assert.deepStrictEqual({ before, squeezed: shown.auxiliaryBar < before.auxiliaryBar, hidden: widths() }, {
+				before: { auxiliaryBar: 296, sideBar: 0, chat: before.chat },
+				squeezed: true,
+				hidden: before,
+			});
+		});
+
+		test('a side bar that squeezed the secondary side bar beside the chat part gives the width back as it hides, also after showing it again squeezed nothing and after a smaller window squeezed it more, but not once the user widened it', () => {
+			const create = () => {
+				const { layout, grid, views } = createGridLayout({ ...configuration, sideBar: Position.RIGHT, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1400, sideBar: 296, auxiliaryBar: 296 } });
+				const auxiliaryBar = views.get(Parts.AUXILIARYBAR_PART)!;
+				const width = () => grid.getViewSize(auxiliaryBar).width;
+				layout.setPartHidden(true, Parts.SIDEBAR_PART);
+				layout.setEditorHiddenByChat(true);
+				grid.layout(800, 900);
+				const before = width();
+				layout.setPartHidden(false, Parts.SIDEBAR_PART);
+				return { layout, grid, auxiliaryBar, width, before, taken: before - width() };
+			};
+
+			const shownAgain = create();
+			shownAgain.layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			shownAgain.layout.setPartHidden(true, Parts.SIDEBAR_PART);
+
+			const smallerWindow = create();
+			smallerWindow.grid.resizeView(smallerWindow.auxiliaryBar, { width: smallerWindow.width() - 10, height: smallerWindow.grid.getViewSize(smallerWindow.auxiliaryBar).height });
+			const squeezedMore = smallerWindow.width();
+			smallerWindow.layout.setPartHidden(true, Parts.SIDEBAR_PART);
+
+			const widened = create();
+			widened.grid.resizeView(widened.auxiliaryBar, { width: widened.width() + 10, height: widened.grid.getViewSize(widened.auxiliaryBar).height });
+			const widenedWidth = widened.width();
+			widened.layout.setPartHidden(true, Parts.SIDEBAR_PART);
+
+			assert.deepStrictEqual({
+				squeezed: [shownAgain.taken > 0, smallerWindow.taken > 0, widened.taken > 0],
+				shownAgain: shownAgain.width(),
+				smallerWindow: smallerWindow.width(),
+				widened: widened.width(),
+			}, {
+				squeezed: [true, true, true],
+				shownAgain: shownAgain.before,
+				smallerWindow: squeezedMore + smallerWindow.taken,
+				widened: widenedWidth,
+			});
+		});
+
+		test('a side bar that squeezed the secondary side bar beside the chat part, hidden and shown again beside the editor, restores no stale width as it hides beside the chat part', () => {
+			const { layout, grid, views } = createGridLayout({ ...configuration, sideBar: Position.RIGHT, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1400, sideBar: 296, auxiliaryBar: 296 } });
+			const auxiliaryBar = views.get(Parts.AUXILIARYBAR_PART)!;
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			layout.setEditorHiddenByChat(true);
+			grid.layout(800, 900);
+			layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			const squeezed = grid.getViewSize(auxiliaryBar).width;
+			// Hidden and shown again while the editor area shows: nothing was squeezed then
+			layout.setEditorHiddenByChat(false);
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			layout.setEditorHiddenByChat(true);
+			grid.resizeView(auxiliaryBar, { width: squeezed, height: grid.getViewSize(auxiliaryBar).height });
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			assert.deepStrictEqual({ hiddenByChat: layout.isEditorHiddenByChat(), auxiliaryBar: grid.getViewSize(auxiliaryBar).width }, { hiddenByChat: true, auxiliaryBar: squeezed });
+		});
+
 		test('the chat part that took the editor\'s place, closed and shown again beside an open editor, comes back at its own width and keeps the secondary side bar\'s, also once the editor area hides for it again, and is saved at its own width while closed', () => {
 			const { layout, grid, views, save } = createGridLayout({ ...configuration, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 296 } });
 			const width = (part: Parts) => grid.getViewSize(views.get(part)!).width;
@@ -1040,6 +1196,19 @@ suite('Workbench layout chat part', () => {
 
 		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore, chatAtItsSavedWidth: grid.getViewSize(views.get(Parts.CHAT_PART)!).width === 400 }, {
 			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true, chatAtItsSavedWidth: true,
+		});
+	});
+
+	test('the chat part shown beside a wide secondary side bar while the editor area is hidden, not for the chat part, takes no room for the hidden editor area', () => {
+		// A justified panel does not maximize over the hidden editor area, so showing the chat part leaves the editor area hidden
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'justify', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
+		layout.setPartHidden(true, Parts.EDITOR_PART);
+		const width = (part: Parts) => grid.getViewSize(views.get(part)!).width;
+		const auxiliaryBarBefore = width(Parts.AUXILIARYBAR_PART);
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), auxiliaryBarBefore, auxiliaryBar: width(Parts.AUXILIARYBAR_PART), chat: width(Parts.CHAT_PART), editorMinimum: views.get(Parts.EDITOR_PART)!.minimumWidth }, {
+			hiddenByChat: false, editor: false, auxiliaryBarBefore: 902, auxiliaryBar: 902 - 400, chat: 400, editorMinimum: 220,
 		});
 	});
 

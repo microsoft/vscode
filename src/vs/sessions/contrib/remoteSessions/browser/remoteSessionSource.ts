@@ -44,6 +44,8 @@ export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly sourceChat: string;
 	/** The source chat's model, when requested and its host recorded one. */
 	readonly model?: IRemoteSessionSourceModel;
+	/** The agent provider backing the source chat, as its host recorded it. */
+	readonly agentProvider?: string;
 }
 
 export function assertRemoteSessionCaller(resource: URI): void {
@@ -158,6 +160,7 @@ export async function resolveRemoteSessionSource(
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));
 		}
 		let model: IRemoteSessionSourceModel | undefined;
+		let agentProvider = state.provider;
 		if (readModel) {
 			const chatSubscription = store.add(source.host.connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionSource'));
 			const chat = await readRemoteSessionState(chatSubscription.object, cancellation.token);
@@ -170,9 +173,14 @@ export async function resolveRemoteSessionSource(
 			// session continues on the model the router chose.
 			const requested = chat.activeTurn ? chat.activeTurn.message.model : chat.draft ? chat.draft.model : chat.turns.at(-1)?.message.model;
 			const selection = withRoutedModel(chat, requested);
-			model = selection && { provider: chat.provider ?? state.provider, selection };
+			agentProvider = chat.provider ?? state.provider;
+			model = selection && { provider: agentProvider, selection };
 		}
-		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource, ...(model ? { model } : {}) };
+		return {
+			...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource,
+			...(model ? { model } : {}),
+			...(agentProvider ? { agentProvider } : {}),
+		};
 	} catch (error) {
 		throw failure ?? error;
 	} finally {

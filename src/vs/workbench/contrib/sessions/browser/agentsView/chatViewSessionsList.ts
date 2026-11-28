@@ -16,18 +16,23 @@ import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsL
 import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
+import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
+import { NEW_CHAT_ICON_VARIANTS } from '../../../chat/browser/actions/chatNewActions.js';
 import { localize } from '../../../../../nls.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
+import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { NewSplitButtonActionViewItem } from '../newSplitButton/newSplitButtonActionViewItem.js';
 
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
-class ChatViewSessionsListControl implements IChatViewSessionsListControl {
+export class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 
 	constructor(
 		private readonly _view: SessionsView,
 		private readonly _helpHint: IDisposable | undefined,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	setVisible(visible: boolean): void { this._view.setVisible(visible); }
@@ -52,7 +57,19 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
-	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined { return this._view.createActionViewItem(action, options); }
+	/**
+	 * The New menu shows as the "New" split button, which runs New Chat and shows its keybinding, only in a title that fits it
+	 * by the width it needs; other titles, which would cover or clip it, show it as the stock split button.
+	 */
+	createActionViewItem(action: IAction, options: IDropdownMenuActionViewItemOptions | undefined, titleFitsWidths: boolean): IActionViewItem | undefined {
+		if (titleFitsWidths && action instanceof SubmenuItemAction && action.item.submenu === MenuId.ChatNewMenu) {
+			const newChat = action.actions.find(action => action instanceof MenuItemAction && (action.id === ACTION_ID_NEW_CHAT || NEW_CHAT_ICON_VARIANTS.some(variant => action.id === ACTION_ID_NEW_CHAT + variant.idSuffix)));
+			if (newChat instanceof MenuItemAction) {
+				return this._instantiationService.createInstance(NewSplitButtonActionViewItem, action, newChat, options, { keybindingActionId: ACTION_ID_NEW_CHAT });
+			}
+		}
+		return this._view.createActionViewItem(action, options);
+	}
 	dispose(): void {
 		this._helpHint?.dispose();
 		this._view.dispose();

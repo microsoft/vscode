@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -51,7 +52,6 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { applyRememberedNewSessionPicks, EditorWindowNewSessionPicks } from './editorWindowNewSessionPicks.js';
 import { INewSessionTarget, ISessionViewHostOptions } from '../parts/chatView.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
@@ -133,6 +133,9 @@ export interface IAgentsChatPartService {
 
 	/** Whether one of its tabs is a new-session composer that has not sent its session yet. */
 	hasComposer(): boolean;
+
+	/** Whether one of its tabs is a new-session composer with something typed or attached, or a send of it under way. */
+	hasDraftComposer(): boolean;
 
 	/** Closes the tabs of new-session composers with nothing typed or attached, and no send under way. */
 	closeIdleComposers(): Promise<void>;
@@ -219,11 +222,10 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
+		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionAgentMergeService);
 		this.active = derived(this, reader => activeInput.read(reader) === this.input);
 		this._register(this.onDidEnd(() => this._close(this)));
 		this.start(composer, 'AgentsChatPart#open');
@@ -552,6 +554,16 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	hasComposer(): boolean {
 		for (const chat of this._chats.values()) {
 			if (chat.isComposer) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	hasDraftComposer(): boolean {
+		for (const chat of this._chats.values()) {
+			// Also while its send creates its session, after the send cleared what was typed
+			if (this._keepsComposer(chat.input) && !!this._groupOf(chat.input)) {
 				return true;
 			}
 		}

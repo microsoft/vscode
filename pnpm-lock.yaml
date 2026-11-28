@@ -187,9 +187,6 @@ importers:
 
   .:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.82.0
-        version: 0.82.0(zod@4.4.3)
       '@devcontainers/cli':
         specifier: 0.88.0
         version: 0.88.0
@@ -223,9 +220,6 @@ importers:
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
-      '@types/semver':
-        specifier: ^7.5.8
-        version: 7.5.8
       '@vscode/codicons':
         specifier: ^0.0.46-53
         version: 0.0.46-53
@@ -398,6 +392,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.304
         version: 0.3.304(@anthropic-ai/sdk@0.82.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
+      '@anthropic-ai/sdk':
+        specifier: ^0.82.0
+        version: 0.82.0(zod@4.4.3)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -431,6 +428,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.5.8
       '@types/sinon':
         specifier: ^10.0.2
         version: 10.0.2

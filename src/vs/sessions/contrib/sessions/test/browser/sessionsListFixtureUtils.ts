@@ -78,6 +78,7 @@ import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionAgentMergeService, SessionAgentMergeService } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { IRecentSessionWorkspace, ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/sessions/test/browser/testSessionWorkspacesService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -255,6 +256,8 @@ export interface ISessionsListFixtureState {
 	readonly frame?: { readonly width: number; readonly height: number };
 	/** The Agents window's workspaces, which Group by Workspace lists while it separates groups and workspaces. */
 	readonly workspaces?: readonly IRecentSessionWorkspace[];
+	/** Section ids pinned as headers, such as `workspace:<label>`, in pin order. */
+	readonly pinnedSections?: readonly string[];
 }
 
 /** A rendered sessions list fixture. */
@@ -710,6 +713,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionsListUndoService, SessionsListUndoService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
+			reg.define(ISessionAgentMergeService, SessionAgentMergeService);
 			reg.defineInstance(ISessionWorkspacesService, new TestSessionWorkspacesService(state.workspaces));
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
 			const reducedMotion = view.reducedMotion;
@@ -984,6 +988,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 /** Seeds pins, groups, and group order through the list-state services, returning real group ids by fixture id. */
 function seedListState(instantiationService: TestInstantiationService, state: ISessionsListFixtureState, getSession: (id: string) => ITestSession): Map<string, string> {
 	const listModelService = instantiationService.get(ISessionsListModelService);
+	for (const sectionId of state.pinnedSections ?? []) {
+		listModelService.pinSection(sectionId);
+	}
 	for (const spec of state.sessions) {
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);

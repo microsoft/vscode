@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { SessionItemStatusContext, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsGrouping, SessionListItem, isSessionItem } from './sessionsListCommon.js';
 import { isAutomationSession } from './sessionsListHelpers.js';
 import { SessionContextKeyProvider, DEFAULT_APPROVAL_ROW_MAX_LINES, SessionsTreeDelegate, SessionItemActionRunner, ISessionItemTemplate, IApprovedSession, ISessionCIFixModel, SessionItemRenderer, logDefaultSettingExperimentTrigger, SessionsAccessibilityProvider } from './sessionsListRenderers.js';
@@ -170,6 +171,7 @@ export class SessionsFlatList extends Disposable {
 		@ILabelService labelService: ILabelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
+		@ISessionAgentMergeService sessionAgentMergeService: ISessionAgentMergeService,
 	) {
 		super();
 
@@ -240,6 +242,7 @@ export class SessionsFlatList extends Disposable {
 			labelService,
 			agentSessionsService,
 			voicePlaybackService,
+			sessionAgentMergeService,
 			notificationService,
 		);
 

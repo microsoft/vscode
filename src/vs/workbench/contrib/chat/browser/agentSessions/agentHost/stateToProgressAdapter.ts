@@ -109,8 +109,11 @@ function isRenameChatTool(toolCall: ToolCallState): boolean {
 	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
 }
 
-function isSetWorkspaceTool(toolCall: ToolCallState): boolean {
-	return toolCall.toolName === SessionServerToolName.SetWorkspace || toolCall.toolName.endsWith(`__${SessionServerToolName.SetWorkspace}`);
+/** The server tools whose confirmation names everything they act on itself, so their raw input is not shown. */
+const SERVER_TOOLS_HIDING_INPUT: readonly string[] = [SessionServerToolName.SetWorkspace, SessionServerToolName.IsolateSession];
+
+function hidesToolInput(toolCall: ToolCallState): boolean {
+	return SERVER_TOOLS_HIDING_INPUT.some(name => toolCall.toolName === name || toolCall.toolName.endsWith(`__${name}`));
 }
 
 function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
@@ -3140,7 +3143,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else if (!isSetWorkspaceTool(tc)) {
+		} else if (!hidesToolInput(tc)) {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
 				let rawInput: unknown;

@@ -774,6 +774,9 @@ export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'auto
 /** Root config key disabling implicit terminal auto-approval defaults without changing explicit permissions. */
 export const AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey = 'terminalIgnoreDefaultAutoApproveRules';
 
+/** Root config key naming the WebFetch allow rules in the root permissions that mirror built-in URL defaults rather than a rule the user saved. */
+export const AgentHostDefaultUrlAllowRulesConfigKey = 'defaultUrlAllowRules';
+
 /** A VS Code terminal rule consumed by legacy managed-settings policy translation. */
 export interface IAgentHostTerminalAutoApproveRule {
 	readonly approve: boolean;
@@ -1247,6 +1250,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.terminalIgnoreDefaultAutoApproveRules.title', "Ignore Default Terminal Auto Approve Rules"),
 		description: localize('agentHost.config.terminalIgnoreDefaultAutoApproveRules.description', "Ignore implicit terminal auto-approve rules and use only explicit permission rules."),
 		default: false,
+	}),
+	[AgentHostDefaultUrlAllowRulesConfigKey]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.defaultUrlAllowRules.title', "Default URL Allow Rules"),
+		description: localize('agentHost.config.defaultUrlAllowRules.description', "Allow rules that mirror built-in URL approval defaults. They never satisfy a confirmation that a permissions reviewer requires."),
+		items: { type: 'string', title: localize('agentHost.sessionConfig.permissions.rule', "Permission rule") },
+		default: [],
 	}),
 	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
 		type: 'object',

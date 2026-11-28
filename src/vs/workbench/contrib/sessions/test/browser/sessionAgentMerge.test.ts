@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../common/agentHostSessionsProvider.js';
-import { getSessionAgentMergeConfigurationObservable, getSessionAgentMergeStateObservable } from '../../browser/sessionAgentMerge.js';
+import { SessionAgentMergeService } from '../../browser/sessionAgentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -43,21 +43,27 @@ suite('sessionAgentMerge', () => {
 		const peerChat = { resource: URI.parse('agent-host-session:/session#peer') } as IChat;
 		const session = { sessionId: 'session', providerId: provider.id, mainChat: constObservable(mainChat) } as unknown as ISession;
 
-		const sessionFolder = getSessionAgentMergeStateObservable(session, providers);
-		const mainChatFolder = getSessionAgentMergeStateObservable(session, providers, mainChat);
-		const peerChatFolder = getSessionAgentMergeStateObservable(session, providers, peerChat);
-		const peerChatFolderAgain = getSessionAgentMergeStateObservable(session, providers, peerChat);
+		const service = new SessionAgentMergeService(providers, new TestConfigurationService());
+		const sessionFolder = service.getStateObservable(session);
+		const mainChatFolder = service.getStateObservable(session, mainChat);
+		const peerChatFolder = service.getStateObservable(session, peerChat);
+		const peerChatFolderAgain = service.getStateObservable(session, peerChat);
+
+		// The cache is the service's own: another service shares none of it
+		const otherService = new SessionAgentMergeService(providers, new TestConfigurationService());
 
 		assert.deepStrictEqual({
 			requests,
 			mainChatSharesSessionFolder: mainChatFolder === sessionFolder,
 			peerChatCached: peerChatFolderAgain === peerChatFolder,
 			enabled: [sessionFolder.get()?.enabled, peerChatFolder.get()?.enabled],
+			sharedWithOtherService: otherService.getStateObservable(session, peerChat) === peerChatFolder,
 		}, {
 			requests: [undefined, peerChat.resource.toString()],
 			mainChatSharesSessionFolder: true,
 			peerChatCached: true,
 			enabled: [false, true],
+			sharedWithOtherService: false,
 		});
 	});
 
@@ -77,7 +83,7 @@ suite('sessionAgentMerge', () => {
 		const session = upcastPartial<ISession>({ sessionId: 'session', providerId: provider.id, mainChat: constObservable(mainChat) });
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const state = getSessionAgentMergeConfigurationObservable(session, providers, configuration);
+		const state = new SessionAgentMergeService(providers, configuration).getConfigurationObservable(session);
 		const states = [state.get()?.enabled];
 		for (const enabled of [true, false]) {
 			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
@@ -113,8 +119,9 @@ suite('sessionAgentMerge', () => {
 		const session = upcastPartial<ISession>({ sessionId: 'task', providerId: catalog.id, mainChat: constObservable(chat) });
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const state = getSessionAgentMergeStateObservable(session, providers);
-		const effective = getSessionAgentMergeConfigurationObservable(session, providers, configuration);
+		const service = new SessionAgentMergeService(providers, configuration);
+		const state = service.getStateObservable(session);
+		const effective = service.getConfigurationObservable(session);
 		const observed: (boolean | undefined)[][] = [];
 		store.add(autorun(reader => observed.push([state.read(reader)?.enabled, effective.read(reader)?.enabled])));
 		acquired = true;
@@ -124,8 +131,8 @@ suite('sessionAgentMerge', () => {
 		changes.fire({ added: [], changed: [session], removed: [] });
 		assert.deepStrictEqual({
 			observed,
-			stateCached: getSessionAgentMergeStateObservable(session, providers) === state,
-			configurationCached: getSessionAgentMergeConfigurationObservable(session, providers, configuration) === effective,
+			stateCached: service.getStateObservable(session) === state,
+			configurationCached: service.getConfigurationObservable(session) === effective,
 		}, { observed: [[undefined, false], [true, true], [false, false], [undefined, false]], stateCached: true, configurationCached: true });
 	});
 });

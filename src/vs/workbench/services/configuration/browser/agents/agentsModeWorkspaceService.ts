@@ -11,13 +11,14 @@ import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, IConfigurationNode } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { Configuration as BaseConfiguration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchMode, WorkbenchState, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -31,14 +32,17 @@ import { AgentsConfigurationService } from './agentsConfigurationService.js';
 import { AgentsWorkspaceContextService } from './agentsWorkspaceContextService.js';
 
 /**
- * Setting that opts local editor windows into Agents mode. It is
- * read when the window starts, so changing it takes effect after a reload.
+ * Setting that opts local editor windows into Agents mode. Turning it on or off
+ * fully takes effect in a window after it is reloaded. Until then, a window that
+ * started with it on shows or hides the toggle entering the mode as it changes,
+ * and a window in the mode keeps the toggle leaving it whatever the setting.
  */
 export const AGENTS_MODE_ENABLED_SETTING = 'chat.agentsMode.enabled';
 
 /**
- * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Only desktop editor windows
- * register it, before they read it at startup, since only they support the mode.
+ * Declares {@link AGENTS_MODE_ENABLED_SETTING}. Registered only by desktop editor
+ * windows, through {@link AgentsModeWorkspaceService.registerEnabledConfiguration},
+ * before they read it at startup, and never in Stable.
  */
 export const agentsModeEnabledConfiguration: IConfigurationNode = {
 	id: 'chat',
@@ -49,27 +53,10 @@ export const agentsModeEnabledConfiguration: IConfigurationNode = {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. Takes effect in a window after it is reloaded."),
+			description: localize('agentsMode.enabled', "Enable toggling Agents mode in a local editor window. A window with a folder or workspace gets its folders back when it leaves the mode. A change fully takes effect in a window after it is reloaded; until then, a window in Agents mode can still leave it."),
 		}
 	}
 };
-
-/**
- * Whether a window's workspace and configuration service should be able to
- * switch into Agents mode: only local editor windows that have a backup folder,
- * and only when the user opted in with {@link AGENTS_MODE_ENABLED_SETTING}.
- */
-export function supportsAgentsMode(
-	environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
-	configurationService: Pick<IConfigurationService, 'getValue'>,
-	hasBackupPath: boolean,
-): boolean {
-	return !environmentService.remoteAuthority
-		&& !environmentService.isExtensionDevelopment
-		&& !environmentService.isSessionsWindow
-		&& hasBackupPath
-		&& configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true;
-}
 
 /**
  * Services the {@link AgentsModeWorkspaceService} needs to create the
@@ -108,6 +95,45 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 
 	declare readonly _serviceBrand: undefined;
 
+	/**
+	 * Whether builds of the given quality offer Agents mode: not Stable, where
+	 * {@link AGENTS_MODE_ENABLED_SETTING} is neither registered nor read.
+	 */
+	static isAvailableInQuality(quality: string | undefined): boolean {
+		return quality !== 'stable';
+	}
+
+	/**
+	 * Registers {@link AGENTS_MODE_ENABLED_SETTING} in builds of the given quality that
+	 * offer Agents mode. In Stable it is not registered, so it is neither shown in the
+	 * Settings editor nor suggested in settings.json.
+	 */
+	static registerEnabledConfiguration(registry: IConfigurationRegistry, quality: string | undefined): void {
+		if (AgentsModeWorkspaceService.isAvailableInQuality(quality)) {
+			registry.registerConfiguration(agentsModeEnabledConfiguration);
+		}
+	}
+
+	/**
+	 * Whether a window's workspace and configuration service should be able to
+	 * switch into Agents mode: only local editor windows that have a backup folder,
+	 * in builds that offer the mode, and only when the user opted in with
+	 * {@link AGENTS_MODE_ENABLED_SETTING}.
+	 */
+	static supportsAgentsMode(
+		productService: Pick<IProductService, 'quality'>,
+		environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority' | 'isExtensionDevelopment' | 'isSessionsWindow'>,
+		configurationService: Pick<IConfigurationService, 'getValue'>,
+		hasBackupPath: boolean,
+	): boolean {
+		return AgentsModeWorkspaceService.isAvailableInQuality(productService.quality)
+			&& !environmentService.remoteAuthority
+			&& !environmentService.isExtensionDevelopment
+			&& !environmentService.isSessionsWindow
+			&& hasBackupPath
+			&& configurationService.getValue(AGENTS_MODE_ENABLED_SETTING) === true;
+	}
+
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
@@ -131,6 +157,13 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 
 	private readonly _onDidChangeWorkspaceFolders = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
+
+	private readonly _onWillChangeAgentsMode = this._register(new Emitter<boolean>());
+	/**
+	 * Fires as the window is about to enter or leave Agents mode, before
+	 * the switch changes anything.
+	 */
+	readonly onWillChangeAgentsMode = this._onWillChangeAgentsMode.event;
 
 	private readonly _onDidChangeAgentsMode = this._register(new Emitter<boolean>());
 	/**
@@ -184,6 +217,7 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 				const workspace = this.agentsWorkspace.value = new AgentsWorkspaceContextService({ id: workspaceId ?? this.editor.getWorkspace().id }, this.services.uriIdentityService);
 				this.agents.value = await this.createAgentsDelegates(workspace);
 			}
+			this._onWillChangeAgentsMode.fire(enabled);
 			this.switchDelegates(enabled);
 			if (!enabled) {
 				this.agents.clear();
@@ -256,6 +290,24 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		return added.length || removed.length ? { added, removed, changed: [] } : undefined;
 	}
 
+	/** The keys each language identifier sets in a `[lang]` block, across all configuration models of the given configurations. */
+	private static getLanguageOverrideKeys(...configurations: BaseConfiguration[]): Map<string, Set<string>> {
+		const result = new Map<string, Set<string>>();
+		const models = configurations.flatMap(configuration => [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()]);
+		for (const model of models) {
+			for (const identifier of model.getAllOverrideIdentifiers()) {
+				let keys = result.get(identifier);
+				if (!keys) {
+					result.set(identifier, keys = new Set());
+				}
+				for (const key of model.getKeysForOverrideIdentifier(identifier)) {
+					keys.add(key);
+				}
+			}
+		}
+		return result;
+	}
+
 	private fireConfigurationSwitch(fromData: IConfigurationData, fromWorkspace: Workspace, toData: IConfigurationData, toWorkspace: Workspace): void {
 		const logService = this.services.logService;
 		const fromConfiguration = BaseConfiguration.parse(fromData, logService);
@@ -269,10 +321,7 @@ export class AgentsModeWorkspaceService extends Disposable implements IEditableW
 		}));
 		const changedKeys = changes(keys);
 		// Keys set only for a language (`[lang]` blocks) do not show in `allKeys`, so compare those per language too
-		const languageKeys = getLanguageOverrideKeys(fromConfiguration);
-		for (const [identifier, identifierKeys] of getLanguageOverrideKeys(toConfiguration)) {
-			languageKeys.set(identifier, new Set([...languageKeys.get(identifier) ?? [], ...identifierKeys]));
-		}
+		const languageKeys = AgentsModeWorkspaceService.getLanguageOverrideKeys(fromConfiguration, toConfiguration);
 		const changedOverrides: [string, string[]][] = [];
 		for (const [identifier, identifierKeys] of languageKeys) {
 			const changed = changes(identifierKeys, identifier);
@@ -470,22 +519,4 @@ class ActiveAgentsWorkspace implements ActiveWorkspace {
 	whenRemoteConfigurationLoaded() { return this.configuration.whenRemoteConfigurationLoaded(); }
 	initialize() { return this.configuration.initialize(); }
 	isSettingAppliedForAllProfiles(setting: string) { return this.configuration.isSettingAppliedForAllProfiles(setting); }
-}
-
-/** The keys each language identifier of `configuration` sets in a `[lang]` block, across all its configuration models. */
-function getLanguageOverrideKeys(configuration: BaseConfiguration): Map<string, Set<string>> {
-	const result = new Map<string, Set<string>>();
-	const models = [configuration.defaults, configuration.applicationConfiguration, configuration.localUserConfiguration, configuration.remoteUserConfiguration, configuration.workspaceConfiguration, ...configuration.folderConfigurations.values()];
-	for (const model of models) {
-		for (const identifier of model.getAllOverrideIdentifiers()) {
-			let keys = result.get(identifier);
-			if (!keys) {
-				result.set(identifier, keys = new Set());
-			}
-			for (const key of model.getKeysForOverrideIdentifier(identifier)) {
-				keys.add(key);
-			}
-		}
-	}
-	return result;
 }

@@ -15,11 +15,14 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkingDirectoriesContextContribution } from '../../node/chatContributions/workingDirectoriesContext/workingDirectoriesContextContribution.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, type ISessionAdditionalWorktree } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createNoopGitService } from '../common/testAgentHostGitService.js';
 
 suite('WorkingDirectoriesContextContribution', () => {
@@ -57,11 +60,16 @@ suite('WorkingDirectoriesContextContribution', () => {
 			lookups.running--;
 			return directory.path === notes.path ? undefined : directory;
 		};
+		let additionalWorktrees: readonly ISessionAdditionalWorktree[] = [];
+		const stateStore: Partial<IAgentHostSessionStateStore> = {
+			readWithoutImport: async () => new Map(additionalWorktrees.length ? [[ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(additionalWorktrees)]] : []),
+		};
 		const dispatched = disposables.add(new Emitter<{ readonly chat: string; readonly turnId: string }>());
 		const instantiation = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
 			[IAgentHostGitService, git],
+			[IAgentHostSessionStateStore, stateStore],
 			[IAgentHostTurnTracker, { onDidDispatchTurn: dispatched.event }],
 		), true));
 		const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(log, instantiation));
@@ -79,7 +87,7 @@ suite('WorkingDirectoriesContextContribution', () => {
 		};
 		/** Tells the contributions that the chat was truncated, as the host does once the action is applied, or rejected. */
 		const truncate = (rejectionReason?: string) => contributions.didDispatchAction({ channel: chat, session, action: { type: ActionType.ChatTruncated }, rejectionReason });
-		return Object.assign(send, { lookups, state, contribution, truncate, dispatched });
+		return Object.assign(send, { lookups, state, contribution, truncate, dispatched, setAdditionalWorktrees: (worktrees: readonly ISessionAdditionalWorktree[]) => { additionalWorktrees = worktrees; } });
 	}
 
 	const header = [
@@ -118,6 +126,50 @@ suite('WorkingDirectoriesContextContribution', () => {
 			].join('\n')],
 			stillOne: undefined,
 		});
+	});
+
+	test('a worktree session marks additional Git folders outside its worktrees as shared checkouts, which the agent asks to isolate through the tool confirmation, until they are isolated', async () => {
+		const send = setup();
+		send.state.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		const protocolWorktree = URI.file('/work/protocol.worktrees/task');
+
+		const shared = await send([app, protocol, notes]);
+		send.setAdditionalWorktrees([{ handle: '00000000-0000-4000-8000-000000000000', workingDirectory: protocolWorktree.toString(), repositoryRoot: protocol.toString() }]);
+		const isolated = await send([app, protocolWorktree, notes]);
+
+		assert.deepStrictEqual({ shared, isolated }, {
+			shared: [[
+				...header,
+				`* Primary folder: ${JSON.stringify(app.fsPath)} (the current working directory). Git repository root: ${JSON.stringify(app.fsPath)} (GitHub: octo/app).`,
+				`* Additional folder (shared checkout, not isolated): ${JSON.stringify(protocol.fsPath)}. Git repository root: ${JSON.stringify(protocol.fsPath)}.`,
+				`* Additional folder: ${JSON.stringify(notes.fsPath)}. Not a Git repository.`,
+				'A shared checkout is the user\'s own copy of the folder. Read it in place. Before creating, editing or deleting files in it, or running commands that change files in it, call the `isolate_session` tool with its path, together with any other shared checkout you will change: the user confirms moving them into worktrees of their own. Then end the turn: the host moves them and continues the task, telling you their new paths, where you make every change to them. If the user skips it, nothing is moved and you continue in them where they are.',
+				'</working_directories>',
+			].join('\n')],
+			isolated: [[
+				...header,
+				`* Primary folder: ${JSON.stringify(app.fsPath)} (the current working directory). Git repository root: ${JSON.stringify(app.fsPath)} (GitHub: octo/app).`,
+				`* Additional folder: ${JSON.stringify(protocolWorktree.fsPath)}. Git repository root: ${JSON.stringify(protocolWorktree.fsPath)}.`,
+				`* Additional folder: ${JSON.stringify(notes.fsPath)}. Not a Git repository.`,
+				'</working_directories>',
+			].join('\n')],
+		});
+	});
+
+	test('a session with a worktree for every Git folder says that folders not in a Git repository are changed in place', async () => {
+		const send = setup();
+		send.state.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeFolders]: 'all' } });
+		const protocolWorktree = URI.file('/work/protocol.worktrees/task');
+		send.setAdditionalWorktrees([{ handle: '00000000-0000-4000-8000-000000000000', workingDirectory: protocolWorktree.toString(), repositoryRoot: protocol.toString() }]);
+
+		assert.deepStrictEqual(await send([app, protocolWorktree, notes]), [[
+			...header,
+			`* Primary folder: ${JSON.stringify(app.fsPath)} (the current working directory). Git repository root: ${JSON.stringify(app.fsPath)} (GitHub: octo/app).`,
+			`* Additional folder: ${JSON.stringify(protocolWorktree.fsPath)}. Git repository root: ${JSON.stringify(protocolWorktree.fsPath)}.`,
+			`* Additional folder: ${JSON.stringify(notes.fsPath)}. Not a Git repository.`,
+			'Folders that are not in a Git repository are not isolated in a worktree: changes to them are made in the user\'s own folder.',
+			'</working_directories>',
+		].join('\n')]);
 	});
 
 	test('a chat of one folder gets nothing', async () => {

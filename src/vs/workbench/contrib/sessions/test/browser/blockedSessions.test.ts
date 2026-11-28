@@ -16,6 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
+import { SessionAgentMergeService } from '../../browser/sessionAgentMerge.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { IGitHubService } from '../../browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../browser/github/models/githubPullRequestCIModel.js';
@@ -48,7 +49,7 @@ suite('BlockedSessions', () => {
 				return providerId === provider.id ? provider as T : undefined;
 			}
 		};
-		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService(), providers, configuration));
+		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService(), new SessionAgentMergeService(providers, configuration)));
 		// Keep the derived live so per-session model references are actually read.
 		store.add(autorun(reader => { service.blockedSessions.read(reader); }));
 		return { service, management, configuration };

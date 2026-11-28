@@ -9,7 +9,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue, inspectValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostDefaultUrlAllowRulesConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { isWebFetchRule, urlApprovalsToWebFetchRules } from '../../../../../../platform/agentHost/common/permissionRules.js';
 import { isShellRule, terminalRulesToShellPermissions } from '../../../../../../platform/agentHost/common/terminalPermissionRules.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -63,6 +63,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 						deny: permissions?.deny ?? [],
 					};
 				},
+				// The URL approvals above fall back to the registered defaults; name those rules so the host can tell them from saved ones.
+				computeCompanions: () => ({
+					[AgentHostDefaultUrlAllowRulesConfigKey]: inspectValue(this._configurationService, URL_AUTO_APPROVE_SETTING_ID) ? []
+						: urlApprovalsToWebFetchRules(getGlobalConfigurationValue<Record<string, boolean | IUrlApprovalSettings>>(this._configurationService, URL_AUTO_APPROVE_SETTING_ID) ?? {}).allow,
+				}),
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, URL_AUTO_APPROVE_SETTING_ID);
 					this._pushOnSettingChange(store, push, TERMINAL_AUTO_APPROVE_SETTING_ID);

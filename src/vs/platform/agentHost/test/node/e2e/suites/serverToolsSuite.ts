@@ -72,7 +72,8 @@ function getSessionToolNames(supportsWorkspaceChange: boolean): readonly Session
 		SessionServerToolName.SendMessage,
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,
-		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
+		// Offered to every provider that can move a chat's folders into worktrees, also without moving the chat itself
+		SessionServerToolName.IsolateSession,
 	];
 }
 

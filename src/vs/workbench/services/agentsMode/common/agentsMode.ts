@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const IAgentsModeService = createDecorator<IAgentsModeService>('agentsModeService');
 
 /**
- * Agents mode of an editor window: an empty local editor window switches in place
+ * Agents mode of an editor window: a local editor window switches in place
  * onto the Agents window's workspace and configuration, without reloading.
  */
 export interface IAgentsModeService {
@@ -32,6 +32,12 @@ export interface IAgentsModeService {
 	 * Whether the window is in Agents mode.
 	 */
 	readonly isActive: boolean;
+
+	/**
+	 * Fires as the window is about to enter or leave Agents mode, whoever
+	 * switches it, before the switch changes its settings or layout.
+	 */
+	readonly onWillChange: Event<boolean>;
 
 	/**
 	 * Fires after the window entered or left Agents mode.
@@ -58,6 +64,7 @@ export class NullAgentsModeService implements IAgentsModeService {
 	readonly isSupported = false;
 	readonly windowFolders: readonly URI[] = [];
 	readonly isActive = false;
+	readonly onWillChange: Event<boolean> = Event.None;
 	readonly onDidChange: Event<boolean> = Event.None;
 
 	async setActive(): Promise<void> { }

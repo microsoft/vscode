@@ -154,6 +154,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_MANAGED_CLEANUP = 'copilot.worktree.managedCleanup';
 export const WORKTREE_META_PATH = 'copilot.worktree.path';
+
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
 const WORKTREE_META_SYMLINK_SOURCE_ROOT = 'copilot.worktree.symlinkSourceRoot';
@@ -518,6 +519,8 @@ export interface IIsolationConfigContribution {
 	 * support pull request sessions.
 	 */
 	readonly pullRequestUrlProperty: ISchemaProperty<string>;
+	/** Which folders a worktree session isolates; declared only for a Git folder. */
+	readonly worktreeFoldersProperty?: ISchemaProperty<'primary' | 'all'>;
 	readonly isolationValue: 'folder' | 'worktree';
 	readonly branchDefault: string | undefined;
 	readonly branchValue: string | undefined;
@@ -1059,6 +1062,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
+		let worktreeFoldersProperty: ISchemaProperty<'primary' | 'all'> | undefined;
 
 		if (gitInfo) {
 			if (isolationValue === 'worktree') {
@@ -1131,9 +1135,26 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				readOnly: true,
 				sessionMutable: false,
 			});
+
+			worktreeFoldersProperty = schemaProperty<'primary' | 'all'>({
+				type: 'string',
+				title: localize('agentHost.sessionConfig.worktreeFolders', "Worktree Folders"),
+				description: localize('agentHost.sessionConfig.worktreeFoldersDescription', "Which folders of the session get a Git worktree of their own"),
+				enum: ['primary', 'all'],
+				enumLabels: [
+					localize('agentHost.sessionConfig.worktreeFolders.primary', "Main Folder"),
+					localize('agentHost.sessionConfig.worktreeFolders.all', "All Folders"),
+				],
+				enumDescriptions: [
+					localize('agentHost.sessionConfig.worktreeFolders.primaryDescription', "Create a worktree for the main folder; the agent asks before changing another folder"),
+					localize('agentHost.sessionConfig.worktreeFolders.allDescription', "Create a worktree for the main folder and for every other Git repository the session starts with; the agent asks before changing a Git folder without a worktree"),
+				],
+				default: 'primary',
+				sessionMutable: false,
+			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, pullRequestUrlProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, worktreeFoldersProperty, pullRequestUrlProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**

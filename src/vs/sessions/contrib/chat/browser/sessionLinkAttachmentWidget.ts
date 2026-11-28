@@ -23,7 +23,6 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,9 +31,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatRequestSessionLinkVariableEntry, isSessionLinkVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { getChatCompletedStateIcon, getSessionCompletedStateIcon, ISessionAgentMergeService } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { getSessionConversationStatusLabel } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { SessionStatusIcon } from '../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getUntitledSessionTitle, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
@@ -84,8 +82,7 @@ export class SessionLinkAttachmentWidget extends Disposable implements IChatAtta
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionAgentMergeService private readonly _sessionAgentMergeService: ISessionAgentMergeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -172,7 +169,7 @@ export class SessionLinkAttachmentWidget extends Disposable implements IChatAtta
 	private _readState(session: ISession, reader: IReader): ISessionLinkState {
 		const chat = this._chatId ? session.chats.read(reader).find(candidate => candidate.resource.fragment === this._chatId) : undefined;
 		// The Agent Merge configuration is cached per session and chat.
-		const agentMergeConfiguration = () => getSessionAgentMergeConfigurationObservable(session, this._sessionsProvidersService, this._configurationService, chat);
+		const agentMergeConfiguration = () => this._sessionAgentMergeService.getConfigurationObservable(session, chat);
 		if (chat) {
 			return {
 				resource: chat.resource,

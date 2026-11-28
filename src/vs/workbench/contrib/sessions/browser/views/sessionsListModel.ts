@@ -8,6 +8,7 @@ import { CANVASES_SECTION_ID, ISessionGroupItem, ISessionSection, SessionChatIte
 import { AUTOMATIONS_SECTION_ID, CUSTOMIZATIONS_SECTION_ID, DATE_SECTION_IDS, ENVIRONMENT_SECTION_PREFIX, EXTERNAL_SESSIONS_SECTION_ID, GROUPS_SECTION_ID, NEW_SESSION_SECTION_ID, QUICK_CHATS_SECTION_ID, RECENTLY_UPDATED_SESSION_THRESHOLD_MS, REPOSITORY_SECTION_PREFIX, WORKSPACES_SECTION_ID, ISessionListWorkspaces, compareWorkspaceRows, createWorkspaceRow, getComparisonGroupSummary, getRepositorySectionId, getSessionListChats, getSessionRepository, getSessionSectionType, getSessionWorkspaceUri, getSessionsRootFolder, groupSessionsForList, groupingHasQuickChatsSection, isComparisonLaunchPending, isQuickChatSession, isSessionGroupingSection, isShortcutSection, keepDateSectionOrder, labelRepositorySections, limitSessionsForList, partitionByDate, sessionMatchesFolder, sessionWorkspaceLabel, sortComparisonGroupMembers, sortSessionListChats, sortSessions, IInboxPlacement } from './sessionsListHelpers.js';
 import { compareSessionEnvironments, getWorktreeFilterKeys } from './sessionsListFilters.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 import { constObservable, IReader } from '../../../../../base/common/observable.js';
 import { IExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -136,6 +137,14 @@ export interface ISessionsListModelGroups {
 	getSectionIdsInGroup(groupId: string): readonly string[];
 }
 
+/** The other keys of a section's state, such as before a workspace rename or in the other layout of Group by Workspace. */
+export interface IHeaderAliases {
+	/** Keys that pin the section. */
+	readonly pin: readonly string[];
+	/** Keys of the section's collapse state. */
+	readonly state: readonly string[];
+}
+
 /** Render-local comparison and workspace metadata passed to search matching during model construction. */
 export interface ISessionsListSearchContext {
 	readonly comparisonAttemptLabels: ReadonlyMap<string, string>;
@@ -165,6 +174,8 @@ export interface ISessionsListRenderSnapshot {
 	readonly hiddenGroupingSections: readonly ISessionSection[];
 	/** Pinned group and grouping-section headers rendered in Pinned, by their pin key. */
 	readonly renderedPinnedHeaderIds: ReadonlySet<string>;
+	/** Alias keys for grouping-section pin and collapse state, by section key. */
+	readonly headerAliases: ReadonlyMap<string, IHeaderAliases>;
 	/** Top-level headers with a gap above them, by id (in separate groups and workspaces mode, each but the first). */
 	readonly spacedHeaderIds: ReadonlySet<string>;
 	/** Top-level headers shown as muted labels with a compact twistie, by id. */
@@ -192,6 +203,7 @@ export const EMPTY_SESSIONS_LIST_RENDER_SNAPSHOT: ISessionsListRenderSnapshot = 
 	moreFolderSectionIds: new Set(),
 	hiddenGroupingSections: [],
 	renderedPinnedHeaderIds: new Set(),
+	headerAliases: new Map(),
 	spacedHeaderIds: new Set(),
 	mutedHeaderIds: new Set(),
 	listWorkspaces: undefined,
@@ -255,6 +267,7 @@ export interface ISessionsListModelInput {
 	readonly isSessionInScope: (session: ISession) => boolean;
 	readonly isSessionPinned: (session: ISession) => boolean;
 	readonly pinnedSectionIds: readonly string[];
+	readonly headerAliases: ReadonlyMap<string, IHeaderAliases>;
 	readonly getSortKey: (entry: SessionSortEntry, sorting: SessionsSorting) => number;
 	readonly groups: ISessionsListModelGroups;
 	readonly sectionOrder: Pick<ISessionSectionOrderService, 'resolveOrder' | 'isPromoted'>;
@@ -419,6 +432,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		isSessionInScope,
 		isSessionPinned,
 		pinnedSectionIds,
+		headerAliases,
 		getSortKey,
 		groups: groupsModel,
 		sectionOrder,
@@ -671,8 +685,10 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 	}
 
 	const sectionByGroupKey = new Map(sections.map(section => [getSectionGroupKey(section.id), section]));
+	// A pin under another key of a section, such as one made in the other layout of Group by Workspace, pins the section.
+	const pinnedKeyByAlias = new Map([...headerAliases].filter(([key]) => sectionByGroupKey.has(key)).flatMap(([key, aliases]) => aliases.pin.filter(alias => !sectionByGroupKey.has(alias)).map(alias => [alias, key] as const)));
 	// Pinned groups and grouping sections render at the top of the Pinned section instead of where they would otherwise.
-	const pinnedHeaderIds = inbox ? [] : pinnedSectionIds.filter(id => {
+	const pinnedHeaderIds = inbox ? [] : distinct(pinnedSectionIds.map(id => pinnedKeyByAlias.get(id) ?? id)).filter(id => {
 		const groupId = getSessionGroupIdOfSection(id);
 		if (groupId !== undefined) {
 			return groupTree.getPath(groupId).length > 0 && !comparisonsByGroupId.has(groupId);
@@ -926,7 +942,8 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 		if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID) {
 			defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 		}
-		const savedCollapsed = getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined);
+		const savedCollapsed = getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined)
+			?? headerAliases.get(section.id)?.state.map(alias => getSavedCollapseState(alias)).find(isDefined);
 		if (savedCollapsed !== undefined) {
 			defaultCollapsed = inbox
 				? savedCollapsed ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded
@@ -1292,6 +1309,7 @@ export function buildSessionsListModel(input: ISessionsListModelInput, precomput
 			moreFolderSectionIds: renderedMoreFolderSectionIds,
 			hiddenGroupingSections,
 			renderedPinnedHeaderIds: pinnedHeaders,
+			headerAliases,
 			spacedHeaderIds,
 			mutedHeaderIds,
 			listWorkspaces,

@@ -367,6 +367,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.updateContextKeys();
 			this.updateViewPaneClasses(true /* layout here */);
 		}));
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateActions()));
 
 		// Settings changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
@@ -1039,6 +1040,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
+		if (this.chatViewHostService.sessionsList.get() && this.sessionsControl) {
+			this.updateActions();
+		}
 		// What the Chat view's list follows: the provided list, or while there is none, whether one is still to register
 		const sessionsListState = derived(this, reader => this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader));
 		this._register(runOnChange(sessionsListState, () => {
@@ -1048,6 +1052,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
+			this.updateActions();
 			sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();
 			this.relayout();
@@ -1336,7 +1341,27 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
-		return this.sessionsControl?.createActionViewItem?.(action, options) ?? super.createActionViewItem(action, options);
+		return this.sessionsControl?.createActionViewItem?.(action, options, this.titleFitsWidths()) ?? super.createActionViewItem(action, options);
+	}
+
+	/**
+	 * Whether the title showing the view's actions fits them to its width by the widths they need: that of the secondary side
+	 * bar, which shows them while the view is merged with its container. The view's own header, shown otherwise, does not.
+	 */
+	private titleFitsWidths(): boolean {
+		return !this.headerVisible && this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.AuxiliaryBar;
+	}
+
+	override get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	override set headerVisible(visible: boolean) {
+		const changed = visible !== super.headerVisible;
+		super.headerVisible = visible;
+		if (changed) {
+			this.updateActions();
+		}
 	}
 
 	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */

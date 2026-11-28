@@ -223,6 +223,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	readonly onDidChangeInput = this._onDidChangeInput.event;
 	private readonly _onDidChangeAttachments = this._register(new Emitter<void>());
 	readonly onDidChangeAttachments = this._onDidChangeAttachments.event;
+	private readonly _onDidRemoveAttachments = this._register(new Emitter<readonly IChatRequestVariableEntry[]>());
+	/** Fires when the user removes attachments from the input, not when the input is cleared or replaced. */
+	readonly onDidRemoveAttachments = this._onDidRemoveAttachments.event;
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
@@ -392,6 +395,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._register(widget.attachmentModel.onDidChange(() => {
 			this._onDidChangeAttachments.fire();
 			this._onDidChangeInput.fire();
+		}));
+		this._register(widget.input.onDidChangeContext(({ removed }) => {
+			if (removed?.length) {
+				this._onDidRemoveAttachments.fire(removed);
+			}
 		}));
 		this._register(this.instantiationService.createInstance(SessionReferenceCompletions, widget, () => this.options.session.get()));
 		if (this.options.supportsBackground) {

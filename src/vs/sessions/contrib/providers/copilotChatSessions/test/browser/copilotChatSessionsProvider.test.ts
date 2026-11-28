@@ -954,6 +954,31 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	}
 
+	(isWeb ? test : test.skip)('does not use a separate GitHub account for the repository picker when the default account is not a GitHub account', async () => {
+		const microsoft = upcastPartial<IDefaultAccount>({ sessionId: 'microsoft', authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false } });
+		const results: { workspace: ISessionWorkspace | undefined; gitHubCalls: number; pickerCalls: number; errors: string[] }[] = [];
+		for (const resolvedLater of [false, true]) {
+			let gitHubCalls = 0;
+			const gitHubService = new class extends TestGitHubService {
+				override async authenticateForRepositoryAccess(): Promise<void> { gitHubCalls++; }
+			}();
+			const errors: string[] = [];
+			let pickerCalls = 0;
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = resolvedLater ? null : microsoft;
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override async getDefaultAccount() { return microsoft; }
+			}();
+			const provider = createProvider(disposables, model, {
+				providerMode: 'sandbox', gitHubService, defaultAccountService, notificationErrors: errors,
+				repositoryPicker: { pickRepository: async () => { pickerCalls++; return undefined; }, dispose: () => { } },
+			});
+			results.push({ workspace: await provider.browseActions[0].run(), gitHubCalls, pickerCalls, errors });
+		}
+		const expected = { workspace: undefined, gitHubCalls: 0, pickerCalls: 0, errors: ['Error: Sign in to Copilot with a GitHub account to use Copilot cloud sessions.'] };
+		assert.deepStrictEqual(results, [expected, expected]);
+	});
+
 	(isWeb ? test : test.skip)('provider disposal cancels sign-in without opening the repository picker', async () => {
 		const authentication = new DeferredPromise<void>();
 		const gitHubService = new class extends TestGitHubService {

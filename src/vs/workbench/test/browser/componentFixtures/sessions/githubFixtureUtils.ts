@@ -122,6 +122,9 @@ export function createFixtureGitHubService(entries: readonly IFixturePullRequest
 		override readonly activeSessionPullRequestObs = constObservable<GitHubPullRequestModel | undefined>(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable<GitHubPullRequestCIModel | undefined>(undefined);
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable<GitHubPullRequestReviewThreadsModel | undefined>(undefined);
+		override getSessionPullRequest(): ReturnType<IGitHubService['getSessionPullRequest']> {
+			return { pullRequestObs: this.activeSessionPullRequestObs, pullRequestCIObs: this.activeSessionPullRequestCIObs, pullRequestReviewThreadsObs: this.activeSessionPullRequestReviewThreadsObs };
+		}
 
 		override async getCommit(owner: string, repo: string, sha: string): Promise<GitHubCommit> {
 			return {

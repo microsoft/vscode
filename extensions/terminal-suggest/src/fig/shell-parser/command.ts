@@ -205,37 +205,3 @@ export const getCommand = (
 	const command = convertCommandNodeToCommand(commandNode);
 	return expandCommand(command, index, aliases);
 };
-
-const statements = [
-	NodeType.Program,
-	NodeType.CompoundStatement,
-	NodeType.Subshell,
-	NodeType.Pipeline,
-	NodeType.List,
-	NodeType.Command,
-];
-
-export const getTopLevelCommands = (parseTree: BaseNode): Command[] => {
-	if (parseTree.type === NodeType.Command) {
-		return [convertCommandNodeToCommand(parseTree)];
-	}
-	if (!statements.includes(parseTree.type)) {
-		return [];
-	}
-	const commands: Command[] = [];
-	for (let i = 0; i < parseTree.children.length; i += 1) {
-		commands.push(...getTopLevelCommands(parseTree.children[i]));
-	}
-	return commands;
-};
-
-export const getAllCommandsWithAlias = (
-	buffer: string,
-	aliases: AliasMap,
-): Command[] => {
-	const parseTree = parse(buffer);
-	const commands = getTopLevelCommands(parseTree);
-	return commands.map((command) =>
-		expandCommand(command, command.tree.text.length, aliases),
-	);
-};

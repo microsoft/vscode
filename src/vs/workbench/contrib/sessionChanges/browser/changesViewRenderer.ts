@@ -24,7 +24,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetFolderFailure, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../sessions/common/changes.js';
 import { IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { isIChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';
@@ -75,12 +75,18 @@ export interface IChangesFileItem {
 	readonly changeType: ChangeType;
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
+	/** The root of the repository the file is listed under, which its path is shown relative to. */
+	readonly root?: URI;
 }
 
 export interface IChangesRootItem {
 	readonly type: 'root';
 	readonly uri: URI;
 	readonly name: string;
+	/** Such as the branch of a repository's root. */
+	readonly description?: string;
+	/** Why a repository's changes could not be computed. */
+	readonly failure?: ISessionChangesetFolderFailure;
 }
 
 export interface IChangesTreeRootInfo {
@@ -98,7 +104,7 @@ export function isChangesRootItem(element: ChangesTreeElement): element is IChan
 	return !ResourceTree.isResourceNode(element) && element.type === 'root';
 }
 
-export function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTreeRootInfo): ICompressedTreeElement<ChangesTreeElement>[] {
+export function buildTreeChildren(items: readonly IChangesFileItem[], treeRootInfo?: IChangesTreeRootInfo): ICompressedTreeElement<ChangesTreeElement>[] {
 	if (items.length === 0) {
 		return [];
 	}
@@ -277,7 +283,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 	}
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
-		const root = this.getRootUri();
+		const root = data.root ?? this.getRootUri();
 		const viewMode = this.changesViewService.viewModeObs.get();
 
 		templateData.label.setResource({
@@ -375,9 +381,12 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.label.setResource({
 			resource: data.uri,
 			name: data.name,
+			description: data.failure?.message ?? data.description,
 		}, {
 			fileKind: FileKind.ROOT_FOLDER,
 			separator: this.labelService.getSeparator(data.uri.scheme, data.uri.authority),
+			extraClasses: data.failure ? ['changes-repository-failed'] : undefined,
+			title: data.failure ? data.failure.detail ?? data.failure.message : undefined,
 		});
 
 		templateData.reviewCommentsBadge.style.display = 'none';

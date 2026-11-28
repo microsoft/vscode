@@ -77,11 +77,14 @@ export interface IAgentHostGitStateService {
 	 * A read takes the key's primary working directory when it starts, or, for a subagent session without a working
 	 * directory of its own, its parent session's. A read whose key moved to another directory before it finished
 	 * publishes nothing.
-	 * @param sessionKey The key of the session or chat for which to refresh the git state.
+	 *
+	 * The changeset owner of a folder-only scope that has its own Agent Merge (a folder of the session other than its
+	 * first, or a repository found in one) refreshes through its session, whose read records that folder's state.
+	 * @param sessionKey The key of the session, chat or folder-only changeset owner for which to refresh the git state.
 	 */
 	refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void>;
 
-	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
+	/** Returns the latest live or restored Git state for a session, folder-scoped chat or folder-only changeset owner. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;
 
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
@@ -126,8 +129,8 @@ export interface IAgentHostGitStateService {
 
 	/**
 	 * Refresh git state (see {@link refreshSessionGitState}), then reconcile the actionable GitHub pull request for
-	 * the current branch.
-	 * @param sessionKey The key of the session or chat for which to check the GitHub pull request.
+	 * the current branch. For a folder-only changeset owner, that is the pull request of the folder's own branch.
+	 * @param sessionKey The key of the session, chat or folder-only changeset owner for which to check the GitHub pull request.
 	 * @returns Why looking up the pull request failed, if it did.
 	 */
 	attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void>;

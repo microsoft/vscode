@@ -107,7 +107,9 @@ function renderMermaidElement(
 				writeOut(mermaidContainer, renderResult.svg, false);
 				renderResult.bindFunctions?.(mermaidContainer);
 			} catch (error) {
-				if (error instanceof Error && error.name !== 'AbortError') {
+				// Show every failure, whatever was thrown, so that a block that was not aborted always gets written.
+				// An aborted render no longer owns its container and leaves it alone.
+				if (!signal.aborted) {
 					markVsCodeContextAsError(mermaidContainer);
 					writeOut(mermaidContainer, createMermaidErrorElement(error).outerHTML, true);
 				}

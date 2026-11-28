@@ -10,14 +10,12 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
+import { ISessionAgentMergeService } from '../sessionAgentMerge.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
-import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { ChatEditorInput, getChatEditorInputDetails, IChatEditorWindow, ISessionChatViewHost, registerSessionChatViewHost } from './chatEditor.js';
 import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
@@ -156,8 +154,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 		@ISessionsManagementService protected readonly sessionsManagementService: ISessionsManagementService,
 		@IChatService private readonly _chatService: IChatService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionAgentMergeService private readonly _sessionAgentMergeService: ISessionAgentMergeService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
@@ -191,7 +188,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 		this._register(autorun(reader => {
 			const shown = this._shown.read(reader);
 			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, this.title.read(reader), reader, this._sessionsListModelService,
-				() => getSessionAgentMergeConfigurationObservable(shown.session, this._sessionsProvidersService, this._configurationService, shown.chat)));
+				() => this._sessionAgentMergeService.getConfigurationObservable(shown.session, shown.chat)));
 		}));
 		// It is read once it shows: while it is the active chat of its window, focused or not, and its editor shows it
 		const readMarker = new ShownChatReadMarker(this.sessionsManagementService, extUri);

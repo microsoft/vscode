@@ -22,7 +22,7 @@ import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { suggestAutoApproveRuleKeys } from '../../terminal/common/autoApprove/suggestAutoApproveRules.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, type IPermissionsValue, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostDefaultUrlAllowRulesConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, type IPermissionsValue, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentPermissionKind, type IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { getAttachedLocalPaths } from '../common/attachedLocalPaths.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
@@ -75,9 +75,10 @@ function getPermissionResource(e: IToolApprovalEvent): URI | undefined {
 const ALLOW_SESSION_OPTION_ID = 'allow-session';
 const ALLOW_ONCE_OPTION: ConfirmationOption = { id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve };
 const SKIP_OPTION: ConfirmationOption = { id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 };
+/** Fallback for kinds without scoped grants. Allow Once stays first because clients make the first approve option the default. */
 const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
-	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
 	ALLOW_ONCE_OPTION,
+	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
@@ -260,8 +261,15 @@ export class SessionPermissionManager extends Disposable {
 	 * 6. Explicit shell allow/ask rules, then implicit terminal defaults
 	 *
 	 * The caller rejects permission deny rules before checking auto-approval.
+	 *
+	 * With `explicitRulesOnly`, a reviewer has required confirmation: only a
+	 * saved allow rule may approve, so Allow All (1, 2) and the implicit
+	 * defaults (mirrored URL defaults, surface scope, 4, 5, terminal defaults
+	 * and workspace redirect targets in 6) are skipped while asks and protected
+	 * writes still apply.
 	 */
-	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
+	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI, options?: { readonly explicitRulesOnly?: boolean }): Promise<ToolCallConfirmationReason | undefined> {
+		const explicitRulesOnly = options?.explicitRulesOnly === true;
 		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
 		// state manager returns that chat's *effective* working-directory set
 		// (its own subset override when present, else the session's full set —
@@ -282,17 +290,17 @@ export class SessionPermissionManager extends Disposable {
 		// 1. Global auto-approve setting
 		const approvalConfig = this._sessionStateOf(sessionKey)?.config;
 		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
-		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
+		if (!explicitRulesOnly && this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
 		// 2. Session-level auto-approve
-		if (this.isSessionAutoApproveEnabled(sessionKey)) {
+		if (!explicitRulesOnly && this.isSessionAutoApproveEnabled(sessionKey)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
 		// Ask rules never override global or session Allow All.
-		const permissions = this._getPermissionRules(sessionKey);
+		const permissions = this._getPermissionRules(sessionKey, explicitRulesOnly);
 		const request = this._permissionRequest(e, sessionKey);
 		const context = this._permissionContext(sessionKey);
 		const permissionResource = getPermissionResource(e);
@@ -320,6 +328,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 		if (matchingAllowRules.length) {
 			return ToolCallConfirmationReason.Setting;
+		}
+		if (explicitRulesOnly && e.permissionKind !== AgentPermissionKind.Shell) {
+			return undefined;
 		}
 
 		// 3.5 Surface edit scope. A session created by a file-bound surface
@@ -388,10 +399,10 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = await this._evaluateShellAutoApproval(e, workingDirectories, sessionKey);
+			const result = await this._evaluateShellAutoApproval(e, workingDirectories, sessionKey, explicitRulesOnly);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
-				return permissions.allow.some(rule => matchesPermissionRule(rule, request, context)) ? ToolCallConfirmationReason.Setting : ToolCallConfirmationReason.NotNeeded;
+				return explicitRulesOnly || permissions.allow.some(rule => matchesPermissionRule(rule, request, context)) ? ToolCallConfirmationReason.Setting : ToolCallConfirmationReason.NotNeeded;
 			}
 			if (result === 'denied') {
 				this._logService.trace('[SessionPermissionManager] Shell command denied by rule');
@@ -594,7 +605,7 @@ export class SessionPermissionManager extends Disposable {
 					: state._meta ? { _meta: state._meta } : {}),
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
-				// otherwise the standard session/once/skip set is used.
+				// otherwise the standard once/session/skip set is used.
 				options: e.managedApprovalRequired
 					? oneTimeOptions.slice()
 					: e.requestSandboxBypass && readToolCallMeta(state)['vscode.sandboxPathGrant'] && state.options
@@ -648,8 +659,15 @@ export class SessionPermissionManager extends Disposable {
 			} else {
 				const permissions = this._configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions) ?? { allow: [], deny: [] };
 				const allow = [...new Set([...permissions.allow, ...grant.rules])];
-				if (allow.length !== permissions.allow.length) {
-					this._configService.updateRootConfig({ [SessionConfigKey.Permissions]: { ...permissions, allow } });
+				// Granting a rule that so far only mirrored a built-in URL default makes it the user's own.
+				const defaultRules = this._configService.getRootValue(platformRootSchema, AgentHostDefaultUrlAllowRulesConfigKey) ?? [];
+				const remainingDefaultRules = defaultRules.filter(rule => !grant.rules.includes(rule));
+				const promoted = remainingDefaultRules.length !== defaultRules.length;
+				if (allow.length !== permissions.allow.length || promoted) {
+					this._configService.updateRootConfig({
+						[SessionConfigKey.Permissions]: { ...permissions, allow },
+						...(promoted ? { [AgentHostDefaultUrlAllowRulesConfigKey]: remainingDefaultRules } : {}),
+					});
 				}
 			}
 		} else if (option.id === ALLOW_SESSION_OPTION_ID) {
@@ -703,11 +721,16 @@ export class SessionPermissionManager extends Disposable {
 	 * in `echo hi > out.txt`) should be auto-approved by reusing the same
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
+	 *
+	 * With `explicitRulesOnly`, saved rules must cover every sub-command and
+	 * such a destination requires confirmation, since only that implicit
+	 * workspace default could approve it.
 	 */
-	private async _evaluateShellAutoApproval(e: IToolApprovalEvent, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<CommandApprovalResult> {
+	private async _evaluateShellAutoApproval(e: IToolApprovalEvent, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI, explicitRulesOnly = false): Promise<CommandApprovalResult> {
 		const writeDestinations: string[] = [];
 		const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput ?? '', {
 			...this._shellAutoApproveOptions(sessionKey, this._permissionRequest(e, sessionKey)),
+			...(explicitRulesOnly ? { defaultRules: {} } : {}),
 			isWriteDestApproved: dest => {
 				writeDestinations.push(dest);
 				return true;
@@ -715,6 +738,9 @@ export class SessionPermissionManager extends Disposable {
 		});
 		if (result !== 'approved' || writeDestinations.length === 0) {
 			return result;
+		}
+		if (explicitRulesOnly) {
+			return 'noMatch';
 		}
 		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)));
 		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
@@ -893,16 +919,33 @@ export class SessionPermissionManager extends Disposable {
 		return approved;
 	}
 
-	/** Permission lists are additive across chat, owning session, and host scopes. */
-	private _getPermissionRules(sessionKey: ProtocolURI): IPermissionsValue {
+	/**
+	 * Permission lists are additive across chat, owning session, and host scopes.
+	 * With `savedOnly`, allow rules that only mirror built-in URL defaults are left out: they are not the user's decision.
+	 */
+	private _getPermissionRules(sessionKey: ProtocolURI, savedOnly = false): IPermissionsValue {
 		const session = this._resolveSession(sessionKey);
 		const values = [
 			this._effectiveValue(sessionKey, SessionConfigKey.Permissions),
 			session === undefined ? undefined : this._configService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.Permissions),
 			this._configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
 		];
+		let allow = [...new Set(values.flatMap(value => value?.allow ?? []))];
+		const defaultRules = savedOnly ? this._configService.getRootValue(platformRootSchema, AgentHostDefaultUrlAllowRulesConfigKey) : undefined;
+		if (defaultRules?.length) {
+			// The lookups above fall back to the host's rules, so a default rule counts as saved only when a chat or session holds it itself.
+			const target = this._chatTargetOf(sessionKey);
+			const saved = new Set([
+				target ? this._configService.getChatConfigValues(target) : undefined,
+				session === undefined ? undefined : this._configService.getSessionConfigValues(session),
+			].flatMap(config => {
+				const value = config?.[SessionConfigKey.Permissions];
+				return platformSessionSchema.validate(SessionConfigKey.Permissions, value) ? value.allow : [];
+			}));
+			allow = allow.filter(rule => saved.has(rule) || !defaultRules.includes(rule));
+		}
 		return {
-			allow: [...new Set(values.flatMap(value => value?.allow ?? []))],
+			allow,
 			deny: [...new Set(values.flatMap(value => value?.deny ?? []))],
 			ask: [...new Set(values.flatMap(value => value?.ask ?? []))],
 		};
@@ -1008,22 +1051,37 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind === AgentPermissionKind.Shell && e.shellLanguage && this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) !== false) {
 			const commandLine = e.shellCommand ?? getInlineToolInput(e.state.toolInput);
 			if (commandLine) {
-				const evaluation = this._commandAutoApprover.evaluate(commandLine, this._shellAutoApproveOptions(sessionKey, {
+				const shellOptions = this._shellAutoApproveOptions(sessionKey, {
 					kind: AgentPermissionKind.Shell,
 					toolName: this._getToolNameForToolCall(sessionKey, e.state.toolCallId) ?? e.state.toolName,
 					shellLanguage: e.shellLanguage,
-				}));
-				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && evaluation.unapprovedSubCommands?.length) {
-					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, evaluation.unapprovedSubCommands);
+				});
+				const evaluation = this._commandAutoApprover.evaluate(commandLine, shellOptions);
+				const unapproved = evaluation.unapprovedSubCommands ?? [];
+				// Only saved rules can satisfy a reviewer, so a grant must also cover the sub-commands that implicit defaults approve.
+				// Those get exact rules: a prefix rule would also override the defaults' deny rules for riskier forms of the command.
+				// When one of them has no exact rule, or the surface confirms every shell command whatever the rules (inline chat),
+				// the prompt offers what it would without the reviewer. So does a command that only a file redirect keeps from
+				// approval: no saved shell rule approves its destination.
+				const defaultApproved = e.requiresUserConfirmation && !this._getSurfaceEditScope(sessionKey)
+					? [...new Set(this._commandAutoApprover.evaluate(commandLine, { ...shellOptions, defaultRules: {} }).unapprovedSubCommands
+						?.filter(command => !unapproved.includes(command)))]
+					: [];
+				const defaultApprovedRules = defaultApproved.map(command => shellExactRule(command));
+				const coveringRules = defaultApprovedRules.every(isDefined) ? defaultApprovedRules : [];
+				if (!evaluation.hasUnsafeSubCommand && !evaluation.hasAskRule && (unapproved.length || (coveringRules.length && evaluation.result === 'approved'))) {
+					const { subCommandKeys, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, unapproved);
 					const alwaysOptions: ConfirmationOption[] = [];
 					if (subCommandKeys.length) {
-						const commands = subCommandKeys.map(key => `\`${key} …\``).join(', ');
-						const label = subCommandKeys.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
-						const rules = subCommandKeys.map(key => shellPrefixRule(key));
+						// The label names every command the grant saves a rule for, including the exact ones.
+						const granted = [...subCommandKeys.map(key => `\`${key} …\``), ...(coveringRules.length ? defaultApproved.map(command => `\`${command}\``) : [])];
+						const commands = granted.join(', ');
+						const label = granted.length === 1 ? commands : localize('sessionPermissions.commands', "Commands {0}", commands);
+						const rules = [...subCommandKeys.map(key => shellPrefixRule(key)), ...coveringRules];
 						add(localize('sessionPermissions.allowCommand', "Allow {0} in this Session", label), rules);
 						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowCommand', "Always Allow {0}", label), rules, PermissionGrantScope.Host));
 					}
-					const exactRules = evaluation.unapprovedSubCommands.map(command => shellExactRule(command));
+					const exactRules = [...unapproved.map(command => shellExactRule(command)), ...coveringRules];
 					if (offerExactCommandLine && exactRules.every(isDefined)) {
 						add(localize('sessionPermissions.allowExactCommand', "Allow Exact Command in this Session"), exactRules);
 						alwaysOptions.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowExactCommand', "Always Allow Exact Command"), exactRules, PermissionGrantScope.Host));

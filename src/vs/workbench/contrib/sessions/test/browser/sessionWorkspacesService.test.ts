@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IRecentlyOpened, IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -112,6 +113,8 @@ suite('SessionWorkspacesService', () => {
 		/** The workspaces in VS Code's recently opened list, or the error reading it fails with. */
 		readonly recentlyOpened?: IRecentlyOpened['workspaces'] | Error;
 		readonly configuration?: TestConfigurationService;
+		/** The product quality, `insider` unless given. */
+		readonly quality?: string;
 	}
 
 	/** Creates the service and waits for its first read of the workspace files. */
@@ -125,6 +128,7 @@ suite('SessionWorkspacesService', () => {
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IEnvironmentService, upcastPartial<IEnvironmentService>({ untitledWorkspacesHome: localFile('/user/Workspaces') }));
 		instantiationService.stub(IConfigurationService, options.configuration ?? new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true }));
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({ quality: options.quality ?? 'insider' }));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({ vsCodeRecentWorkspaceFiles: recentWorkspaceFiles }));
 		const recentlyOpened = { reads: 0 };
@@ -993,11 +997,32 @@ suite('SessionWorkspacesService', () => {
 	test('the workspaces context key follows its setting from startup, without the workspaces service', () => {
 		const configuration = new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true });
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		disposables.add(new SessionWorkspacesContextKeys(contextKeyService, configuration));
+		disposables.add(new SessionWorkspacesContextKeys(contextKeyService, configuration, upcastPartial<IProductService>({ quality: 'insider' })));
 		const atStartup = contextKeyService.getContextKeyValue(SessionWorkspacesEnabledContext.key);
 
 		changeConfiguration(configuration, false);
 
 		assert.deepStrictEqual({ atStartup, afterChange: contextKeyService.getContextKeyValue(SessionWorkspacesEnabledContext.key) }, { atStartup: true, afterChange: false });
+	});
+
+	test('workspaces stay disabled in Stable, also with the setting written by hand, and follow the setting elsewhere', async () => {
+		const observe = async (quality: string) => {
+			const configuration = new TestConfigurationService({ [SESSIONS_WORKSPACES_ENABLED_SETTING]: true });
+			const contextKeyService = disposables.add(new MockContextKeyService());
+			disposables.add(new SessionWorkspacesContextKeys(contextKeyService, configuration, upcastPartial<IProductService>({ quality })));
+			const { service } = await createService({ configuration, quality });
+			const state = () => ({ contextKey: contextKeyService.getContextKeyValue(SessionWorkspacesEnabledContext.key), service: service.enabled.get() });
+			const steps = [state()];
+			changeConfiguration(configuration, false);
+			steps.push(state());
+			changeConfiguration(configuration, true);
+			steps.push(state());
+			return steps;
+		};
+
+		assert.deepStrictEqual({ stable: await observe('stable'), insider: await observe('insider') }, {
+			stable: [{ contextKey: false, service: false }, { contextKey: false, service: false }, { contextKey: false, service: false }],
+			insider: [{ contextKey: true, service: true }, { contextKey: false, service: false }, { contextKey: true, service: true }],
+		});
 	});
 });

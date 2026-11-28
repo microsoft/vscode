@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionFolder, ISessionGitRepository, ISessionRepository, ISessionWorkspace, SessionRepositoryKind } from '../../../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
 	readonly uri: URI;
@@ -78,27 +78,37 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	if (!workspace || !folder) {
 		return undefined;
 	}
+	// The Git state of a folder's or a found repository's checkout: every field it publishes, but its observables
+	const gitRepositoryKey = (repo: ISessionGitRepository | undefined) => [
+		repo?.workTreeUri ? extUri.getComparisonKey(repo.workTreeUri) : '',
+		repo?.branchName ?? '',
+		repo?.baseBranchName ?? '',
+		repo?.baseBranchRef ?? '',
+		String(repo?.baseBranchProtected ?? ''),
+		String(repo?.hasGitRemote ?? ''),
+		String(repo?.hasGitHubRemote ?? ''),
+		repo?.upstreamBranchName ?? '',
+		repo?.defaultBranchName ?? '',
+		repo?.defaultRemoteBranchName ?? '',
+		String(repo?.incomingChanges ?? ''),
+		String(repo?.outgoingChanges ?? ''),
+		String(repo?.uncommittedChanges ?? ''),
+		String(repo?.hasGitOperationInProgress ?? ''),
+		// Unknown, a repository, or found not to be one
+		repo ? String(repo.isRepository?.get() ?? '') : '-',
+	].join('\u0001');
 	// Hash every folder so a change to any peer directory (added/removed/reordered)
 	// invalidates the key, not just the primary.
-	const folderKeys = workspace.folders.map(f => {
-		const repo = f.gitRepository;
-		return [
-			extUri.getComparisonKey(f.root),
-			f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
-			repo?.branchName ?? '',
-			repo?.baseBranchName ?? '',
-			repo?.baseBranchRef ?? '',
-			String(repo?.baseBranchProtected ?? ''),
-			String(repo?.hasGitRemote ?? ''),
-			String(repo?.hasGitHubRemote ?? ''),
-			repo?.upstreamBranchName ?? '',
-			String(repo?.incomingChanges ?? ''),
-			String(repo?.outgoingChanges ?? ''),
-			String(repo?.uncommittedChanges ?? ''),
-		].join('\u0001');
-	});
+	const folderKeys = workspace.folders.map(f => [
+		extUri.getComparisonKey(f.root),
+		f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
+		gitRepositoryKey(f.gitRepository),
+	].join('\u0001'));
+	const repositoryKeys = workspace.repositories?.map(repository => [extUri.getComparisonKey(repository.root), extUri.getComparisonKey(repository.folder), repository.kind, gitRepositoryKey(repository.gitRepository)].join('\u0001'));
+	const config = workspace.workspaceConfig;
+	const configKey = config ? [extUri.getComparisonKey(config.uri), config.name, ...config.folders.map(folder => extUri.getComparisonKey(folder))].join('\u0001') : '';
 	// Working directories can arrive equal to a project the session had without them, which changes only whether it requires trust.
-	return [workspace.label, String(workspace.requiresWorkspaceTrust), ...folderKeys].join('\n');
+	return [workspace.label, String(workspace.requiresWorkspaceTrust), configKey, repositoryKeys ? `repositories:${repositoryKeys.join('\u0002')}` : '', ...folderKeys].join('\n');
 }
 
 /** Resolves the GitHub info a session folder reports, by working directory. */
@@ -134,7 +144,15 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 	if (folders.length === 0) {
 		return undefined;
 	}
-	if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
+	// Each repository reports the GitHub info the host records for it: that of its folder, or of its root when found in one
+	const repositories = getFolderGitHubInfo && sessionWorkspace.repositories?.map((repository): ISessionRepository => {
+		const gitHubInfo = getFolderGitHubInfo(repository.kind === SessionRepositoryKind.Nested ? repository.root : repository.folder);
+		return gitHubInfo && repository.gitRepository && repository.gitRepository.gitHubInfo !== gitHubInfo
+			? { ...repository, gitRepository: { ...repository.gitRepository, gitHubInfo } }
+			: repository;
+	});
+	const repositoriesChanged = !!repositories && repositories.some((repository, index) => repository !== sessionWorkspace.repositories![index]);
+	if (!repositoriesChanged && folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
 		return sessionWorkspace;
 	}
 
@@ -145,6 +163,7 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
 		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
 		folders,
+		...(repositoriesChanged ? { repositories } : {}),
 	};
 }
 
@@ -203,7 +222,7 @@ function createAdditionalFolder(workingDirectory: URI, description: string | und
 	};
 }
 
-function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
+export function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
 	const repository = folder.gitRepository ?? {
 		uri: folder.root,
 		workTreeUri: undefined,

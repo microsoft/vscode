@@ -602,6 +602,8 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionRepositoriesObs = constObservable([]);
+			override readonly activeSessionRepositoryObs = constObservable(undefined);
 			override readonly activeSessionBaseBranchRefObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 		}());

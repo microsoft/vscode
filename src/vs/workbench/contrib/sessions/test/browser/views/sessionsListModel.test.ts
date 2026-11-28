@@ -147,6 +147,7 @@ suite('Sessions - SessionsListModel', () => {
 			isSessionInScope: () => true,
 			isSessionPinned: () => false,
 			pinnedSectionIds: [],
+			headerAliases: new Map(),
 			getSortKey: (entry, sorting) => sorting === SessionsSorting.Updated ? entry.updatedAt.get().getTime() : entry.createdAt.getTime(),
 			groups: createGroups(),
 			sectionOrder: { resolveOrder: ids => [...ids], isPromoted: () => false },
@@ -501,6 +502,36 @@ suite('Sessions - SessionsListModel', () => {
 			topLevelOrder: ['group:grp1'],
 			muted: [GROUPS_SECTION_ID, WORKSPACES_SECTION_ID],
 			spaced: [WORKSPACES_SECTION_ID],
+		});
+	});
+
+	test('resolves header pin and collapse-state aliases into Pinned and section collapse state', () => {
+		const alpha = createSession('a1', { workspaceLabel: 'Alpha', updatedAt: NOW - 1_000 });
+		const beta = createSession('b1', { workspaceLabel: 'Beta', updatedAt: NOW - 2_000 });
+
+		const result = buildSessionsListModel(createInput({
+			grouping: SessionsGrouping.Workspace,
+			sessions: [alpha, beta],
+			pinnedSectionIds: ['workspace:old-alpha'],
+			savedSectionCollapseState: new Map([['workspace:old-beta', true]]),
+			headerAliases: new Map([
+				['workspace:Alpha', { pin: ['workspace:old-alpha'], state: [] }],
+				['workspace:Beta', { pin: [], state: ['workspace:old-beta'] }],
+			]),
+		}));
+
+		const betaNode = result.children.find(child => isSessionSection(child.element) && child.element.id === 'workspace:Beta');
+		assert.deepStrictEqual({
+			tree: describeNodes(result.children),
+			renderedPinned: [...result.snapshot.renderedPinnedHeaderIds],
+			betaCollapsed: betaNode?.collapsed,
+		}, {
+			tree: [
+				{ section: 'pinned', children: [{ section: 'workspace:Alpha', children: [{ session: 'a1' }] }] },
+				{ section: 'workspace:Beta', children: [{ session: 'b1' }] },
+			],
+			renderedPinned: ['workspace:Alpha'],
+			betaCollapsed: true,
 		});
 	});
 });

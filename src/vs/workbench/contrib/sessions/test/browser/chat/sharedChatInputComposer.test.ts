@@ -106,6 +106,7 @@ suite('SharedChatInputComposer', () => {
 			input: {
 				executeToolbarElement,
 				attachmentModel,
+				onDidChangeContext: Event.None,
 				currentModeKind: ChatModeKind.Agent,
 				selectedToolsModel: { entriesMap: { get: () => new Map() } },
 				setInputEnabled: (enabled: boolean, preserveFocus = false) => { inputEnabled = enabled; inputTransitions.push({ enabled, preserveFocus }); },
@@ -1237,7 +1238,7 @@ suite('SharedChatInputComposer', () => {
 			inputEditor: { onDidChangeModelContent: Event.None },
 			attachmentModel: { onDidChange: Event.None },
 			scopedContextKeyService: new MockContextKeyService(),
-			input: { gettingStartedTipContainerElement: dom.$('div'), registerChatPetHorizontalPlatformProvider: () => Disposable.None },
+			input: { gettingStartedTipContainerElement: dom.$('div'), registerChatPetHorizontalPlatformProvider: () => Disposable.None, onDidChangeContext: Event.None },
 			inputPart: {},
 			dispose: () => { },
 		};

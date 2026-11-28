@@ -8,10 +8,14 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../platform/actions/common/menuService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
 import { IComposite } from '../../../common/composite.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -28,10 +32,21 @@ class TestAuxiliaryBarMenuService extends MenuService {
 	}
 }
 
-export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean }): TestAuxiliaryBarPart {
+/**
+ * Creates a secondary side bar part with the Chat view's title actions.
+ * Parts that coexist in one test must share a `viewDescriptorService`: each instance registers
+ * a reset-location command for every registered view container, and command ids are global.
+ */
+export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<DisposableStore, 'add'>, options?: { readonly globalActions?: boolean; readonly onDidUpdateKeybindings?: Event<void>; readonly viewDescriptorService?: IViewDescriptorService }): TestAuxiliaryBarPart {
 	const instantiationService = workbenchInstantiationService({}, store);
+	const onDidUpdateKeybindings = options?.onDidUpdateKeybindings;
+	if (onDidUpdateKeybindings) {
+		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
+			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings; }
+		}());
+	}
 	instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
-	instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
+	instantiationService.stub(IViewDescriptorService, options?.viewDescriptorService ?? store.add(instantiationService.createInstance(ViewDescriptorService)));
 	instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(TestAuxiliaryBarMenuService)));
 	for (const [order, [id, title, icon]] of (options?.globalActions === false ? [] : [
 		['test.maximize', 'Maximize Secondary Side Bar', Codicon.screenFull],
@@ -53,6 +68,13 @@ export function createTestAuxiliaryBarPart(container: HTMLElement, store: Pick<D
 export class TestAuxiliaryBarPart extends AuxiliaryBarPart {
 
 	private toolbarAvailableWidth: number | undefined;
+
+	/** Renders title actions as the active view would, such as the Chat view's New button. */
+	viewActionViewItemProvider: ((action: IAction, options: IBaseActionViewItemOptions) => IActionViewItem | undefined) | undefined;
+
+	protected override actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		return this.viewActionViewItemProvider?.(action, options) ?? super.actionViewItemProvider(action, options);
+	}
 
 	protected override getActiveComposite(): IComposite {
 		return {
@@ -85,6 +107,11 @@ export class TestAuxiliaryBarPart extends AuxiliaryBarPart {
 		this.titleLabel?.updateTitle('test.chat', title, '');
 		this.toolBar?.setAriaLabel(`${title} actions`);
 		this.toolBar?.setActions(primary, secondary);
+	}
+
+	/** The minimum width the title toolbar fits the given action with. */
+	getActionMinWidth(action: IAction): number | undefined {
+		return this.getToolbarResponsiveBehavior().getActionMinWidth?.(action);
 	}
 
 	get toolbar() {

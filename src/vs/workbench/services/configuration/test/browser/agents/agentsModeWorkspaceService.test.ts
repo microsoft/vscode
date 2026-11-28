@@ -31,7 +31,7 @@ import { RemoteAgentService } from '../../../../remote/browser/remoteAgentServic
 import { IRemoteAgentService } from '../../../../remote/common/remoteAgentService.js';
 import { UserDataProfileService } from '../../../../userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../../../userDataProfile/common/userDataProfile.js';
-import { AGENTS_MODE_ENABLED_SETTING, agentsModeEnabledConfiguration, AgentsModeWorkspaceService, supportsAgentsMode } from '../../../browser/agents/agentsModeWorkspaceService.js';
+import { AGENTS_MODE_ENABLED_SETTING, agentsModeEnabledConfiguration, AgentsModeWorkspaceService } from '../../../browser/agents/agentsModeWorkspaceService.js';
 import { WorkspaceService } from '../../../browser/configurationService.js';
 import { IConfigurationCache } from '../../../common/configuration.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../common/configurationEditing.js';
@@ -126,6 +126,7 @@ suite('AgentsModeWorkspaceService', () => {
 		disposables.add(testObject.onDidChangeWorkbenchState(state => events.push(`state:${state}`)));
 		disposables.add(testObject.onDidChangeWorkbenchScope(scope => events.push(`scope:${scope}`)));
 		disposables.add(testObject.onDidChangeWorkbenchMode(mode => events.push(`workbenchMode:${mode}`)));
+		disposables.add(testObject.onWillChangeAgentsMode(enabled => events.push(`willMode:${enabled}`)));
 		disposables.add(testObject.onDidChangeAgentsMode(enabled => events.push(`mode:${enabled}`)));
 		disposables.add(testObject.onDidChangeConfiguration(e => {
 			for (const key of ['agentsMode.modeDefault', 'agentsMode.agentsDefault', 'agentsMode.userWins', 'agentsMode.readOnly', 'agentsMode.modeReadOnly']) {
@@ -147,8 +148,8 @@ suite('AgentsModeWorkspaceService', () => {
 			inMode: { mode: true, workspaceId: 'empty-window', state: WorkbenchState.WORKSPACE, scope: undefined, workbenchMode: WorkbenchMode.Agents, modeDefault: true, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'mode' },
 			after: { mode: false, workspaceId: 'empty-window', state: WorkbenchState.EMPTY, scope: undefined, workbenchMode: WorkbenchMode.Editor, modeDefault: false, agentsDefault: 'editor', userWins: false, readOnly: 'user', modeReadOnly: 'user' },
 			events: [
-				`state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:true',
-				`state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:false',
+				'willMode:true', `state:${WorkbenchState.WORKSPACE}`, `workbenchMode:${WorkbenchMode.Agents}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:true',
+				'willMode:false', `state:${WorkbenchState.EMPTY}`, `workbenchMode:${WorkbenchMode.Editor}`, 'config:agentsMode.modeDefault', 'config:agentsMode.modeReadOnly', 'mode:false',
 			],
 		});
 	}));
@@ -397,32 +398,51 @@ suite('AgentsModeWorkspaceService', () => {
 		assert.deepStrictEqual(events, ['default', 'markdown']);
 	}));
 
-	test('is only supported in local editor windows with a backup path and the Agents mode setting on', () => {
+	test('is only supported in local editor windows with a backup path, outside Stable, and the Agents mode setting on', () => {
+		const insider = { quality: 'insider' };
 		const local = { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false };
+		const reads: string[] = [];
 		const settings = (values: Record<string, unknown>) => ({
-			getValue: <T>(key?: unknown, _overrides?: unknown) => values[key as string] as T,
+			getValue: <T>(key?: unknown, _overrides?: unknown) => { reads.push(key as string); return values[key as string] as T; },
 		});
 		const setting = (value: unknown) => settings({ [AGENTS_MODE_ENABLED_SETTING]: value });
 
-		assert.deepStrictEqual({
-			enabled: supportsAgentsMode(local, setting(true), true),
-			settingOff: supportsAgentsMode(local, setting(false), true),
-			settingUnset: supportsAgentsMode(local, setting(undefined), true),
-			settingTruthy: supportsAgentsMode(local, setting('true'), true),
-			noBackup: supportsAgentsMode(local, setting(true), false),
-			workspacesFilterOnly: supportsAgentsMode(local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
-			remote: supportsAgentsMode({ ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
-			extensionDevelopment: supportsAgentsMode({ ...local, isExtensionDevelopment: true }, setting(true), true),
-			agentsWindow: supportsAgentsMode({ ...local, isSessionsWindow: true }, setting(true), true),
-		}, {
-			enabled: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false,
+		const supported = {
+			enabled: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(true), true),
+			dev: AgentsModeWorkspaceService.supportsAgentsMode({ quality: undefined }, local, setting(true), true),
+			settingOff: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(false), true),
+			settingUnset: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(undefined), true),
+			settingTruthy: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting('true'), true),
+			noBackup: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, setting(true), false),
+			workspacesFilterOnly: AgentsModeWorkspaceService.supportsAgentsMode(insider, local, settings({ 'sessions.list.workspacesFilter.enabled': true }), true),
+			remote: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, remoteAuthority: 'ssh-remote+host' }, setting(true), true),
+			extensionDevelopment: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, isExtensionDevelopment: true }, setting(true), true),
+			agentsWindow: AgentsModeWorkspaceService.supportsAgentsMode(insider, { ...local, isSessionsWindow: true }, setting(true), true),
+		};
+		reads.length = 0;
+		const stable = AgentsModeWorkspaceService.supportsAgentsMode({ quality: 'stable' }, local, setting(true), true);
+
+		assert.deepStrictEqual({ supported, stable, stableReads: reads }, {
+			supported: { enabled: true, dev: true, settingOff: false, settingUnset: false, settingTruthy: false, noBackup: false, workspacesFilterOnly: false, remote: false, extensionDevelopment: false, agentsWindow: false },
+			stable: false,
+			stableReads: [],
 		});
+	});
+
+	test('the setting is not registered in Stable, and is registered in Insiders and dev builds', () => {
+		const registered = (quality: string | undefined) => {
+			configurationRegistry.deregisterConfigurations([agentsModeEnabledConfiguration]);
+			AgentsModeWorkspaceService.registerEnabledConfiguration(configurationRegistry, quality);
+			return configurationRegistry.getConfigurationProperties()[AGENTS_MODE_ENABLED_SETTING] !== undefined;
+		};
+
+		assert.deepStrictEqual({ stable: registered('stable'), insider: registered('insider'), dev: registered(undefined) }, { stable: false, insider: true, dev: true });
 	});
 
 	test('a window in a non-default profile reads the Agents mode setting from the default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(applicationSettingsResource, VSBuffer.fromString(`{ "${AGENTS_MODE_ENABLED_SETTING}": true }`));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(supportsAgentsMode({ remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
+		assert.strictEqual(AgentsModeWorkspaceService.supportsAgentsMode({ quality: 'insider' }, { remoteAuthority: undefined, isExtensionDevelopment: false, isSessionsWindow: false }, testObject, true), true);
 	}));
 });
