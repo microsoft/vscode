@@ -446,7 +446,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				this._resolveUserKeybindingItems(this.userKeybindings.keybindings, false),
 				KeybindingsRegistry.getKeybindingAliases()
 			);
-			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
+			this._cachedResolver = new KeybindingResolver(defaults, overrides, str => this._log(str), () => this._logging);
 		}
 		return this._cachedResolver;
 	}
