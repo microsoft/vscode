@@ -1377,7 +1377,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.isFromTrustedPublisher(extension)) {
 			return 0;
 		}
-		const lastUpdated = extension.gallery?.lastUpdated;
+		const lastUpdated = extension.gallery?.versionLastUpdated ?? extension.gallery?.lastUpdated;
 		if (!Number.isFinite(lastUpdated) || !lastUpdated) {
 			return 0;
 		}

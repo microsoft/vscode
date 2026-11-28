@@ -253,7 +253,15 @@ export interface IGalleryExtension {
 	categories: readonly string[];
 	tags: readonly string[];
 	releaseDate: number;
+	/**
+	 * Last update time of the Marketplace listing. This can reflect changes to
+	 * other versions or target platforms.
+	 */
 	lastUpdated: number;
+	/**
+	 * Last update time of the selected version for its target platform.
+	 */
+	versionLastUpdated?: number;
 	preview: boolean;
 	private: boolean;
 	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
