@@ -7,7 +7,7 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
-import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostDefaultUrlAllowRulesConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -20,10 +20,16 @@ import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/stat
  */
 export interface IForwardedRootConfigKey {
 	/** The root-config key this descriptor owns. */
-	readonly key: AgentHostConfigKey | CopilotCliConfigKey | SessionConfigKey.Permissions | typeof AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey;
+	readonly key: AgentHostConfigKey | CopilotCliConfigKey | SessionConfigKey.Permissions | typeof AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey | typeof AgentHostDefaultUrlAllowRulesConfigKey;
 
 	/** Compute the desired value; return `undefined` when unavailable to preserve the shared value. May be async. */
 	computeValue(): unknown | Promise<unknown>;
+
+	/**
+	 * Values of further root-config keys that describe this key's value and so must change in the same action as it.
+	 * Read synchronously alongside {@link computeValue}. A key the host's schema does not advertise is left out.
+	 */
+	computeCompanions?(): Partial<Record<IForwardedRootConfigKey['key'], unknown>>;
 
 	/** Wire up the triggers that should re-push this key; add disposables to `store`, call `push`. */
 	registerTriggers(store: DisposableStore, push: () => void): void;
@@ -157,7 +163,10 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		}
 
 		let value: unknown;
+		let companions: ReturnType<NonNullable<IForwardedRootConfigKey['computeCompanions']>> | undefined;
 		try {
+			// Read the companions in the same step as the value they describe, before the await lets anything change.
+			companions = entry.computeCompanions?.();
 			value = await entry.computeValue();
 		} catch {
 			return;
@@ -175,13 +184,20 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		if (!rootState || rootState instanceof Error || !rootState.config) {
 			return;
 		}
-		if (structuralEquals(rootState.config.values[entry.key], value)) {
+		const values = rootState.config.values;
+		const config: Record<string, unknown> = { [entry.key]: value };
+		for (const [key, companion] of Object.entries(companions ?? {})) {
+			if (rootState.config.schema.properties[key]) {
+				config[key] = companion;
+			}
+		}
+		if (Object.entries(config).every(([key, desired]) => structuralEquals(values[key], desired))) {
 			return;
 		}
 
 		this._agentHostService.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
-			config: { [entry.key]: value },
+			config,
 		});
 	}
 }
