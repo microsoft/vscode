@@ -52,11 +52,13 @@ export class SendRemoteMessageTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const options = parseSendRemoteMessageOptions(context.parameters);
-		if (!context.chatSessionResource) {
+		// The originating chat issued the call even when a parent chat renders it.
+		const source = context.originatingChatResource ?? context.chatSessionResource;
+		if (!source) {
 			throw new Error(localize('remoteMessage.missingContext', "Remote messaging requires an originating chat."));
 		}
-		assertRemoteSessionCaller(context.chatSessionResource);
-		const target = await this.router.prepareTarget(context.chatSessionResource, options.session, token);
+		assertRemoteSessionCaller(source);
+		const target = await this.router.prepareTarget(source, options.session, token);
 		const message = new MarkdownString().appendText(localize('remoteMessage.confirmation', "Send this message to {0} on {1}? It will use the target chat's existing permissions and queue behind any active or pending turns.", target.chat, target.host.label));
 		message.appendText(`\n\n${options.message}`);
 		return {
@@ -71,11 +73,12 @@ export class SendRemoteMessageTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const options = parseSendRemoteMessageOptions(invocation.parameters);
-		if (!invocation.context?.sessionResource) {
+		const source = invocation.originatingChatResource ?? invocation.context?.sessionResource;
+		if (!source) {
 			throw new Error(localize('remoteMessage.missingContext', "Remote messaging requires an originating chat."));
 		}
-		assertRemoteSessionCaller(invocation.context.sessionResource);
-		const result = await this.router.send(invocation.context.sessionResource, options, invocation.callId, token);
+		assertRemoteSessionCaller(source);
+		const result = await this.router.send(source, options, invocation.callId, token);
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(result) }],
 			toolResultMessage: result.status === 'queued'

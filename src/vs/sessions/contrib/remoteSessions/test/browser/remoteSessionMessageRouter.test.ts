@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CLOUD_SANDBOX_TASK_SCHEME } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostAgentOrchestrationLimitsSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
@@ -660,6 +661,47 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual({ session: result.session, channel: first.dispatched[0].channel }, {
 			session: sessions[1].resource.toString(), channel: buildChatUri(backendSession, 'other-chat'),
 		});
+	});
+
+	test('"sender" replies to a Cloud task through its window alias', async () => {
+		const { router, first, second, sessions, connections } = setup();
+		const task = URI.from({ scheme: CLOUD_SANDBOX_TASK_SCHEME, path: '/task-1' });
+		store.add(connections.registerSessionResourceAlias(task, backendSession, 'second', 'copilot'));
+		const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({
+			resource: task.with({ fragment }), interactivity: observableValue('interactivity', ChatInteractivity.Full),
+		}));
+		sessions.push(upcastPartial<ISession>({
+			resource: task, providerId: 'agenthost-second', chats: observableValue('chats', chats), mainChat: constObservable(chats[0]),
+			workspace: constObservable(undefined), isArchived: constObservable(false),
+		}));
+		const state = first.chatStates.get(buildDefaultChatUri(backendSession))!;
+		state.set(chatReducer(state.verifiedValue!, {
+			...chatTurnStarted('task', 'Task', new Date(0).toISOString()),
+			message: { text: 'Task', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: task.toString(), sourceChat: buildChatUri(backendSession, 'other-chat') }) },
+		}));
+		const result = await router.send(sessions[1].resource, { session: 'sender', message: 'Result' }, 'cloud', CancellationToken.None);
+		assert.deepStrictEqual({ session: result.session, channel: second.dispatched[0].channel }, {
+			session: task.toString(), channel: buildChatUri(backendSession, 'other-chat'),
+		});
+	});
+
+	test('a nested chat\'s call rendered in its parent replies to the nested chat\'s sender', async () => {
+		const { tool, local, first, sessions } = setup();
+		const parent = first.chatStates.get(buildDefaultChatUri(backendSession))!;
+		parent.set(chatReducer(parent.verifiedValue!, chatTurnStarted('user', 'User prompt', new Date(0).toISOString())));
+		const nested = first.chatStates.get(buildChatUri(backendSession, 'original-chat'))!;
+		nested.set(chatReducer(nested.verifiedValue!, {
+			...chatTurnStarted('task', 'Task', new Date(0).toISOString()),
+			message: { text: 'Task', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: sessions[0].resource.toString(), sourceChat: buildChatUri(backendSession, 'other-chat') }) },
+		}));
+		const parameters = { session: 'sender', message: 'Result' };
+		const originatingChatResource = sessions[1].chats.get()[1].resource;
+		await tool.prepareToolInvocation({ toolCallId: 'nested', chatSessionResource: sessions[1].resource, originatingChatResource, parameters }, CancellationToken.None);
+		await tool.invoke({ callId: 'nested', toolId: tool.getToolData().id, context: { sessionResource: sessions[1].resource }, originatingChatResource, parameters }, async () => 0, { report: () => { } }, CancellationToken.None);
+		assert.deepStrictEqual(local.dispatched.map(entry => ({ channel: entry.channel, delegation: readAgentMessageDelegationMeta(entry.action.message) })), [{
+			channel: buildChatUri(backendSession, 'other-chat'),
+			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(backendSession, 'original-chat') },
+		}]);
 	});
 
 	test('rejects self messages, unqualified references, unknown origins and invalid input', async () => {

@@ -3910,6 +3910,7 @@ suite('SessionServerTools', () => {
 			const from = senderOf([
 				sentTurn('remote', 'From A', 'remote-first-copilot:/a', nested),
 				sentTurn('qualified', 'From D', 'remote-first-copilot://tenant/d?generation=1', nested),
+				sentTurn('cloud', 'From E', 'cloud-sandbox-task:/task-1', nested),
 				sentTurn('peer', 'From C', 'copilot:/c'),
 				turn('user', 'From the user', []),
 				{ ...turn('forged', 'Forged', []), message: { text: 'Forged', origin: { kind: MessageKind.User }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'agent-host-copilot:/x' }) } },
@@ -3919,6 +3920,7 @@ suite('SessionServerTools', () => {
 			}), [
 				{ session: 'remote-first-copilot:/a', chat: nested, replyWith: 'send_remote_message' },
 				{ session: URI.parse('remote-first-copilot://tenant/d?generation=1').toString(), chat: nested, replyWith: 'send_remote_message' },
+				{ session: 'cloud-sandbox-task:/task-1', chat: nested, replyWith: 'send_remote_message' },
 				{ session: 'copilot:/c', chat: undefined, replyWith: 'send_message' },
 				undefined,
 				undefined,

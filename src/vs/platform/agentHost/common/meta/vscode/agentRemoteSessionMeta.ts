@@ -7,7 +7,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../agentHostConnectionsService.js';
-import { isRemoteAgentHostSessionType } from '../../agentHostSessionType.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, isRemoteAgentHostSessionType } from '../../agentHostSessionType.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri } from '../../openSessionLink.js';
 import { MessageKind, readSessionSpawnDepth, withSessionSpawnDepth, type Message } from '../../state/sessionState.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from './agentMessageDelegationMeta.js';
@@ -45,8 +45,9 @@ function isWorkbenchAgentHostSession(session: URI): boolean {
 /** The exact chat that sent an agent-authored message. */
 export interface IAgentMessageSender {
 	/**
-	 * The sender's session as recorded: a host-qualified workbench session resource when a remote
-	 * session tool delivered the message, or the host's session URI when it was sent on the same host.
+	 * The sender's session as recorded: a window-qualified workbench session resource (an Agent Host
+	 * session or a Cloud task alias) when a remote session tool delivered the message, or the host's
+	 * session URI when it was sent on the same host.
 	 */
 	readonly session: URI;
 	/** The sender's recorded chat resource; undefined names its main chat. */
@@ -77,7 +78,9 @@ export function readAgentMessageSender(message: Message): IAgentMessageSender | 
 	if (session.scheme === AGENT_HOST_SESSION_LINK_SCHEME || session.path.length <= 1) {
 		return undefined;
 	}
-	return { session, chat: delegation.sourceChat || undefined, sameHost: !isHostQualifiedSessionScheme(session.scheme) };
+	// A Cloud task records its window alias, which only the window's remote session tools resolve.
+	const windowQualified = session.scheme === CLOUD_SANDBOX_TASK_SCHEME || isHostQualifiedSessionScheme(session.scheme);
+	return { session, chat: delegation.sourceChat || undefined, sameHost: !windowQualified };
 }
 
 /**
