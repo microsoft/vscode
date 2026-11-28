@@ -1008,48 +1008,40 @@ export class ViewModel extends Disposable implements IViewModel {
 		modelRanges = modelRanges.slice(0);
 		modelRanges.sort(Range.compareRangesUsingStarts);
 
-		let hasEmptyRange = false;
 		let hasNonEmptyRange = false;
 		for (const range of modelRanges) {
-			if (range.isEmpty()) {
-				hasEmptyRange = true;
-			} else {
+			if (!range.isEmpty()) {
 				hasNonEmptyRange = true;
+				break;
 			}
 		}
 
-		if (!hasNonEmptyRange && !emptySelectionClipboard) {
+		if (!hasNonEmptyRange) {
 			// all ranges are empty
-			return { sourceRanges: [], sourceText: '' };
+			if (!emptySelectionClipboard) {
+				return { sourceRanges: [], sourceText: '' };
+			}
+
+			const ranges: Range[] = [];
+			const result: string[] = [];
+			let prevModelLineNumber = 0;
+			for (const modelRange of modelRanges) {
+				const modelLineNumber = modelRange.startLineNumber;
+				if (modelLineNumber !== prevModelLineNumber) {
+					const lineRange = new Range(modelLineNumber, this.model.getLineMinColumn(modelLineNumber), modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
+					ranges.push(lineRange);
+					result.push(this.model.getValueInRange(lineRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + newLineCharacter);
+				}
+				prevModelLineNumber = modelLineNumber;
+			}
+			return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
 		}
 
 		const ranges: Range[] = [];
 		const result: string[] = [];
-		const pushRange = (modelRange: Range, append: string = '') => {
+		for (const modelRange of modelRanges) {
 			ranges.push(modelRange);
-			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
-		};
-
-		if (hasEmptyRange && emptySelectionClipboard) {
-			// some (maybe all) empty selections
-			let prevModelLineNumber = 0;
-			for (const modelRange of modelRanges) {
-				const modelLineNumber = modelRange.startLineNumber;
-				if (modelRange.isEmpty()) {
-					if (modelLineNumber !== prevModelLineNumber) {
-						pushRange(new Range(modelLineNumber, this.model.getLineMinColumn(modelLineNumber), modelLineNumber, this.model.getLineMaxColumn(modelLineNumber)), newLineCharacter);
-					}
-				} else {
-					pushRange(modelRange);
-				}
-				prevModelLineNumber = modelLineNumber;
-			}
-		} else {
-			for (const modelRange of modelRanges) {
-				if (!modelRange.isEmpty()) {
-					pushRange(modelRange);
-				}
-			}
+			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 
 		return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
