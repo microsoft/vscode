@@ -5,6 +5,8 @@
 
 import { decodeHex } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { posix } from '../../../../base/common/path.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
@@ -142,25 +144,59 @@ function readDevContainerHostPath(config: string): string | undefined {
 	}
 }
 
+/** One of a folder's default Dev Container configuration files, relative to the folder. */
+export type DefaultDevContainerConfigFile = '.devcontainer/devcontainer.json' | '.devcontainer.json';
+
 /**
- * Whether a Dev Containers authority selects the container this window uses for its source folder: the one of the
- * folder's default configuration file on the default Docker host. Only the JSON form of the configuration can name
- * another configuration file or Docker host, with properties besides the host path.
+ * Whether a Dev Containers authority selects the container of a default configuration file of its source folder on the
+ * default Docker host, which this window uses for the folder if the Dev Containers CLI selects that file for the folder.
+ * Only the JSON form of the configuration can name a configuration file or another Docker host. Reopen in Container
+ * names the configuration file it opened. Returns the default configuration file it names, if any, or `undefined` if it
+ * selects another container.
  */
-export function selectsDefaultDevContainer(remoteAuthority: string): boolean {
+export function getDefaultDevContainerSelection(remoteAuthority: string): { readonly configFile: DefaultDevContainerConfigFile | undefined } | undefined {
 	if (!remoteAuthority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX)) {
-		return false;
+		return undefined;
 	}
-	const decoded = decodeDevContainerConfig(splitDevContainerAuthority(remoteAuthority).config);
+	const { config, parentAuthority } = splitDevContainerAuthority(remoteAuthority);
+	const decoded = decodeDevContainerConfig(config);
 	if (!decoded?.startsWith('{')) {
-		return !!decoded;
+		return decoded ? { configFile: undefined } : undefined;
 	}
 	try {
 		const parsed: unknown = JSON.parse(decoded);
-		return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).join() === 'hostPath';
+		if (typeof parsed !== 'object' || parsed === null) {
+			return undefined;
+		}
+		const { hostPath, localDocker, configFile, ...others } = parsed as Record<string, unknown>;
+		if (typeof hostPath !== 'string' || !hostPath || Object.keys(others).length || localDocker) {
+			return undefined;
+		}
+		if (configFile === undefined) {
+			return { configFile: undefined };
+		}
+		const defaultConfigFile = getDefaultConfigFile(hostPath, parentAuthority, configFile);
+		return defaultConfigFile ? { configFile: defaultConfigFile } : undefined;
 	} catch {
-		return false;
+		return undefined;
 	}
+}
+
+/** Which of its folder's default configuration files the configuration file of a Dev Containers authority, a URI as JSON, is. */
+function getDefaultConfigFile(hostPath: string, parentAuthority: string | undefined, configFile: unknown): DefaultDevContainerConfigFile | undefined {
+	const path = typeof configFile === 'object' && configFile !== null ? (configFile as { readonly path?: unknown }).path : undefined;
+	if (typeof path !== 'string') {
+		return undefined;
+	}
+	// Dev Containers names the configuration file of a WSL folder by its Linux path.
+	const wslSource = parentAuthority ? undefined : parseWSLHostPath(hostPath);
+	const folder = wslSource?.path ?? URI.file(hostPath.replace(/\\/g, '/')).path;
+	const ignoreCase = /^\/[a-zA-Z]:\//.test(folder);
+	return (['.devcontainer/devcontainer.json', '.devcontainer.json'] as const)
+		.find(defaultConfigFile => {
+			const defaultPath = posix.join(folder, defaultConfigFile);
+			return ignoreCase ? equalsIgnoreCase(defaultPath, path) : defaultPath === path;
+		});
 }
 
 export function resolveAgentsWindowFolderIntent(workspaceUri: URI | undefined, configurationService: IConfigurationService): IAgentsWindowFolderIntent {

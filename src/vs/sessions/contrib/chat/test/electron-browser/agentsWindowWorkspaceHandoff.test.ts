@@ -345,11 +345,13 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const released: string[] = [];
 		const opened: string[] = [];
 		let running = true;
+		let nestedConfigurationExists = false;
 		const harness = {
 			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<URI | 'unsupported' | undefined>,
 			resolveAndOpenDevContainerSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenDevContainerSession'),
 			openRemoteWindowSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'openRemoteWindowSession'),
 			configurationService,
+			fileService: { exists: async (resource: URI) => nestedConfigurationExists && extUri.isEqual(resource, URI.file('/source/.devcontainer/devcontainer.json')) },
 			workspaceTrustRequestService: { requestResourcesTrust: async () => true },
 			devContainerAgentHostService: {
 				connect: async (folder: URI, _token: CancellationToken, options?: { readonly requireRunning?: boolean }) => {
@@ -375,6 +377,11 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const results = [await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath })))];
 		// The container this window uses doesn't have it, for example when the window uses another agent host in it.
 		results.push(await open(devContainerAuthority(source.fsPath), 'unknown'));
+		// Reopen in Container names the configuration file it opened, which the CLI doesn't select if the other default one exists.
+		const reopenedRoot = devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, localDocker: false, configFile: URI.file('/source/.devcontainer.json').toJSON() }));
+		results.push(await open(reopenedRoot));
+		nestedConfigurationExists = true;
+		results.push(await open(reopenedRoot));
 		// Another configuration file or Docker host may select another container of the folder.
 		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, configFile: URI.file('/source/.devcontainer/other/devcontainer.json').toJSON() }))));
 		results.push(await open(devContainerAuthority(JSON.stringify({ hostPath: source.fsPath, settings: { context: 'remote' } }))));
@@ -382,11 +389,12 @@ suite('Agents Window workspace handoff telemetry', () => {
 		results.push(await open(devContainerAuthority(source.fsPath)));
 		// A volume's container has no source folder.
 		results.push(await open(devContainerAuthority(JSON.stringify({ volumeName: 'project', folder: 'project' }))));
+		const connected = { folder: source.toString(), requireRunning: true };
 		assert.deepStrictEqual({ results, connects, released, opened }, {
-			results: [known.toString(), 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported'],
-			connects: [{ folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }, { folder: source.toString(), requireRunning: true }],
-			released: [source.toString(), source.toString()],
-			opened: [known.toString()],
+			results: [known.toString(), 'unsupported', known.toString(), 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported'],
+			connects: [connected, connected, connected, connected],
+			released: [source.toString(), source.toString(), source.toString()],
+			opened: [known.toString(), known.toString()],
 		});
 	});
 
