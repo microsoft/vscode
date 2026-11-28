@@ -809,6 +809,14 @@ suite('Saved session draft lifecycle', () => {
 		});
 	});
 
+	test('a saved draft keeps its workspace and the folders added to its session across a reload', () => {
+		const { service, storage } = create();
+		const target = { folderUri: URI.file('/repoA'), sessionWorkspaceUri: URI.file('/W.code-workspace'), sessionFolders: [URI.file('/repoA'), URI.file('/repoB')], providerId: 'provider', sessionTypeId: 'agent' };
+		const saved = service.save({ inputText: 'keep this request', attachments: [] }, target);
+		const reloaded = disposables.add(new SavedSessionDrafts(storage)).drafts.get().find(draft => draft.id === saved.id);
+		assert.deepStrictEqual(reloaded?.target, target);
+	});
+
 	test('starting a new composition preserves disabled drafts and does not create empty drafts', () => {
 		const results = [false, true].map(enabled => {
 			const { service } = create(enabled);

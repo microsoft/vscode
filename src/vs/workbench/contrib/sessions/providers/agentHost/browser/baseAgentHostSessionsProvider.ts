@@ -3458,6 +3458,8 @@ interface INewSessionConstructionContext {
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
 	readonly resourceScheme: string;
+	/** Whether the draft's chat can add and remove folders to work in (`ISessionCapabilities.supportsChatFolders`). */
+	readonly supportsChatFolders: IObservable<boolean>;
 	/**
 	 * The URI scheme used to reconstruct this draft's backend (wire) session URI,
 	 * when it differs from the agent provider ({@link sessionType}.id). Defaults to
@@ -3787,7 +3789,12 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: constObservable({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }),
+			capabilities: derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => ({
+				supportsMultipleChats: false,
+				supportsRename: true,
+				supportsDelete: true,
+				...(ctx.supportsChatFolders.read(reader) ? { supportsChatFolders: true } : {}),
+			})),
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -6048,10 +6055,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return workspace;
 		}
 		const workspaceConfig = options.workspaceConfig;
-		const supportsFolders = this._adapterOptions(sessionTypeId).supportsChatFolders && this._agentCapabilities.get()?.get(sessionTypeId)?.multipleWorkingDirectories !== undefined;
+		const supportsFolders = this._supportsChatFolders(sessionTypeId, undefined);
 		const others = supportsFolders ? getSessionWorkingDirectories(workspaceUri, workspaceConfig, options.folders).slice(1) : [];
 		const folders = [...workspace.folders, ...others.flatMap(folder => this.resolveWorkspace(folder)?.folders.slice(0, 1) ?? [])];
 		return { ...workspace, folders, ...(workspaceConfig ? { workspaceConfig } : {}) };
+	}
+
+	/** Whether a session of `sessionTypeId` can work in several folders: its agent can, and so can the provider. */
+	private _supportsChatFolders(sessionTypeId: string, reader: IReader | undefined): boolean {
+		return this._adapterOptions(sessionTypeId).supportsChatFolders === true
+			&& this._agentCapabilities.read(reader)?.get(sessionTypeId)?.multipleWorkingDirectories !== undefined;
 	}
 
 	/**
@@ -6163,6 +6176,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				providerId: this.id,
 				icon: sessionType.icon,
 				resourceScheme,
+				// A quick chat has no workspace, and the host refuses its folders
+				supportsChatFolders: quickChat ? constObservable(false) : derived(reader => this._supportsChatFolders(sessionType.id, reader)),
 				backendSessionScheme: this._backendSessionScheme(sessionType.id),
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,

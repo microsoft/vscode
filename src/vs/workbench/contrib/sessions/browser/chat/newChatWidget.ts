@@ -1618,7 +1618,15 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _trackSavedDraftTarget(): IDisposable {
-		return autorun(reader => {
+		const store = new DisposableStore();
+		// The folders the user adds to or removes from the draft's session change the picker's selection before, or
+		// without, a change of the draft. Another folder or workspace is captured once its draft replaces this one.
+		store.add(this._workspacePicker.onDidChangeSelection(() => {
+			if (this._isDraftSelection()) {
+				this._captureSavedDraftTarget();
+			}
+		}));
+		store.add(autorun(reader => {
 			this._restoringSavedDraft.read(reader);
 			this._savedDraftTargetUnavailable.read(reader);
 			const session = this._session.read(reader);
@@ -1642,7 +1650,17 @@ export class NewChatWidget extends Disposable {
 				}
 			}
 			this._captureSavedDraftTarget();
-		});
+		}));
+		return store;
+	}
+
+	/** Whether the picker selects the folder and workspace of the draft it shows, as opposed to one it will create. */
+	private _isDraftSelection(): boolean {
+		const session = this._session.get();
+		const workspace = session?.workspace.get();
+		const extUri = this.uriIdentityService.extUri;
+		return !!session && extUri.isEqual(this._workspacePicker.selectedFolderUri, workspace?.folders[0]?.root)
+			&& extUri.isEqual(this._workspacePicker.selectedSessionWorkspace?.uri, this._getDraftWorkspaceConfig(session.sessionId, workspace)?.uri);
 	}
 
 	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None, preserveFocus = false): Promise<void> {
@@ -1717,8 +1735,10 @@ export class NewChatWidget extends Disposable {
 			// A workspace whose file can no longer be read keeps only its last known folders: it is not restored
 			const isSavedWorkspace = !!sessionWorkspace && !sessionWorkspace.missing && !!target.sessionWorkspaceUri
 				&& [sessionWorkspace.uri, ...sessionWorkspace.previousUris ?? []].some(uri => extUri.isEqual(uri, target.sessionWorkspaceUri));
+			// Folders added to the draft that its workspace now lists are the workspace's own, and no longer added
+			const restoredFolders = folders ?? (isSavedWorkspace ? sessionWorkspace.folders : undefined) ?? [];
 			if ((target.folderUri && target.sessionWorkspaceUri && !isSavedWorkspace)
-				|| (target.folderUri && target.sessionFolders?.length && !isSameFolderSet(folders ?? [], target.sessionFolders))) {
+				|| (target.folderUri && target.sessionFolders?.length && !isSameFolderSet(restoredFolders, target.sessionFolders))) {
 				throw workspaceUnavailable();
 			}
 			const opened = target.folderUri
@@ -1742,6 +1762,8 @@ export class NewChatWidget extends Disposable {
 				|| !extUri.isEqual(existing.workspaceConfig?.uri, workspaceConfig?.uri);
 			if (target.folderUri
 				? !workspace || !this._workspacePicker.isWorkspaceOfFolder(workspace, target.folderUri) || (restoresSession && !opened?.created && isOtherSession(workspace))
+				// A created draft whose agent no longer works in all of the draft's folders
+				|| (!!opened?.created && !!target.sessionFolders?.length && !isSameFolderSet(workspace.folders.map(folder => folder.root), target.sessionFolders))
 				: !session.isQuickChat?.get()) {
 				throw workspaceUnavailable();
 			}

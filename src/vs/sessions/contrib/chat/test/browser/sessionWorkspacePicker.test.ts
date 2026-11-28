@@ -724,6 +724,14 @@ suite('WorkspacePicker - session folders', () => {
 		return { picker, supported, state, dialogs };
 	}
 
+	test('labels the folder dialog\'s button Add, with its mnemonic for the platform', async () => {
+		const { picker, dialogs } = setupPicker({ picked: undefined });
+		await picker.dispatchFolder(app, 'local-agent-host');
+		await picker.promptForSessionFolders();
+		const label = dialogs[0]?.openLabel;
+		assert.strictEqual(typeof label === 'string' ? label : label?.withoutMnemonic, 'Add');
+	});
+
 	test('adds picked folders to the session of the selected folder or workspace once each, and removes and resets them', async () => {
 		const { picker, state } = setupPicker({ picked: [lib, app, lib] });
 		await picker.dispatchFolder(app, 'local-agent-host');
