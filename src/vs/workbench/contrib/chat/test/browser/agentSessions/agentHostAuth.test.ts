@@ -3705,6 +3705,7 @@ suite('resolveAuthenticationInteractively', () => {
 					telemetrySource: 'agentHost',
 					forceSignInDialog: true,
 					additionalScopes: ['read'],
+					keepMinimalSignIn: true,
 					dialogTitle: 'Sign in to use GitHub Copilot',
 					disableChatViewReveal: true,
 					returnResult: true,

@@ -4,8 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatEntitlement, chatRequiresSetup, IChatSetupRequirement } from '../../common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, chatRequiresSetup, IChatEntitlementContextState, IChatSetupRequirement } from '../../common/chatEntitlementService.js';
 
 suite('chatRequiresSetup', () => {
 
@@ -60,5 +71,49 @@ suite('chatRequiresSetup', () => {
 
 	test('signed out but BYOK models present does not require setup', () => {
 		assert.strictEqual(chatRequiresSetup(context({ completed: false, entitlement: ChatEntitlement.Unknown, hasByokModels: true })), false);
+	});
+});
+
+suite('ChatEntitlementRequests sign in', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards the scope options to the default account sign-in', async () => {
+		const signIns: Parameters<IDefaultAccountService['signIn']>[0][] = [];
+		const requests = disposables.add(new ChatEntitlementRequests(
+			new class extends mock<ChatEntitlementContext>() {
+				override get state(): IChatEntitlementContextState {
+					return { entitlement: ChatEntitlement.Unknown, sku: undefined, organisations: undefined, isStaff: undefined, copilotTrackingId: undefined };
+				}
+				override readonly onDidChange = Event.None;
+				override async update() { }
+			}(),
+			{ clearQuotas() { }, acceptQuotas() { } },
+			NullTelemetryService,
+			new NullLogService(),
+			new class extends mock<IRequestService>() { }(),
+			new class extends mock<IDialogService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<ILifecycleService>() { }(),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override async getDefaultAccount() { return null; }
+				override async signIn(options?: Parameters<IDefaultAccountService['signIn']>[0]) {
+					signIns.push(options);
+					return null;
+				}
+			}(),
+			new class extends mock<IAuthenticationService>() { }(),
+			disposables.add(new InMemoryStorageService()),
+		));
+
+		await requests.signIn({ additionalScopes: ['read:user', 'user:email'], keepMinimalSignIn: true });
+
+		assert.deepStrictEqual(signIns, [{
+			additionalScopes: ['read:user', 'user:email'],
+			keepMinimalSignIn: true,
+			extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
+			provider: undefined,
+		}]);
 	});
 });

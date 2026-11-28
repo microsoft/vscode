@@ -211,7 +211,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		return this.defaultAccount;
 	}
 
-	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
+	async signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null> {
 		await this.initBarrier.wait();
 		return this.defaultAccountProvider?.signIn(options) ?? null;
 	}
@@ -1692,20 +1692,47 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		return `https://github.com/${path}`;
 	}
 
-	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
+	async signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null> {
 		const authProvider = this.getDefaultAccountAuthenticationProvider();
 		if (!authProvider) {
 			throw new Error('No default account provider configured');
 		}
-		const { additionalScopes, ...sessionOptions } = options ?? {};
+		const { additionalScopes, keepMinimalSignIn, ...sessionOptions } = options ?? {};
 		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
-		const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+		let scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+		if (keepMinimalSignIn && additionalScopes?.length) {
+			const minimalScopes = await this.getMinimalSignInScopes(authProvider.id);
+			if (minimalScopes) {
+				this.logService.info('[DefaultAccount] Requesting the scopes of the existing sign-in instead of the default scopes because it was signed in without them');
+				// Unlike the additional scopes alone, these keep the new session usable as the default account's, whichever account signs in.
+				scopes = distinct([...minimalScopes, ...additionalScopes]);
+			}
+		}
 		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
 			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
 		}
 		await this.updateDefaultAccount();
 		return this.defaultAccount;
+	}
+
+	/**
+	 * The accepted scopes of an existing sign-in the default account can use, when the provider has no session that grants
+	 * the default scopes, as after signing in through Settings Sync.
+	 */
+	private async getMinimalSignInScopes(authProviderId: string): Promise<string[] | undefined> {
+		const allScopes = this.defaultAccountConfig.authenticationProvider.scopes;
+		const [defaultScopes, ...minimalScopeSets] = allScopes;
+		try {
+			const sessions = await this.findMatchingProviderSession(authProviderId, allScopes);
+			if (!sessions || sessions.some(session => this.scopesMatch(session.scopes, defaultScopes))) {
+				return undefined;
+			}
+			return minimalScopeSets.find(minimalScopes => sessions.some(session => this.scopesMatch(session.scopes, minimalScopes)));
+		} catch (error) {
+			this.logService.warn('[DefaultAccount] Unable to check the scopes of the existing sign-in; requesting the default scopes', getErrorMessage(error));
+			return undefined;
+		}
 	}
 
 	async signOut(): Promise<void> {

@@ -66,6 +66,7 @@ export interface IChatSetupControllerOptions {
 	readonly useSocialProvider?: string;
 	readonly useEnterpriseProvider?: boolean;
 	readonly additionalScopes?: readonly string[];
+	readonly keepMinimalSignIn?: boolean;
 	readonly forceAnonymous?: ChatSetupAnonymous;
 	readonly cancellationToken?: CancellationToken;
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { distinct } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -31,7 +32,7 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationProvider, IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationProvider, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
@@ -2171,18 +2172,29 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		readonly options: Record<string, unknown>;
 	}
 
-	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}): Promise<ICreateSessionCall[]> {
+	const octocat: AuthenticationSessionAccount = { id: 'octocat-id', label: 'octocat' };
+
+	/**
+	 * Sessions persist after sign-in, and the account preference follows the sign-in like in the product.
+	 * @param signInAccount The account the user signs in with in the browser.
+	 */
+	function createSignInProvider(configuration: Record<string, boolean | string> = {}, sessionsByProvider: Record<string, readonly AuthenticationSession[]> = {}, signInAccount = octocat) {
 		const calls: ICreateSessionCall[] = [];
+		const sessions = new Map(Object.entries(sessionsByProvider).map(([providerId, providerSessions]) => [providerId, [...providerSessions]]));
+		let preferredAccountName: string | undefined;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService(configuration));
 		instantiationService.stub(IAuthenticationService, {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: () => true,
-			getAccounts: async () => [],
-			getSessions: async () => [],
-			createSession: async (_providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
+			getAccounts: async (providerId: string) => distinct((sessions.get(providerId) ?? []).map(session => session.account), account => account.id),
+			getSessions: async (providerId: string, _scopes?: readonly string[], options?: { account?: AuthenticationSessionAccount }) =>
+				(sessions.get(providerId) ?? []).filter(session => !options?.account || session.account.id === options.account.id),
+			createSession: async (providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
 				calls.push({ scopes: [...scopes], options: sessionOptions });
-				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: [...scopes] };
+				const session: AuthenticationSession = { id: `session-${calls.length}`, accessToken: 'token', account: signInAccount, scopes: [...scopes] };
+				sessions.set(providerId, [...(sessions.get(providerId) ?? []), session]);
+				return session;
 			},
 			onDidChangeDeclaredProviders: Event.None,
 			onDidChangeSessions: Event.None,
@@ -2190,8 +2202,8 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			onDidUnregisterAuthenticationProvider: Event.None,
 		});
 		instantiationService.stub(IAuthenticationExtensionsService, {
-			getAccountPreference: () => undefined,
-			updateAccountPreference: () => { },
+			getAccountPreference: () => preferredAccountName,
+			updateAccountPreference: (_extensionId: string, _providerId: string, account: AuthenticationSessionAccount) => { preferredAccountName = account.label; },
 			onDidChangeAccountPreference: Event.None,
 		});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -2208,20 +2220,29 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
-			preferredExtensions: [],
+			preferredExtensions: ['github.copilot-chat'],
 			authenticationProvider: {
 				default: { id: 'github', name: 'GitHub' },
 				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
 				enterpriseProviderConfig: 'github.copilot.advanced.authProvider',
-				scopes: [['read:user', 'user:email', 'repo']],
+				scopes: [['read:user', 'user:email', 'repo'], ['user:email'], ['read:user']],
 			},
 			tokenEntitlementUrl: '',
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
 			mcpRegistryDataUrl: '',
 			managedSettingsUrl: '',
 		}));
+		return { provider, calls };
+	}
+
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}, sessionsByProvider: Record<string, readonly AuthenticationSession[]> = {}): Promise<ICreateSessionCall[]> {
+		const { provider, calls } = createSignInProvider(configuration, sessionsByProvider);
 		await provider.signIn(options);
 		return calls;
+	}
+
+	function session(id: string, scopes: string[]): AuthenticationSession {
+		return { id, accessToken: `${id}-token`, account: octocat, scopes };
 	}
 
 	test('widens the default scopes and never forwards the scope option to the session', async () => {
@@ -2251,6 +2272,37 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+		});
+	});
+
+	test('keeps a minimal sign-in minimal only when asked to', async () => {
+		const settingsSync = session('settings-sync', ['user:email']);
+		const copilot = session('copilot', ['read:user', 'user:email', 'repo']);
+		const agentHost = { additionalScopes: ['read:user', 'user:email'], keepMinimalSignIn: true };
+		assert.deepStrictEqual({
+			minimal: await signIn(agentHost, {}, { github: [settingsSync] }),
+			minimalWithoutOption: await signIn({ additionalScopes: agentHost.additionalScopes }, {}, { github: [settingsSync] }),
+			defaultScopesGranted: await signIn(agentHost, {}, { github: [settingsSync, copilot] }),
+			signedOut: await signIn(agentHost),
+			minimalOnAnotherProvider: await signIn(agentHost, { 'github.copilot.advanced.authProvider': 'github-enterprise' }, { github: [settingsSync] }),
+		}, {
+			// Signed in without the default scopes, for example through Settings Sync: that sign-in's scopes and the requested ones.
+			minimal: [{ scopes: ['user:email', 'read:user'], options: {} }],
+			minimalWithoutOption: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			defaultScopesGranted: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			signedOut: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			// A sign-in to a provider without a session is a new sign-in, which asks for the default scopes.
+			minimalOnAnotherProvider: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+		});
+	});
+
+	test('keeps a default account when a minimal sign-in is authorized with another account', async () => {
+		const { provider, calls } = createSignInProvider({}, { github: [session('settings-sync', ['user:email'])] }, { id: 'hubot-id', label: 'hubot' });
+		const account = await provider.signIn({ additionalScopes: ['repo'], keepMinimalSignIn: true });
+		assert.deepStrictEqual({ calls, account: account?.accountName }, {
+			// The scopes of the existing sign-in make the new session usable as the default account's, whichever account signs in.
+			calls: [{ scopes: ['user:email', 'repo'], options: {} }],
+			account: 'hubot',
 		});
 	});
 
