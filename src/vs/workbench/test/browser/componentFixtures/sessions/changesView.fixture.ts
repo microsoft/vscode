@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -42,7 +42,7 @@ import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHu
 import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangesetFolderFailure, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangesetFolderFailure, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionRepositoryKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import type { IChangesRepository, IChangesRepositoryGroup } from '../../../../contrib/sessions/common/changesRepositories.js';
 import { ChangesViewService } from '../../../../contrib/sessionChanges/browser/changesViewService.js';
 import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
@@ -56,7 +56,10 @@ import { testIWorkspace } from '../../../../../platform/workspace/test/common/te
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
 	readonly changes: readonly ISessionFileChange[];
+	/** The checks of the pull request of the session's first folder, which the Changes show for all repositories. */
 	readonly checks?: readonly IGitHubCICheck[];
+	/** The checks of the pull request of other repositories, by their root, which the Changes show while one is picked. */
+	readonly repositoryChecks?: ReadonlyMap<string, readonly IGitHubCICheck[]>;
 	readonly reviewCommentCounts?: ReadonlyMap<string, number>;
 	readonly agentFeedbackCounts?: ReadonlyMap<string, number>;
 	readonly sectionCollapseState?: IChangesViewSectionCollapseState;
@@ -371,6 +374,8 @@ function createSession(options: IChangesViewFixtureOptions): ITestSessionWithCha
 	// A chat without its own folders shares the session's workspace.
 	const workspace = constObservable(options.repositories ? createRepositoriesWorkspace() : createWorkspace());
 	const chat = new class extends mock<IChat>() {
+		// Whose repository selection the Changes keep
+		override readonly resource = URI.parse('fixture-chat://changes-view');
 		override readonly changes = constObservable(options.changes);
 		override readonly changesets = constObservable(changesets);
 		override readonly workspace = workspace;
@@ -453,13 +458,20 @@ function createCIModel(checks: readonly IGitHubCICheck[] | undefined): GitHubPul
 	}();
 }
 
-function createGitHubService(checks: readonly IGitHubCICheck[] | undefined): IGitHubService {
+function createGitHubService(checks: readonly IGitHubCICheck[] | undefined, repositoryChecks?: ReadonlyMap<string, readonly IGitHubCICheck[]>): IGitHubService {
+	const firstFolderCI = createCIModel(checks);
+	const repositoryCI = new Map([...repositoryChecks ?? []].map(([root, repositoryChecks]) => [root, createCIModel(repositoryChecks)]));
 	return new class extends mock<IGitHubService>() {
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
-		override readonly activeSessionPullRequestCIObs = constObservable(createCIModel(checks));
+		override readonly activeSessionPullRequestCIObs = constObservable(firstFolderCI);
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override getSessionPullRequest(): ReturnType<IGitHubService['getSessionPullRequest']> {
-			return { pullRequestObs: constObservable(undefined), pullRequestCIObs: this.activeSessionPullRequestCIObs, pullRequestReviewThreadsObs: constObservable(undefined) };
+		// As the service: the pull request of the repository the Changes show, else of the session's first folder
+		override getSessionPullRequest(_sessionObs: IObservable<ISession | undefined>, repositoryObs?: IObservable<IChangesRepository | undefined>): ReturnType<IGitHubService['getSessionPullRequest']> {
+			const pullRequestCIObs = derived(reader => {
+				const repository = repositoryObs?.read(reader);
+				return repository && repositoryCI.has(repository.root.toString()) ? repositoryCI.get(repository.root.toString()) : firstFolderCI;
+			});
+			return { pullRequestObs: constObservable(undefined), pullRequestCIObs, pullRequestReviewThreadsObs: constObservable(undefined) };
 		}
 		override createPullRequestModelReference(): ReturnType<IGitHubService['createPullRequestModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestReviewThreadsModelReference(): ReturnType<IGitHubService['createPullRequestReviewThreadsModelReference']> { throw new Error('Not implemented in fixture.'); }
@@ -500,7 +512,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.define(IListService, ListService);
 			reg.define(ISessionChangesService, SessionChangesService);
 			reg.defineInstance(IChangesViewService, changesViewService);
-			reg.defineInstance(IGitHubService, createGitHubService(options.checks));
+			reg.defineInstance(IGitHubService, createGitHubService(options.checks, options.repositoryChecks));
 			reg.defineInstance(IViewDescriptorService, new FixtureViewDescriptorService());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
@@ -591,6 +603,13 @@ const SAMPLE_CHECKS = [
 	createCheck(1004, 'Hygiene', GitHubCheckStatus.Queued),
 	createCheck(1005, 'Compile', GitHubCheckStatus.Completed, GitHubCheckConclusion.Success),
 ];
+
+/** The checks of the vscode-docs pull request, unlike those of vscode's. */
+const DOCS_CHECKS = [
+	createCheck(2001, 'Docs / Markdown Lint', GitHubCheckStatus.Completed, GitHubCheckConclusion.Failure),
+	createCheck(2002, 'Docs / Link Check', GitHubCheckStatus.InProgress),
+];
+const REPOSITORY_CHECKS = new Map([[DOCS_URI.toString(), DOCS_CHECKS]]);
 
 export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	AllSections_List: defineComponentFixture({
@@ -716,6 +735,32 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 			changes: REPOSITORY_CHANGES.slice(0, 3),
 			repositories: { selected: DOCS_URI, failed: DOCS_URI },
 			height: 200,
+		}),
+	}),
+
+	Repositories_ChecksAll: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With all repositories shown, the Checks list the vscode pull request\'s checks: Linux / Unit Tests, Windows / Unit Tests failing, macOS / Smoke Tests, Hygiene and Compile.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES,
+			checks: SAMPLE_CHECKS,
+			repositoryChecks: REPOSITORY_CHECKS,
+			repositories: {},
+			height: 640,
+		}),
+	}),
+
+	Repositories_ChecksOneShown: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With vscode-docs picked, its root row and files show, and the Checks list only the vscode-docs pull request\'s checks: Docs / Markdown Lint failing and Docs / Link Check in progress.'],
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: REPOSITORY_CHANGES,
+			checks: SAMPLE_CHECKS,
+			repositoryChecks: REPOSITORY_CHECKS,
+			repositories: { selected: DOCS_URI },
+			height: 440,
 		}),
 	}),
 
