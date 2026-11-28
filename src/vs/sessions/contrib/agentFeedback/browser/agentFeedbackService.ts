@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange, waitForState } from '../../../../base/common/observable.js';
@@ -26,6 +25,7 @@ import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableS
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatRequestQueueKind, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
@@ -33,7 +33,7 @@ import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/br
 import { ChatOriginKind, IChat, ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
-import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
+import { createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
@@ -707,28 +707,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void> {
 		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId, kind);
-		if (isEqual(sessionResource, AGENT_FEEDBACK_NEW_SESSION_RESOURCE)) {
-			await this.submitFeedback(sessionResource);
-			return;
-		}
-
-		if (!this.isAgentHostSession(sessionResource)) {
-			// Wait for the attachment contribution to update the chat widget's attachment model
-			const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
-			if (widget) {
-				const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
-				const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
-
-				if (!hasAttachment()) {
-					await Event.toPromise(
-						Event.filter(widget.attachmentModel.onDidChange, () => hasAttachment())
-					);
-				}
-			} else {
-				this._logService.error('[AgentFeedback] addFeedbackAndSubmit: no chat widget found for session, feedback may not be submitted correctly', sessionResource.toString());
-			}
-		}
-
 		await this.submitFeedback(sessionResource);
 	}
 
@@ -777,11 +755,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		// For non-agent-host sessions the reactive attachment contribution also
-		// marks submission on send; marking from the helper is idempotent and
-		// covers sessions without that contribution.
-		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
-		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
+		const acceptedItems = this.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
+		if (!acceptedItems.length) {
+			return false;
+		}
+		return this._sendActOnFeedbackRequest(widget, createAgentFeedbackVariableEntry(sessionResource, acceptedItems), options);
 	}
 
 	/**
@@ -794,23 +772,20 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private async _submitAgentHostFeedback(sessionResource: URI, options: ISubmitFeedbackOptions | undefined): Promise<boolean> {
 		const session = this._resolveSession(sessionResource);
 		const targetChat = options?.targetChat ?? (session ? this._getAgentHostFeedbackChat(session).resource : sessionResource);
-		const feedbackIds = options?.feedbackIds ? new Set(options.feedbackIds) : undefined;
-		const acceptedItems = this.getFeedback(sessionResource).filter(item =>
-			item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
-		const createAttachment = () => createAgentFeedbackVariableEntry(sessionResource, acceptedItems, this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource));
-
 		// A widget only matches once it has loaded the chat, so wait for the one of the chat the user looks at.
 		const isFocusedChat = isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, targetChat);
 		const widget = isFocusedChat
 			? await whenChatWidgetForSession(this._chatWidgetService, targetChat)
 			: this._chatWidgetService.getWidgetBySessionResource(targetChat);
+		const feedbackIds = options?.feedbackIds ? new Set(options.feedbackIds) : undefined;
+		const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+			item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
+		if (!acceptedItems.length) {
+			return false;
+		}
+		const attachment = createAgentFeedbackVariableEntry(sessionResource, acceptedItems, this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource));
 		if (widget) {
-			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
-			if (acceptedItems.length) {
-				widget.attachmentModel.delete(attachmentId);
-				widget.attachmentModel.addContext(createAttachment());
-			}
-			return this._sendActOnFeedbackRequest(widget, sessionResource, options, () => widget.attachmentModel.delete(attachmentId));
+			return this._sendActOnFeedbackRequest(widget, attachment, options);
 		}
 
 		const chat = session && [session.mainChat.get(), ...session.chats.get()].find(candidate => isEqual(candidate.resource, targetChat));
@@ -818,13 +793,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			this._logService.error('[AgentFeedback] submitFeedback: no chat found for session', targetChat.toString());
 			return false;
 		}
-		if (!acceptedItems.length) {
-			return false;
-		}
 		try {
 			await this._sessionsManagementService.sendRequestInBackground(session, chat, {
 				query: options?.query ?? '/act-on-feedback',
-				attachedContext: [createAttachment()],
+				attachedContext: [attachment],
 				queue: ChatRequestQueueKind.Queued,
 			});
 		} catch (error) {
@@ -871,20 +843,20 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * If the request is then never sent, or its response fails, the feedback is
 	 * made submittable again.
 	 */
-	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, options?: ISubmitFeedbackOptions, cleanup?: () => void): Promise<boolean> {
+	private _sendActOnFeedbackRequest(widget: IChatWidget, attachment: IAgentFeedbackVariableEntry, options?: ISubmitFeedbackOptions): Promise<boolean> {
 		const submitted = new DeferredPromise<boolean>();
-		const cleanupOnce = cleanup && createSingleCallFunction(cleanup);
+		const sessionResource = attachment.sessionResource;
 		let submittedFeedbackIds: ReadonlySet<string> = new Set();
 
 		widget.acceptInput(options?.query ?? '/act-on-feedback', {
+			preserveInput: true,
+			requestAttachments: [attachment],
 			onRequestAccepted: () => {
-				cleanupOnce?.();
-				submittedFeedbackIds = this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
+				submittedFeedbackIds = this.markFeedbackSubmitted(sessionResource, attachment.feedbackItems.map(item => item.id));
 				options?.onRequestAccepted?.();
 				submitted.complete(true);
 			}
 		}).then(async response => {
-			cleanupOnce?.();
 			submitted.complete(false);
 			// A queued request that is dropped before it runs resolves without a response.
 			if (!response || await hasResponseFailed(response)) {
@@ -892,7 +864,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		}, err => {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-			cleanupOnce?.();
 			submitted.complete(false);
 			this._restoreSubmittedFeedback(sessionResource, submittedFeedbackIds);
 		});

@@ -3955,7 +3955,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._scheduledRequestEdit) {
+		if (this._scheduledRequestEdit && !options?.preserveInput) {
 			const editing = this._scheduledRequestEdit;
 			if (await CopyPasteController.get(this.input.inputEditor)?.finishedPaste() === false || this._scheduledRequestEdit !== editing) {
 				throw new CancellationError();
@@ -4243,7 +4243,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 				savedBeforeSend = true;
-				const attachedContext = this.input.getAttachedContext().asArray();
+				const attachedContext = options.preserveInput ? options.requestAttachments?.slice() ?? [] : this.input.getAttachedContext().asArray();
 				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
 				if (handled) {
 					return;
@@ -4264,7 +4264,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// this input, so callbacks that create another session can retain it.
 		const immediateCommandOptions: IChatSendRequestOptions = {
 			attachedContext: options?.preserveInput
-				? []
+				? options.requestAttachments?.slice() ?? []
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext().asArray() : this.input.getAttachedAndImplicitContext().asArray(),
 		};
 		const immediateCommandResult = this.viewModel.model.hasActiveRequest.get()
@@ -4273,7 +4273,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (immediateCommandResult?.executed) {
 			if (forkPromptSourceInput) {
 				forkPromptSourceInput.clear();
-			} else if (!immediateCommandResult.preserveInput) {
+			} else if (!immediateCommandResult.preserveInput && !options.preserveInput) {
 				this.setInput('');
 			}
 			return;
@@ -4329,16 +4329,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// preserveInput means the input box holds an unrelated draft, so its
 			// attachments belong to that draft and must not be sent with this query.
 			attachedContext: options?.preserveInput
-				? new ChatRequestVariableSet()
+				? new ChatRequestVariableSet(options.requestAttachments?.slice())
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
+		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput, options.requestAttachments);
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear, options.preserveInput)) {
 			return;
 		}
 		const editingViewModel = this.viewModel;
-		const isEditing = editingViewModel.editing;
+		const isEditing = options.preserveInput ? undefined : editingViewModel.editing;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
 		// Capture the inline pickers before `finishedEditing` tears them down.
 		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
@@ -4469,7 +4469,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.input.validateAgentMode();
 
-		if (this.viewModel.model.checkpoint) {
+		if (!options.preserveInput && this.viewModel.model.checkpoint) {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
@@ -4516,7 +4516,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
-				parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities, references: editedReferences },
+				parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities, references: options.requestAttachments && options.preserveInput ? [] : editedReferences },
 				attachedContext: requestInputs.attachedContext.asArray(),
 				resolvedVariables: resolvedImageVariables,
 				noCommandDetection: options?.noCommandDetection,
@@ -4630,11 +4630,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return sent.data.responseCreatedPromise;
 	}
 
-	private _getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): IChatRequestVariableEntry[] {
-		return preserveInput ? [] : this.input.getAttachedContext().asArray();
+	private _getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined, requestAttachments?: readonly IChatRequestVariableEntry[]): IChatRequestVariableEntry[] {
+		return preserveInput ? requestAttachments?.slice() ?? [] : this.input.getAttachedContext().asArray();
 	}
 
-	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined, clearOwnedForkPromptInput?: () => void): Promise<boolean> {
+	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined, clearOwnedForkPromptInput?: () => void, preserveInput?: boolean): Promise<boolean> {
 		const viewModel = this.viewModel;
 		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
@@ -4664,7 +4664,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
 		}
 
-		if (!clearOwnedForkPromptInput) {
+		if (!clearOwnedForkPromptInput && !preserveInput) {
 			this.input.acceptInput(storeToHistory, preserveFocus);
 		}
 		const prompt = parsedRequest.text.slice(commandPart.range.endExclusive).trimStart();

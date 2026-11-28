@@ -98,7 +98,7 @@ export interface IAgentFeedbackSubmittedEvent {
 /** Controls which accepted feedback items are submitted and the request used for them. */
 export interface ISubmitFeedbackOptions {
 	readonly query?: string;
-	/** Selected feedback for Agent Host requests. Other providers submit their complete reactive attachment. */
+	/** Selected feedback for Agent Host requests. Other providers submit all accepted feedback. */
 	readonly feedbackIds?: readonly string[];
 	/**
 	 * The chat to send the request to, when it differs from the feedback's
