@@ -288,11 +288,11 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return this.assertGroupView(location);
 	}
 
-	override applyLayout(layout: EditorGroupLayout): void {
+	override applyLayout(layout: EditorGroupLayout): boolean {
 		if (countEditorGroups(layout.groups) > 1) {
-			return;
+			return false;
 		}
-		super.applyLayout(layout);
+		return super.applyLayout(layout);
 	}
 
 	override createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {

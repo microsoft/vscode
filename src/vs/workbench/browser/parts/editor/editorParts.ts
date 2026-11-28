@@ -1086,8 +1086,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		return this.getPart(group).restoreGroup(group);
 	}
 
-	applyLayout(layout: EditorGroupLayout): void {
-		this.activePart.applyLayout(layout);
+	applyLayout(layout: EditorGroupLayout): boolean {
+		return this.activePart.applyLayout(layout);
 	}
 
 	getLayout(): EditorGroupLayout {

@@ -738,6 +738,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): IDimension { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
+	isZenModeActive(): boolean { return false; }
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
@@ -966,7 +967,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	toggleMaximizeGroup(): void { }
 	hasMaximizedGroup(): boolean { throw new Error('not implemented'); }
 	toggleExpandGroup(): void { }
-	applyLayout(_layout: EditorGroupLayout): void { }
+	applyLayout(_layout: EditorGroupLayout): boolean { return true; }
 	getLayout(): EditorGroupLayout { throw new Error('not implemented'); }
 	setGroupOrientation(_orientation: GroupOrientation): void { }
 	addGroup(_location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }

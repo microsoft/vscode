@@ -1701,6 +1701,26 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.groups.length, 4);
 	});
 
+	test('applyLayout keeps all groups in the grid when an editor of a group that would merge cannot move', async function () {
+		const [part] = await createPart();
+		const split = part.applyLayout({ groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL });
+		const [, second, third] = part.getGroups(GroupsOrder.GRID_APPEARANCE);
+		const movable = createTestFileEditorInput(URI.file('foo/movable'), TEST_EDITOR_INPUT_ID);
+		const unmovable = createTestFileEditorInput(URI.file('foo/unmovable'), TEST_EDITOR_INPUT_ID);
+		await second.openEditor(movable, { pinned: true });
+		await third.openEditor(unmovable, { pinned: true });
+		unmovable.setMoveDisabled('cannot move');
+
+		const merged = part.applyLayout({ groups: [{}], orientation: GroupOrientation.HORIZONTAL });
+
+		assert.deepStrictEqual({ split, merged, groups: part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.editors.map(editor => editor.resource?.path)), gridGroups: part.getLayout().groups.length }, {
+			split: true,
+			merged: false,
+			groups: [[], ['/foo/movable'], ['/foo/unmovable']],
+			gridGroups: 3,
+		});
+	});
+
 	test('getLayout', async function () {
 		const [part] = await createPart();
 

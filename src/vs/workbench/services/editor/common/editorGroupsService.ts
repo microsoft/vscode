@@ -400,8 +400,12 @@ export interface IEditorGroupsContainer {
 
 	/**
 	 * Applies the provided layout by either moving existing groups or creating new groups.
+	 * When the layout has fewer groups, the editors of the other groups move into the last group
+	 * that remains: if one of them cannot move, the groups stay as they are and the user is told why.
+	 *
+	 * @returns whether the layout applied.
 	 */
-	applyLayout(layout: EditorGroupLayout): void;
+	applyLayout(layout: EditorGroupLayout): boolean;
 
 	/**
 	 * Returns an editor layout of the container.
