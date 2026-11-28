@@ -58,6 +58,8 @@ export interface IQuickItem {
 	iconClass?: string;
 	/** Theme color applied to the quick item's icon when the item is not focused. */
 	iconColor?: ThemeColor;
+	/** Theme color applied to the quick item's label and description. */
+	labelColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	/**
@@ -552,6 +554,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * Text shown below the quick pick input.
 	 */
 	prompt: string | undefined;
+
+	/**
+	 * Text shown below the list of items.
+	 */
+	footer: string | undefined;
 
 	/**
 	 * An event that is fired when the value of the quick pick input changes.

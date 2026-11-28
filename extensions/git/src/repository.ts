@@ -1785,7 +1785,7 @@ export class Repository implements Disposable {
 		return undefined;
 	}
 
-	private async getDefaultBranch(): Promise<Branch | undefined> {
+	async getDefaultBranch(): Promise<Branch | undefined> {
 		const defaultRemote = this.getDefaultRemote();
 		if (!defaultRemote) {
 			return undefined;
@@ -1825,6 +1825,14 @@ export class Repository implements Disposable {
 
 		query = { ...query, sort: query?.sort ?? defaultSort };
 		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
+	}
+
+	async getMergedBranches(base: string): Promise<string[]> {
+		return this.run(Operation.GetRefs, () => this.repository.getMergedBranches(base));
+	}
+
+	async getGoneBranches(): Promise<string[]> {
+		return this.run(Operation.GetRefs, () => this.repository.getGoneBranches());
 	}
 
 	async getWorktrees(): Promise<Worktree[]> {

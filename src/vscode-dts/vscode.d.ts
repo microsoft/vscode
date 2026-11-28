@@ -1939,6 +1939,11 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
+		 * The color of the item label and description.
+		 */
+		labelColor?: ThemeColor;
+
+		/**
 		 * A {@link Uri} representing the resource associated with this item.
 		 *
 		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
@@ -13182,6 +13187,11 @@ declare module 'vscode' {
 		 * The prompt is displayed below the input box and above the list of items.
 		 */
 		prompt: string | undefined;
+
+		/**
+		 * Optional text that is displayed below the list of items.
+		 */
+		footer: string | undefined;
 
 		/**
 		 * An event signaling when the value of the filter text has changed.

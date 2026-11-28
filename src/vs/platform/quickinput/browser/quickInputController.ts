@@ -353,6 +353,8 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(tree.tree.onDidChangeContentHeight(() => this.updateLayout()));
 
+		const footer = dom.append(container, $('.quick-input-footer'));
+
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
@@ -472,6 +474,7 @@ export class QuickInputController extends Disposable {
 			okContainer,
 			ok,
 			message,
+			footer,
 			customButtonContainer,
 			customButton,
 			list,
@@ -781,6 +784,7 @@ export class QuickInputController extends Disposable {
 		ui.count.setCount(0);
 		ui.countContainer.style.right = '4px';
 		dom.reset(ui.message);
+		ui.footer.textContent = '';
 		ui.progressBar.stop();
 		ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 		ui.list.setElements([]);
@@ -866,6 +870,7 @@ export class QuickInputController extends Disposable {
 		ui.okContainer.style.display = visibilities.ok ? '' : 'none';
 		ui.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
 		ui.message.style.display = visibilities.message ? '' : 'none';
+		ui.footer.style.display = visibilities.footer ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.displayed = !!visibilities.list;
 		ui.tree.displayed = !!visibilities.tree;

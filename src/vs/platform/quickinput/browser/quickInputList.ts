@@ -495,6 +495,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';
 		}
 		data.icon.style.color = mainItem.iconColor ? asCssVariable(mainItem.iconColor.id) : '';
+		data.entry.style.color = mainItem.labelColor ? asCssVariable(mainItem.labelColor.id) : '';
 
 		// Label
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;

@@ -116,6 +116,7 @@ export interface QuickInputUI {
 	okContainer: HTMLElement;
 	ok: Button;
 	message: HTMLElement;
+	footer: HTMLElement;
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
@@ -143,6 +144,7 @@ export type Visibilities = {
 	visibleCount?: boolean;
 	count?: boolean;
 	message?: boolean;
+	footer?: boolean;
 	list?: boolean;
 	tree?: boolean;
 	ok?: boolean;
@@ -565,6 +567,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
+	private _footer: string | undefined;
 	private _focusEventBufferer = new EventBufferer();
 
 	readonly type = QuickInputType.QuickPick;
@@ -633,6 +636,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set prompt(prompt: string | undefined) {
 		this.noValidationMessage = prompt;
+		this.update();
+	}
+
+	get footer() {
+		return this._footer;
+	}
+
+	set footer(footer: string | undefined) {
+		this._footer = footer;
 		this.update();
 	}
 
@@ -1045,9 +1057,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
 			message: !!this.validationMessage || !!this.prompt,
+			footer: !!this.footer,
 			customButton: this.customButton
 		};
 		this.ui.setVisibilities(visibilities);
+		this.ui.footer.textContent = this.footer ?? '';
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
