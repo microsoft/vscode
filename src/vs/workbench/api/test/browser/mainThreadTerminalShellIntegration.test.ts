@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
 import { DynamicListEventMultiplexer, Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ICommandDetectionCapability, ITerminalCapabilityImplMap, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -41,7 +43,7 @@ suite('MainThreadTerminalShellIntegration', () => {
 		return { instance, data, executed, finished };
 	}
 
-	function createIntegration(instances: ITerminalInstance[]) {
+	function createIntegration(instances: ITerminalInstance[], hasReader = true) {
 		const disposed = store.add(new Emitter<ITerminalInstance>());
 		const events: string[] = [];
 		const terminalService = new class extends mock<ITerminalService>() {
@@ -56,7 +58,10 @@ suite('MainThreadTerminalShellIntegration', () => {
 		};
 		const proxy = new class extends mock<ExtHostTerminalShellIntegrationShape>() {
 			override $shellIntegrationChange() { }
-			override $shellExecutionStart(id: number) { events.push(`${id}:start`); }
+			override async $shellExecutionStart(id: number) {
+				events.push(`${id}:start`);
+				return hasReader;
+			}
 			override $shellExecutionData(id: number, data: string) { events.push(`${id}:data:${data}`); }
 			override $shellExecutionEnd(id: number) { events.push(`${id}:end`); }
 			override $closeTerminal(id: number) { events.push(`${id}:close`); }
@@ -168,4 +173,76 @@ suite('MainThreadTerminalShellIntegration', () => {
 		assert.deepStrictEqual(events, ['1:start', '2:start', '1:data:first', '2:data:second']);
 		assert.deepStrictEqual([first.data.hasListeners(), second.data.hasListeners()], [false, false]);
 	});
+
+	test('data is not sent when the execution has no reader', async () => {
+		const terminal = createTerminal(1);
+		const { events } = createIntegration([terminal.instance], false);
+		const current = command();
+		terminal.executed.fire(current);
+		terminal.data.fire('before reply');
+		await timeout(0);
+		const isListening = terminal.data.hasListeners();
+		terminal.data.fire('after reply');
+		terminal.finished.fire(current);
+		assert.deepStrictEqual({ events, isListening }, { events: ['1:start', '1:end'], isListening: false });
+	});
+
+	test('data is sent once a reader is added to a running execution', async () => {
+		const terminal = createTerminal(1);
+		const { integration, events } = createIntegration([terminal.instance], false);
+		const current = command();
+		terminal.executed.fire(current);
+		await timeout(0);
+		integration.$startSendingExecutionData(1, 1);
+		terminal.data.fire('read');
+		terminal.finished.fire(current);
+		assert.deepStrictEqual(events, ['1:start', '1:data:read', '1:end']);
+	});
+
+	test('a reader added to a previous command does not resume the next command', async () => {
+		const terminal = createTerminal(1);
+		const { integration, events } = createIntegration([terminal.instance], false);
+		const previous = command();
+		terminal.executed.fire(previous);
+		await timeout(0);
+		terminal.finished.fire(previous);
+		const current = command();
+		terminal.executed.fire(current);
+		integration.$startSendingExecutionData(1, 1);
+		await timeout(0);
+		terminal.data.fire('unread');
+		terminal.finished.fire(current);
+		assert.deepStrictEqual(events, ['1:start', '1:end', '1:start', '1:end']);
+	});
+
+	test('a reader added before the reply that reports no reader keeps the data', async () => {
+		const terminal = createTerminal(1);
+		const { integration, events } = createIntegration([terminal.instance], false);
+		const current = command();
+		terminal.executed.fire(current);
+		terminal.data.fire('early');
+		integration.$startSendingExecutionData(1, 1);
+		await timeout(0);
+		terminal.data.fire(' late');
+		terminal.finished.fire(current);
+		assert.deepStrictEqual(events, ['1:start', '1:data:early late', '1:end']);
+	});
+
+	test('continuous data is sent periodically and large data immediately', () => runWithFakedTimers({}, async () => {
+		const terminal = createTerminal(1);
+		const { events } = createIntegration([terminal.instance]);
+		const current = command();
+		terminal.executed.fire(current);
+		for (let i = 0; i < 10; i++) {
+			terminal.data.fire(`${i}`);
+			await timeout(20);
+		}
+		terminal.data.fire('x'.repeat(1024 * 1024));
+		const sentLargeData = events.length;
+		terminal.finished.fire(current);
+		assert.deepStrictEqual({ events: events.map(e => e.slice(0, 20)), sentLargeData }, {
+			events: ['1:start', '1:data:012', '1:data:345', '1:data:678', '1:data:9xxxxxxxxxxxx', '1:end'],
+			sentLargeData: 5,
+		});
+	}));
 });

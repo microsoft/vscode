@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../../common/extHostTypes.js';
 import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 
 function cmdLine(value: string): TerminalShellExecutionCommandLine {
 	return Object.freeze({
@@ -303,6 +303,65 @@ suite('InternalTerminalShellIntegration', () => {
 				{ commandLine, type: 'data', data: `${vsc('C')}foo` },
 				{ commandLine, type: 'end' },
 			]);
+		});
+	});
+
+	suite('execution data requests', () => {
+		let withoutReader: InternalTerminalShellIntegration;
+		let dataRequests: number[];
+
+		setup(() => {
+			withoutReader = store.add(new InternalTerminalShellIntegration(terminal, true, store.add(new Emitter())));
+			dataRequests = [];
+			store.add(si.onDidRequestExecutionData(commandId => dataRequests.push(commandId)));
+			store.add(withoutReader.onDidRequestExecutionData(commandId => dataRequests.push(commandId)));
+		});
+
+		async function end(integration: InternalTerminalShellIntegration, commandLine: string): Promise<void> {
+			await new Promise<void>(r => {
+				store.add(integration.onDidRequestEndExecution(() => r()));
+				integration.endShellExecution(cmdLine(commandLine), 0);
+			});
+		}
+
+		test('starting an execution reports whether it has a reader', async () => {
+			withoutReader.requestNewShellExecution(cmdLine(testCommandLine2), undefined).value.read();
+			const results = [
+				si.startShellExecution(cmdLine(testCommandLine), undefined),
+				withoutReader.startShellExecution(cmdLine(testCommandLine), undefined),
+			];
+			await end(withoutReader, testCommandLine);
+			results.push(withoutReader.startShellExecution(cmdLine(testCommandLine2), undefined));
+			await end(withoutReader, testCommandLine2);
+			await end(si, testCommandLine);
+			deepStrictEqual({ results, dataRequests }, { results: [true, false, true], dataRequests: [] });
+		});
+
+		test('a reader added after the execution started requests its data once', async () => {
+			const hasReader = withoutReader.startShellExecution(cmdLine(testCommandLine), undefined, 7);
+			const execution = withoutReader.currentExecution!.value;
+			execution.read();
+			execution.read();
+			await end(withoutReader, testCommandLine);
+			deepStrictEqual({ hasReader, dataRequests }, { hasReader: false, dataRequests: [7] });
+		});
+
+		test('executions kept after their terminal closed do not retain its shell integration', async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
+			}
+			const kept: TerminalShellExecution[] = [];
+			const closed = (() => {
+				const integration = new InternalTerminalShellIntegration(terminal, true, store.add(new Emitter()));
+				kept.push(integration.requestNewShellExecution(cmdLine(testCommandLine2), undefined).value);
+				integration.startShellExecution(cmdLine(testCommandLine), undefined);
+				kept.push(integration.currentExecution!.value);
+				integration.dispose();
+				return new WeakRef(integration);
+			})();
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+			deepStrictEqual({ kept: kept.length, isRetained: closed.deref() !== undefined }, { kept: 2, isRetained: false });
 		});
 	});
 });

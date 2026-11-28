@@ -96,6 +96,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
 			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e)));
 			shellIntegration.store.add(shellIntegration.onDidRequestChangeShellIntegration(e => this._onDidChangeTerminalShellIntegration.fire(e)));
+			shellIntegration.store.add(shellIntegration.onDidRequestExecutionData(commandId => this._proxy.$startSendingExecutionData(instanceId, commandId)));
 			terminal.shellIntegration = shellIntegration.value;
 		}
 		this._onDidChangeTerminalShellIntegration.fire({
@@ -104,7 +105,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void {
+	public async $shellExecutionStart(instanceId: number, commandId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): Promise<boolean> {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -115,7 +116,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			confidence: commandLineConfidence,
 			isTrusted
 		};
-		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, this._convertCwdToUri(cwd));
+		return this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, this._convertCwdToUri(cwd), commandId) ?? false;
 	}
 
 	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void {
@@ -165,6 +166,10 @@ export class InternalTerminalShellIntegration extends Disposable {
 	private _currentExecutionProperties: IExecutionProperties | undefined;
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
+	/** Whether the main thread sends the data of the current execution. */
+	private _isSendingData = false;
+	/** The main thread's ID of the command that started last. */
+	private _commandId = 0;
 
 
 	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
@@ -182,6 +187,9 @@ export class InternalTerminalShellIntegration extends Disposable {
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 	protected readonly _onDidRequestNewExecution = this._register(new Emitter<string>());
 	readonly onDidRequestNewExecution = this._onDidRequestNewExecution.event;
+	protected readonly _onDidRequestExecutionData = this._register(new Emitter<number>());
+	/** Fires with the main thread's command ID when a reader is added to the running execution. */
+	readonly onDidRequestExecutionData = this._onDidRequestExecutionData.event;
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
@@ -237,7 +245,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 	}
 
 	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
-		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
+		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd, e => this._handleDataStreamCreated(e));
 		const unresolvedCommandLines = splitAndSanitizeCommandLine(commandLine.value);
 		if (unresolvedCommandLines.length > 1) {
 			this._currentExecutionProperties = {
@@ -250,7 +258,18 @@ export class InternalTerminalShellIntegration extends Disposable {
 		return execution;
 	}
 
-	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): undefined {
+	/**
+	 * @param commandId The main thread's ID of the command, it's passed to
+	 * {@link onDidRequestExecutionData}.
+	 * @returns Whether the current execution has a reader and the main thread should keep sending
+	 * its data.
+	 */
+	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined, commandId = 0): boolean {
+		// The main thread sends the data of a new command until it gets this method's result, so
+		// readers added during the start event don't need to request the data.
+		this._isSendingData = true;
+		this._commandId = commandId;
+
 		// Since an execution is starting, fire the end event for any execution that is awaiting to
 		// end. When this happens it means that the data stream may not be flushed and therefore may
 		// fire events after the end event.
@@ -265,7 +284,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 				const subExecutionResult = isSubExecution(this._currentExecutionProperties.unresolvedCommandLines, commandLine);
 				if (subExecutionResult) {
 					this._currentExecutionProperties.unresolvedCommandLines = subExecutionResult.unresolvedCommandLines;
-					return;
+					return this._updateIsSendingData();
 				}
 			}
 			this._currentExecution.endExecution(undefined);
@@ -307,11 +326,25 @@ export class InternalTerminalShellIntegration extends Disposable {
 		// If there is no execution, create a new one
 		if (!currentExecution) {
 			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
-			currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
+			currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd, e => this._handleDataStreamCreated(e));
 		}
 
 		this._currentExecution = currentExecution;
 		this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value });
+		return this._updateIsSendingData();
+	}
+
+	private _updateIsSendingData(): boolean {
+		this._isSendingData = !!this._currentExecution?.hasReader;
+		return this._isSendingData;
+	}
+
+	private _handleDataStreamCreated(execution: InternalTerminalShellExecution): void {
+		// Executions that haven't started yet report their reader when they start
+		if (execution === this._currentExecution && !this._isSendingData) {
+			this._isSendingData = true;
+			this._onDidRequestExecutionData.fire(this._commandId);
+		}
 	}
 
 	emitData(data: string): void {
@@ -371,6 +404,15 @@ export class InternalTerminalShellIntegration extends Disposable {
 	private _fireChangeEvent() {
 		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
+
+	override dispose(): void {
+		// The terminal can close while executions are running or pending
+		this._currentExecution?.releaseShellIntegration();
+		for (const execution of this._pendingExecutions) {
+			execution.releaseShellIntegration();
+		}
+		super.dispose();
+	}
 }
 
 class InternalTerminalShellExecution {
@@ -382,6 +424,7 @@ class InternalTerminalShellExecution {
 	constructor(
 		private _commandLine: vscode.TerminalShellExecutionCommandLine,
 		readonly cwd: URI | undefined,
+		private _onDidCreateDataStream: ((execution: InternalTerminalShellExecution) => void) | undefined,
 	) {
 		const that = this;
 		this.value = {
@@ -397,12 +440,18 @@ class InternalTerminalShellExecution {
 		};
 	}
 
+	get hasReader(): boolean {
+		return !!this._dataStream;
+	}
+
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
 			if (this._isEnded) {
 				return AsyncIterableObject.EMPTY;
 			}
 			this._dataStream = new ShellExecutionDataStream();
+			this._onDidCreateDataStream?.(this);
+			this._onDidCreateDataStream = undefined;
 		}
 		return this._dataStream.createIterable();
 	}
@@ -419,6 +468,15 @@ class InternalTerminalShellExecution {
 		}
 		this._dataStream?.endExecution();
 		this._isEnded = true;
+		this.releaseShellIntegration();
+	}
+
+	/**
+	 * Stops reporting readers to the shell integration. Executions can outlive the shell
+	 * integration when an extension keeps them, so they must not retain it.
+	 */
+	releaseShellIntegration(): void {
+		this._onDidCreateDataStream = undefined;
 	}
 
 	async flush(): Promise<void> {
