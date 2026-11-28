@@ -46,7 +46,7 @@ function _throttle<T>(fn: Function, key: string): Function {
 		}
 
 		if (this[currentKey]) {
-			this[nextKey] = done(this[currentKey]).then(() => {
+			this[nextKey] = done(this[currentKey]).catch(() => undefined).then(() => {
 				this[nextKey] = undefined;
 				return trigger.apply(this, args);
 			});
