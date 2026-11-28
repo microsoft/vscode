@@ -14585,7 +14585,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const workingDirectory of sessionWorkingDirectories) {
 			meta = withWorkingDirectoryKey({ ...meta, [SESSION_META_WORKING_DIRECTORY_KEY_POLICY_KEY]: HOST_WORKING_DIRECTORY_KEY_POLICY }, workingDirectory);
 		}
-		if (meta !== state?._meta) {
+		if (!equals(meta, state?._meta)) {
 			this._stateManager.setSessionMeta(session, meta);
 		}
 		return { ...action, config: { ...action.config, [SessionConfigKey.AgentMergeFolders]: folders } };

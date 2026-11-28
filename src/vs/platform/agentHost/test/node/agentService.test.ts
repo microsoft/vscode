@@ -8556,6 +8556,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('does not republish unchanged session metadata for a client\'s Agent Merge write', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+			const stateManager = getStateManager(svc);
+			const setSessionMeta = stateManager.setSessionMeta;
+			let metaPublishes = 0;
+			stateManager.setSessionMeta = (resource, meta) => {
+				metaPublishes++;
+				setSessionMeta.call(stateManager, resource, meta);
+			};
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMergeFolders]: { [URI.file('/repo').toString()]: { enabled: true } } },
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({ rejectionReason: envelope.rejectionReason, metaPublishes }, { rejectionReason: undefined, metaPublishes: 0 });
+		});
+
 		test('accepts a client\'s Agent Merge write for a repository found in a session folder', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
