@@ -186,6 +186,7 @@ export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntr
 
 export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
 	kind: 'file';
+	readonly snapshot?: { readonly data: string; readonly contentType: string; readonly selection?: IRange };
 }
 
 export const enum OmittedState {

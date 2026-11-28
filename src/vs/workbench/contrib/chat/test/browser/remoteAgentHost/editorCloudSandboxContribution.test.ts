@@ -2122,14 +2122,16 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { created: 0, sent: [], commits: [], aliases: [], deleted: ['new-task'] });
 	});
 
-	test('discovered Cloud sessions advertise image attachments without local file attachments', async () => {
+	test('Cloud drafts, task conversations and discovered sessions support submitting device files', async () => {
 		const h = createHarness(store);
 		await h.refresh();
-		const capabilities = h.contributions.get(sessionType)?.capabilities;
-		assert.deepStrictEqual({
-			files: capabilities?.supportsFileAttachments,
-			images: capabilities?.supportsImageAttachments,
-		}, { files: undefined, images: true });
+		for (const type of [CLOUD_SANDBOX_SESSION_TYPE, CLOUD_SANDBOX_TASK_SCHEME, sessionType]) {
+			const contribution = h.contributions.get(type);
+			assert.ok(contribution?.requiresEmbeddedFileAttachments);
+			if (type !== CLOUD_SANDBOX_SESSION_TYPE) {
+				assert.ok(contribution.capabilities?.supportsFileAttachments && contribution.capabilities.supportsImageAttachments);
+			}
+		}
 	});
 
 	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {
@@ -2794,6 +2796,7 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
 		const attachedImage = upcastPartial<IChatRequestVariableEntry>({ kind: 'image', id: 'attached-image', name: 'logo.png' });
+		const deviceFile: IChatRequestVariableEntry = { kind: 'file', id: 'device-file', name: 'export.csv', value: URI.file('/Downloads/export.csv') };
 		const expandedImage = upcastPartial<IChatRequestVariableEntry>({ kind: 'image', id: 'directory-image', name: 'screenshot.png' });
 		const instructions = upcastPartial<IChatRequestVariableEntry>({ kind: 'promptText', id: 'instructions', name: 'copilot-instructions.md' });
 		const result = await h.startDraft('Fix the build', {
@@ -2802,7 +2805,7 @@ suite('Editor cloud sandbox discovery', () => {
 			model: `${CLOUD_SANDBOX_SESSION_TYPE}:gpt-5`,
 			attachedContext: [attachedImage],
 			// Images expanded from a directory attachment reach the agent request but not the attached context.
-			variables: [attachedImage, expandedImage, instructions],
+			variables: [attachedImage, expandedImage, deviceFile, instructions],
 		});
 		const newResource = cloudSandboxTaskResource(created.taskId);
 		assert.deepStrictEqual({
@@ -2829,7 +2832,7 @@ suite('Editor cloud sandbox discovery', () => {
 			aliases: [{ draft: draft.toString(), session: newResource.toString() }],
 			commits: [{ draft: draft.toString(), session: newResource.toString() }],
 			// The environment's own participant runs the turn, with the draft's picks.
-			sends: [{ session: newResource.toString(), message: 'Fix the build', agent: sessionType, mode: ChatModeKind.Agent, model: `${CLOUD_SANDBOX_SESSION_TYPE}:gpt-5`, attached: ['attached-image'], resolved: ['directory-image'] }],
+			sends: [{ session: newResource.toString(), message: 'Fix the build', agent: sessionType, mode: ChatModeKind.Agent, model: `${CLOUD_SANDBOX_SESSION_TYPE}:gpt-5`, attached: ['attached-image'], resolved: ['directory-image', 'device-file'] }],
 		});
 		h.controllers.get(CLOUD_SANDBOX_TASK_SCHEME)?.notifySessionMaterialized?.(newResource);
 		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);

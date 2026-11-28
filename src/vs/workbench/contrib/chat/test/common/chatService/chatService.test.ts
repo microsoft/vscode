@@ -15,6 +15,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ManagedSettingsData } from '../../../../../../base/common/policy.js';
 import { autorun, constObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -91,6 +92,8 @@ import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart } from '../.
 import { NullLanguageModelsService } from '../languageModels.js';
 import { ICanvasContext } from '../../../../canvases/common/canvas.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { ILanguageModelIgnoredFilesService } from '../../../common/ignoredFiles.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -1113,6 +1116,38 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(model.getRequests().map(request => ({
 			text: request.message.text, attachments: request.variableData.variables,
 		})), [{ text: '', attachments: [attachment] }]);
+	});
+
+	test('captures device file contents before accepting a cloud request or queueing its follow-up', async () => {
+		const sessions = new MockChatSessionsService();
+		const type = 'cloud-sandbox-task';
+		sessions.setContributions([{ type, name: type, displayName: type, description: '', requiresEmbeddedFileAttachments: true }]);
+		testDisposables.add(sessions.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async resource => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+		}));
+		instantiationService.stub(IChatSessionsService, sessions);
+		instantiationService.stub(ITextFileService, { files: upcastPartial<ITextFileEditorModelManager>({ get: () => undefined }) });
+		instantiationService.stub(ILanguageModelIgnoredFilesService, { fileIsIgnored: async () => false });
+		const service = createChatService();
+		const resource = URI.from({ scheme: type, path: '/task' });
+		const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		const uri = URI.file('/Downloads/export.csv');
+		const attachment: IChatRequestVariableEntry = { kind: 'file', id: 'csv', name: 'export.csv', value: uri };
+		await testFileService.writeFile(uri, VSBuffer.fromString('a,b'));
+		const first = await service.sendRequest(resource, 'read', { attachedContext: [attachment] });
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await testFileService.writeFile(uri, VSBuffer.fromString('x,y'));
+		await service.sendRequest(resource, 'read again', { attachedContext: [attachment], queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.deepStrictEqual([
+			ref.object.getRequests()[0].variableData.variables,
+			ref.object.getPendingRequests()[0].request.variableData?.variables,
+		], [
+			[{ ...attachment, snapshot: { data: 'YSxi', contentType: 'text/csv' } }],
+			[{ ...attachment, snapshot: { data: 'eCx5', contentType: 'text/csv' } }],
+		]);
 	});
 
 	test('sendRequest rejects empty message without explicit file attachment', async () => {

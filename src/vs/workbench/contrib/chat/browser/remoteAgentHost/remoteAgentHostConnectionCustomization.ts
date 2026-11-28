@@ -40,6 +40,8 @@ export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, tok
  * host-agnostic remote-agent-host contribution. Connections with no customization are unaffected.
  */
 export interface IRemoteAgentHostConnectionCustomization {
+	/** The managed host needs submitted device files inline instead of reverse resource reads. */
+	readonly requiresEmbeddedFileAttachments?: boolean;
 	/** Whether this managed connection requires workspace trust. Defaults to true. */
 	readonly requiresWorkspaceTrust?: boolean;
 

@@ -443,6 +443,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				supportsDelegation: false,
 				requiresCustomModels: true,
 				supportsAutoModel: true,
+				requiresEmbeddedFileAttachments: true,
 			}));
 			// Drafts pick from the shared cloud catalog under this type's own identifiers; the
 			// environment they bind to accepts those identifiers as aliases of its own.
@@ -589,8 +590,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			requiresCustomModels: true,
 			supportsAutoModel: true,
 			agentHostProviderId: CLOUD_SANDBOX_AGENT_PROVIDER,
+			requiresEmbeddedFileAttachments: true,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsFileAttachments: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
 				get terminalCommandPrefix() { return provider.terminalCommandPrefix; },
@@ -761,8 +764,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				userSelectedModelId: request.userSelectedModelId,
 				userSelectedModelConfiguration: request.modelConfiguration,
 				attachedContext,
-				// Images the widget expanded from directory attachments only exist on the resolved request.
-				resolvedVariables: request.variables.variables.filter(entry => isImageVariableEntry(entry) && !attachedContext.some(attached => attached.id === entry.id)),
+				// Expanded images and resolved file attachments may only exist on the original agent request.
+				resolvedVariables: request.variables.variables.filter(entry => (isImageVariableEntry(entry) || entry.kind === 'file') && !attachedContext.some(attached => attached.id === entry.id)),
 			});
 			if (result.kind === 'rejected') {
 				const error = localize('cloudSandbox.requestRejected', "The cloud session did not accept the request: {0}", result.reason);

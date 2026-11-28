@@ -60,7 +60,8 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isChatRequestFileEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatFileAttachmentSnapshots } from '../attachments/chatFileAttachmentSnapshots.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -1671,6 +1672,12 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
+		if ((options?.attachedContext?.some(isChatRequestFileEntry) || options?.resolvedVariables?.some(isChatRequestFileEntry)) && this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.requiresEmbeddedFileAttachments) {
+			const attached = options.attachedContext ?? [];
+			const snapshots = await this.instantiationService.createInstance(ChatFileAttachmentSnapshots).prepare([...attached, ...(options.resolvedVariables ?? [])], CancellationToken.None);
+			options = { ...options, attachedContext: options.attachedContext && snapshots.slice(0, attached.length), resolvedVariables: options.resolvedVariables && snapshots.slice(attached.length) };
+		}
+
 		const isEligibleRequest = (request: IChatRequestModel) => !request.isSystemInitiated && !request.isHiddenFromTranscript;
 		const startsNewSession = !model.getRequests().some(isEligibleRequest)
 			&& !model.getPendingRequests().some(pending => isEligibleRequest(pending.request));
@@ -1808,7 +1815,7 @@ export class ChatService extends Disposable implements IChatService {
 		try {
 			const parsedRequest = this.parseChatRequest(untitledResource, request, options?.location ?? untitledModel.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
-			const requestText = getPromptText(parsedRequest).message;
+			const requestText = getPromptText(parsedRequest, options?.attachedContext).message;
 
 			// Snapshot the untitled session's options up front: they seed
 			// `createNewChatSessionItem` below and are pushed onto the real session
@@ -2146,7 +2153,7 @@ export class ChatService extends Disposable implements IChatService {
 						variableData = { variables: [...variableData.variables, ...options.resolvedVariables] };
 					}
 
-					const promptTextResult = getPromptText(request.message);
+					const promptTextResult = getPromptText(request.message, variableData.variables);
 					variableData = updateRanges(variableData, promptTextResult); // TODO bit of a hack
 					const message = promptTextResult.message;
 
@@ -2631,7 +2638,7 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 
-			const promptTextResult = getPromptText(request.message);
+			const promptTextResult = getPromptText(request.message, request.variableData.variables);
 			const historyRequest: IChatAgentRequest = {
 				sessionResource: request.session.sessionResource,
 				requestId: request.id,

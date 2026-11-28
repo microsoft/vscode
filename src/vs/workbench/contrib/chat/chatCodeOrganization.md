@@ -40,6 +40,10 @@ The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all use
 
 `AgentHostSessionHandler` listens for a local `chat/turnStarted` rejection before dispatch, including while subscription updates are buffered, and reports the reason through the normal failed-request UI. The prompt and error remain in the live transcript, including across history refreshes, without restoring text over a newer composer draft. Rejected requests are not added to the host's accepted turn history.
 
+## Cloud sandbox file attachments
+
+Cloud sandbox sessions use the core file picker. At submission, [ChatFileAttachmentSnapshots](./common/attachments/chatFileAttachmentSnapshots.ts) captures explicitly attached device files as bytes (only the selected text for a selection). Initial and queued messages use the same preparation. The Agent Host handler sends these files as AHP embedded resources; host files remain URI references and images retain their existing handling. Device file snapshots share a 16 MiB budget per message. Excluded, unreadable, or oversized device files fail preparation rather than leaving the agent with a client-only path.
+
 ## Subagent file references
 
 `RunSubagentTool` forwards file references as standalone `codeblockUri` response parts, with their subagent invocation ID, rather than opening a shared Markdown fence. The annotation pass keeps this metadata on an independent render part; the Markdown and list renderers use it to create file pills and route each to its owning subagent. Standalone references do not interrupt parent Markdown. Inline code-block annotations remain boundaries when merging streamed Markdown.

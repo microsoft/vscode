@@ -50,13 +50,20 @@ export interface IChatPromptText {
 	readonly rangeEdits?: readonly { readonly range: IOffsetRange; readonly newLength: number }[];
 }
 
-export function getPromptText(request: IParsedChatRequest): IChatPromptText {
-	const untrimmedMessage = request.parts.map(r => r.promptText).join('');
+export function getPromptText(request: IParsedChatRequest, attachments?: readonly IChatRequestVariableEntry[]): IChatPromptText {
+	const rangeEdits: { range: IOffsetRange; newLength: number }[] = [];
+	const untrimmedMessage = request.parts.map(part => {
+		const snapshot = part instanceof ChatRequestDynamicVariablePart && (part.isAttachmentReference || part.isFile)
+			? attachments?.find(entry => entry.kind === 'file' && entry.snapshot && entry.id === part.id)
+			: undefined;
+		const text = snapshot ? snapshot.name.replace(/[\r\n]/g, ' ') : part.promptText;
+		if (text !== part.text) {
+			rangeEdits.push({ range: part.range, newLength: text.length });
+		}
+		return text;
+	}).join('');
 	const message = untrimmedMessage.trimStart();
 	const diff = request.text.length - message.length;
-	const rangeEdits = request.parts
-		.filter(part => part.promptText !== part.text)
-		.map(part => ({ range: part.range, newLength: part.promptText.length }));
 
 	return rangeEdits.length
 		? { message, diff, leadingTrim: untrimmedMessage.length - message.length, rangeEdits }
