@@ -1020,7 +1020,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const keybindings: { [commandId: string]: string } = Object.create(null);
 		for (const commandId of browserViewContextMenuCommands) {
 			const binding = this.keybindingService.lookupKeybinding(commandId);
-			const accelerator = binding?.getElectronAccelerator();
+			const accelerator = binding?.getElectronMenuAccelerator();
 			if (accelerator) {
 				keybindings[commandId] = accelerator;
 			}

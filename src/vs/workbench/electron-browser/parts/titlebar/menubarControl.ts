@@ -195,7 +195,7 @@ export class NativeMenubarControl extends MenubarControl {
 		}
 
 		// first try to resolve a native accelerator
-		const electronAccelerator = binding.getElectronAccelerator();
+		const electronAccelerator = binding.getElectronMenuAccelerator();
 		if (electronAccelerator) {
 			return { label: electronAccelerator, userSettingsLabel: binding.getUserSettingsLabel() ?? undefined };
 		}

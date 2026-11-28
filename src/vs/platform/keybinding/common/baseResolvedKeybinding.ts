@@ -31,6 +31,14 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 	}
 
 	public getElectronAccelerator(): string | null {
+		return this._toElectronAccelerator(keybinding => this._getElectronAccelerator(keybinding));
+	}
+
+	public getElectronMenuAccelerator(): string | null {
+		return this._toElectronAccelerator(keybinding => this._getElectronMenuAccelerator(keybinding));
+	}
+
+	private _toElectronAccelerator(getChordAccelerator: (keybinding: T) => string | null): string | null {
 		if (this._chords.length > 1) {
 			// [Electron Accelerators] Electron cannot handle chords
 			return null;
@@ -40,7 +48,7 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 			// e.g. "shift shift"
 			return null;
 		}
-		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._chords, (keybinding) => this._getElectronAccelerator(keybinding));
+		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._chords, getChordAccelerator);
 	}
 
 	public getUserSettingsLabel(): string | null {
@@ -81,6 +89,9 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
 	protected abstract _getElectronAccelerator(keybinding: T): string | null;
+	protected _getElectronMenuAccelerator(keybinding: T): string | null {
+		return this._getElectronAccelerator(keybinding);
+	}
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getChordDispatch(keybinding: T): string | null;

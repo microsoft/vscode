@@ -252,6 +252,12 @@ export abstract class ResolvedKeybinding {
 	 */
 	public abstract getElectronAccelerator(): string | null;
 	/**
+	 * This prints the binding in a format suitable for accelerators of electron's native menus.
+	 * Unlike {@link getElectronAccelerator}, it may use layout-dependent characters, which
+	 * native menus match but which cannot preserve physical key/modifier matching for global shortcuts.
+	 */
+	public abstract getElectronMenuAccelerator(): string | null;
+	/**
 	 * This prints the binding in a format suitable for user settings.
 	 */
 	public abstract getUserSettingsLabel(): string | null;

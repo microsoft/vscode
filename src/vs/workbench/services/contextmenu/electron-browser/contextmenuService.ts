@@ -297,7 +297,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 			const keybinding = delegate.getKeyBinding ? delegate.getKeyBinding(entry) : this.keybindingService.lookupKeybinding(entry.id);
 			if (keybinding) {
-				const electronAccelerator = keybinding.getElectronAccelerator();
+				const electronAccelerator = keybinding.getElectronMenuAccelerator();
 				if (electronAccelerator) {
 					item.accelerator = electronAccelerator;
 				} else {

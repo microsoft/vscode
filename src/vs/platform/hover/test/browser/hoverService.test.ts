@@ -61,6 +61,7 @@ suite('HoverService', () => {
 					getLabel() { return ''; },
 					getAriaLabel() { return ''; },
 					getElectronAccelerator() { return null; },
+					getElectronMenuAccelerator() { return null; },
 					getUserSettingsLabel() { return null; },
 					isWYSIWYG() { return false; },
 					hasMultipleChords() { return false; },
