@@ -45,6 +45,44 @@ suite('Resources', () => {
 		assert.strictEqual(distinct[0].toString(), resources[0].toString());
 		assert.strictEqual(distinct[1].toString(), resources[3].toString());
 		assert.strictEqual(distinct[2].toString(), resources[4].toString());
+
+		// Duplicates
+		resources = [
+			URI.file('/some/folderA/file.txt'),
+			URI.file('/some/folderA/file.txt'),
+			URI.file('/some/folderB/file.txt')
+		];
+
+		distinct = distinctParents(resources, r => r);
+		assert.strictEqual(distinct.length, 2);
+		assert.strictEqual(distinct[0].toString(), resources[0].toString());
+		assert.strictEqual(distinct[1].toString(), resources[2].toString());
+
+		// Multiple duplicates and children
+		resources = [
+			URI.file('/some/folderA'),
+			URI.file('/some/folderA'),
+			URI.file('/some/folderA/child.txt'),
+			URI.file('/some/folderB/file.txt'),
+			URI.file('/some/folderB/file.txt')
+		];
+
+		distinct = distinctParents(resources, r => r);
+		assert.strictEqual(distinct.length, 2);
+		assert.strictEqual(distinct[0].toString(), resources[0].toString());
+		assert.strictEqual(distinct[1].toString(), resources[3].toString());
+
+		// Case-insensitive duplicates with custom uriHelper
+		resources = [
+			URI.file('/some/folderA/file.txt'),
+			URI.file('/some/FOLDERA/file.txt'),
+			URI.file('/some/folderB/file.txt')
+		];
+
+		distinct = distinctParents(resources, r => r, extUriIgnorePathCase);
+		assert.strictEqual(distinct.length, 2);
+		assert.strictEqual(distinct[0].toString(), resources[0].toString());
+		assert.strictEqual(distinct[1].toString(), resources[2].toString());
 	});
 
 	test('dirname', () => {

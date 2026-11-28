@@ -390,7 +390,7 @@ export const addTrailingPathSeparator = extUri.addTrailingPathSeparator.bind(ext
 
 //#endregion
 
-export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
+export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI, uriHelper: IExtUri = extUri): T[] {
 	const distinctParents: T[] = [];
 	for (let i = 0; i < items.length; i++) {
 		const candidateResource = resourceAccessor(items[i]);
@@ -399,7 +399,12 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 				return false;
 			}
 
-			return isEqualOrParent(candidateResource, resourceAccessor(otherItem));
+			const otherResource = resourceAccessor(otherItem);
+			if (uriHelper.isEqual(candidateResource, otherResource)) {
+				return index < i;
+			}
+
+			return uriHelper.isEqualOrParent(candidateResource, otherResource);
 		})) {
 			continue;
 		}
