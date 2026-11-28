@@ -2784,6 +2784,7 @@ suite('RunInTerminalTool', () => {
 		} as unknown as ITerminalInstance;
 
 		const previousModelId = 'claude-opus-4-8';
+		const previousModelConfiguration = { contextSize: 1_000_000, reasoningEffort: 'high' };
 		const previousTools = { tool1: true };
 		const previousModeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
@@ -2792,7 +2793,7 @@ suite('RunInTerminalTool', () => {
 			telemetryModeId: 'agent',
 			applyCodeBlockSuggestionId: undefined,
 		};
-		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousRequest = { modelId: previousModelId, modelConfiguration: previousModelConfiguration, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2827,6 +2828,7 @@ suite('RunInTerminalTool', () => {
 		const options = await sendBackgroundCompletionNotification('local-agent');
 
 		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		deepStrictEqual(options?.userSelectedModelConfiguration, { contextSize: 1_000_000, reasoningEffort: 'high' }, 'Completion notification should keep the conversation model configuration instead of falling back to the model defaults');
 		strictEqual(options?.agentIdSilent, 'local-agent', 'Completion notification should continue with the previous request agent');
 		strictEqual(options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
 		strictEqual(options?.instructionContext?.enabledTools?.tool1, true, 'Completion notification should collect instructions for the previous tools');
