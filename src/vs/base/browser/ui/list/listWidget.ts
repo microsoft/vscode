@@ -2049,6 +2049,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.domNode;
 	}
 
+	getUserSelectionText(): string {
+		return this.view.getUserSelectionText();
+	}
+
 	getScrollableElement(): HTMLElement {
 		return this.view.scrollableElementDomNode;
 	}

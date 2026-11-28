@@ -695,6 +695,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.getHTMLElement();
 	}
 
+	getUserSelectionText(): string {
+		return this.tree.getUserSelectionText();
+	}
+
 	get contentHeight(): number {
 		return this.tree.contentHeight;
 	}
