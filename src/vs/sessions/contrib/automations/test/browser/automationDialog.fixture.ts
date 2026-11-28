@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { ISessionWorkspacesService } from '../../../../../workbench/contrib/sessions/common/sessionWorkspaces.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -78,6 +79,9 @@ function renderAutomationForm({ container, disposableStore, theme }: ComponentFi
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
+			}());
+			registration.defineInstance(ISessionWorkspacesService, new class extends mock<ISessionWorkspacesService>() {
+				override readonly workspaces = constObservable([]);
 			}());
 			registration.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;

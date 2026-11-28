@@ -26,7 +26,7 @@ import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.
 import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
-import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation, IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -35,6 +35,16 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
 import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+
+/**
+ * A title action view item that knows the width it needs because it does not shrink, such as a split button with a label.
+ */
+interface IActionViewItemWithMinimumWidth extends IActionViewItem {
+	getMinimumWidth(): number | undefined;
+}
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -80,6 +90,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
+	/** The widths split buttons last reported, which the title toolbar uses while a button is in the overflow. */
+	private splitButtonMinWidths = new WeakMap<SubmenuItemAction, number>();
+	/** The split buttons whose live view item last reported its own width, which the title toolbar moves into the overflow last. */
+	private readonly selfSizingSplitButtonIds = new Set<string>();
+	private readonly splitButtonRefit = this._register(new Delayer<void>(MicrotaskDelay));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	constructor(
@@ -147,6 +162,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.onDidChangeActivityBarLocation();
 			}
 		}));
+
+		this._register(keybindingService.onDidUpdateKeybindings(() => this.remeasureSplitButtons()));
 	}
 
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
@@ -167,9 +184,75 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			kind: 'all',
 			minItems: 0,
 			overflowFrom: 'start',
+			overflowsLast: action => this.selfSizingSplitButtonIds.has(action.id),
 			actionMinWidth: 22,
-			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? this.getSplitButtonMinWidth(action) : undefined,
 		};
+	}
+
+	/**
+	 * The width a split button reports for itself, so that it moves into the overflow whole before it covers its neighbors,
+	 * or 36px. While the button is in the overflow it has no view item to ask, so its last reported width is used. When the
+	 * button comes back or is shown and reports another width, such as after the theme or zoom changed, the toolbar is
+	 * fitted again.
+	 */
+	private getSplitButtonMinWidth(action: SubmenuItemAction): number {
+		const toolBar = this.toolBar;
+		for (let index = 0; toolBar && index < toolBar.getItemsLength(); index++) {
+			if (toolBar.getItemAction(index) === action) {
+				const viewItem = toolBar.getItemViewItem(index);
+				if (!this.hasMinimumWidth(viewItem)) {
+					this.splitButtonMinWidths.delete(action);
+					this.selfSizingSplitButtonIds.delete(action.id);
+					return 36;
+				}
+				this.selfSizingSplitButtonIds.add(action.id);
+				const width = viewItem.getMinimumWidth();
+				if (width === undefined) {
+					this.splitButtonMinWidths.delete(action);
+					return 36;
+				}
+				if (this.splitButtonMinWidths.get(action) !== width) {
+					this.splitButtonMinWidths.set(action, width);
+					this.refitSplitButtons();
+				}
+				return width;
+			}
+		}
+		return this.splitButtonMinWidths.get(action) ?? 36;
+	}
+
+	private hasMinimumWidth(item: IActionViewItem | undefined): item is IActionViewItemWithMinimumWidth {
+		const candidate = item as Partial<IActionViewItemWithMinimumWidth> | undefined;
+		return typeof candidate?.getMinimumWidth === 'function';
+	}
+
+	/**
+	 * Forgets the widths split buttons last reported, as the theme changed while they may be in the overflow, and fits the
+	 * toolbar again: a button then comes back to report its width, and moves into the overflow again before it is painted if
+	 * it does not fit.
+	 */
+	private remeasureSplitButtons(): void {
+		this.splitButtonMinWidths = new WeakMap();
+		this.refitSplitButtons();
+	}
+
+	/** Fits the toolbar again once the current fit is done, while it shows a split button that sizes itself. */
+	private refitSplitButtons(): void {
+		if (!this.showsSelfSizingSplitButton()) {
+			return;
+		}
+		this.splitButtonRefit.trigger(() => {
+			if (this.showsSelfSizingSplitButton()) {
+				this.toolBar?.relayout();
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	/** Whether the current title toolbar has a split button that sizes itself, shown or in the overflow. */
+	private showsSelfSizingSplitButton(): boolean {
+		const toolBar = this.toolBar;
+		return !!toolBar && [...this.selfSizingSplitButtonIds].some(id => toolBar.hasPrimaryAction(id));
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
@@ -192,6 +275,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	override updateStyles(): void {
 		super.updateStyles();
+		this.remeasureSplitButtons();
 
 		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';

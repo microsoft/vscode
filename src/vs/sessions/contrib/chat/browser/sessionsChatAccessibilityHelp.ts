@@ -16,7 +16,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorkspaceEditorFocusedContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
@@ -58,7 +58,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
 	// Leave surfaces with their own help to their providers instead of this window-wide fallback.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate(), KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.toNegated());
+	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate(), SessionWorkspaceEditorFocusedContext.negate(), KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.toNegated());
 
 	constructor(
 		private readonly _responseSelectionSupported = isResponseSelectionSupported(),
@@ -187,8 +187,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.inboxScope', "In Inbox Mode, use Tab to reach the workspace and environment pickers above the list. Enter, Space, or Down Arrow opens a dropdown. Use Up and Down Arrow and Enter to choose, or Escape to return focus. Choose All Workspaces and All Environments to clear the scope."));
 		content.push(localize('sessionsChat.sessionFilters', "Open Filter Sessions for Environment, Created In, Harness, and Show options. Checked options are included. Reset Filters restores defaults; its Undo notice restores your previous filters. On desktop, More Actions offers Compact View and Collapse All Groups. On phone, use Sort and Find."));
 		content.push(localize('sessionsChat.sessionApplicationHover', "A session created outside VS Code names its application in the session hover. Focus the hover, then use Tab to reach Created in and Enter or Space to open Filter Sessions with Created In focused. Use Right Arrow to open that submenu. The application remains visible after the session becomes a regular session."));
-		content.push(localize('sessionsChat.nestedCustomGroups', "Focus a group's heading and open its context menu{0} for Create Subgroup and other group actions. Each group's level is announced.", '<keybinding:editor.action.showContextMenu>'));
-		content.push(localize('sessionsChat.nestedGroupingSections', "Focus a section heading and open its context menu{0} for Move to Group or Remove from Group.", '<keybinding:editor.action.showContextMenu>'));
+		content.push(localize('sessionsChat.nestedCustomGroups', "Focus a group's heading and open its context menu{0} for Pin, Unpin, Create Subgroup and other group actions. A pinned group is listed in the Pinned section. Each group's level is announced.", '<keybinding:editor.action.showContextMenu>'));
+		content.push(localize('sessionsChat.nestedGroupingSections', "Focus a section heading and open its context menu{0} for Pin, Unpin, Move to Group or Remove from Group.", '<keybinding:editor.action.showContextMenu>'));
 		if (configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true) {
 			content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsChat.externalSessionSectionDone', "External sessions appear in an External section above Done unless they are pinned or in a custom group. The section is hidden when empty. Focus its heading and open the context menu{0} to configure which external sessions are shown or mark the section's sessions as done.", '<keybinding:editor.action.showContextMenu>')

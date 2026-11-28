@@ -98,7 +98,8 @@ import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
-import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, toUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -931,6 +932,7 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
 	// No chat windows: the command center's session widget asks for one only as the user picks a session
 	registration.definePartialInstance(IChatWindowService, { getWindow: () => undefined });
+	registration.definePartialInstance(IUserDataProfileService, { currentProfile: toUserDataProfile('default', 'Default', URI.file('/fixture/profile'), URI.file('/fixture/cache')), onDidChangeCurrentProfile: Event.None });
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),

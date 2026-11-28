@@ -33,6 +33,8 @@ function getEnvironmentIcon(environment: string): ThemeIcon {
 }
 
 export class SessionsInboxScope extends Disposable {
+	private static readonly PICKER_USER = 'sessionsInboxScope';
+
 	readonly element: HTMLElement;
 	private activeTrigger: HTMLElement | undefined;
 
@@ -231,7 +233,7 @@ export class SessionsInboxScope extends Disposable {
 		}
 		this.activeTrigger = trigger;
 		trigger.setAttribute('aria-expanded', 'true');
-		this.actionWidgetService.show('sessionsInboxScope', false, items, {
+		this.actionWidgetService.show(SessionsInboxScope.PICKER_USER, false, items, {
 			onSelect: item => {
 				this.actionWidgetService.hide();
 				if (!this._store.isDisposed && !this.element.hidden) {
@@ -255,10 +257,21 @@ export class SessionsInboxScope extends Disposable {
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		this.element.hidden = !visible;
-		if (!visible) {
-			this.hidePicker();
+	/**
+	 * Shows or hides the scope. Hiding returns whether the scope had the focus, in its controls or in its open picker, which
+	 * the hidden scope cannot keep and the caller then moves to a control that stays. Focus the user already moved elsewhere
+	 * while the picker was closing stays there.
+	 */
+	setVisible(visible: boolean): boolean {
+		if (visible || this.element.hidden) {
+			this.element.hidden = !visible;
+			return false;
 		}
+		// Focus the user moved elsewhere while the picker closes is not the scope's
+		const hadFocus = dom.isAncestorOfActiveElement(this.element) || (!!this.activeTrigger && this.actionWidgetService.hasFocus(SessionsInboxScope.PICKER_USER));
+		// Hidden before the picker closes, so that closing it does not focus its trigger
+		this.element.hidden = true;
+		this.hidePicker();
+		return hadFocus;
 	}
 }

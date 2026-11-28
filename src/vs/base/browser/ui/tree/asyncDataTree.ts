@@ -1239,6 +1239,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return [];
 		}
 
+		const childrenIds = this.identityProvider && this.getUniqueChildrenIds(childrenElements);
+
 		const nodesToForget = new Map<T, IAsyncDataTreeNode<TInput, T>>();
 		const childrenTreeNodesById = new Map<string, { node: IAsyncDataTreeNode<TInput, T>; collapsed: boolean }>();
 
@@ -1252,10 +1254,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
 
-		const children = childrenElements.map<IAsyncDataTreeNode<TInput, T>>(element => {
+		const children = childrenElements.map<IAsyncDataTreeNode<TInput, T>>((element, index) => {
 			const hasChildren = !!this.dataSource.hasChildren(element);
 
-			if (!this.identityProvider) {
+			if (!childrenIds) {
 				const asyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, hasChildren, defaultCollapseState: this.getDefaultCollapseState(element) });
 
 				if (hasChildren && asyncDataTreeNode.defaultCollapseState === ObjectTreeElementCollapseState.PreserveOrExpanded) {
@@ -1265,7 +1267,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				return asyncDataTreeNode;
 			}
 
-			const id = this.identityProvider.getId(element).toString();
+			const id = childrenIds[index];
 			const result = childrenTreeNodesById.get(id);
 
 			if (result) {
@@ -1329,6 +1331,42 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		return childrenToRefresh;
+	}
+
+	/**
+	 * Returns the ids of the children, index-aligned with them. Siblings with the same id would share a node, which
+	 * can only appear in the tree once, so all but the last of them are removed from `childrenElements` in place.
+	 */
+	private getUniqueChildrenIds(childrenElements: T[]): string[] {
+		const ids = childrenElements.map(element => this.identityProvider!.getId(element).toString());
+
+		if (ids.length < 2) {
+			return ids;
+		}
+
+		const lastIndexById = new Map<string, number>();
+
+		for (let i = 0; i < ids.length; i++) {
+			lastIndexById.set(ids[i], i);
+		}
+
+		if (lastIndexById.size === ids.length) {
+			return ids;
+		}
+
+		let length = 0;
+
+		for (let i = 0; i < ids.length; i++) {
+			if (lastIndexById.get(ids[i]) === i) {
+				childrenElements[length] = childrenElements[i];
+				ids[length] = ids[i];
+				length++;
+			}
+		}
+
+		childrenElements.length = length;
+		ids.length = length;
+		return ids;
 	}
 
 	protected shouldAutoExpandSingleChild(node: IAsyncDataTreeNode<TInput, T>): boolean {

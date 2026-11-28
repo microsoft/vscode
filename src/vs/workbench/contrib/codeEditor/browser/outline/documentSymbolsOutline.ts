@@ -118,6 +118,7 @@ export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private _outlineModel?: OutlineModel;
 	private readonly _outlineDisposables = new DisposableStore();
+	private _contentChangeRequest?: CancellationTokenSource;
 
 	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
 
@@ -199,6 +200,8 @@ export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._disposables.add(this._editor.onDidChangeModelContent(event => {
 			const model = this._editor.getModel();
 			if (model) {
+				// the pending request is for an older version, its reply shouldn't land while typing
+				this._contentChangeRequest?.cancel();
 				const timeout = _outlineModelService.getDebounceValue(model);
 				updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
 			}
@@ -265,6 +268,9 @@ export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		this._outlineDisposables.add(timeoutTimer);
 		this._outlineDisposables.add(toDisposable(() => cts.dispose(true)));
+		if (contentChangeEvent) {
+			this._contentChangeRequest = cts;
+		}
 
 		try {
 			const model = await this._outlineModelService.getOrCreate(buffer, cts.token);
@@ -355,6 +361,10 @@ export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		} catch (err) {
 			this._setOutlineModel(undefined);
 			onUnexpectedError(err);
+		} finally {
+			if (this._contentChangeRequest === cts) {
+				this._contentChangeRequest = undefined;
+			}
 		}
 	}
 

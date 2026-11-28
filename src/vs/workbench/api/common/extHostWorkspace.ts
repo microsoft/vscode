@@ -105,7 +105,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null; added: vscode.WorkspaceFolder[]; removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
-			return { workspace: null, added: [], removed: [] };
+			return { workspace: null, added: [], removed: previousConfirmedWorkspace?.workspaceFolders ?? [] };
 		}
 
 		const { id, name, folders, configuration, transient, isUntitled } = data;
@@ -275,9 +275,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._configProvider?.getConfiguration('search').get<boolean>('useIgnoreFiles') ?? true;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
+	$initializeWorkspace(data: IWorkspaceData | null, mode: WorkbenchMode, trusted: boolean): void {
 		this._trusted = trusted;
-		this.$acceptWorkspaceData(data);
+		this.$acceptWorkspaceData(data, mode);
 		this._barrier.open();
 	}
 
@@ -329,6 +329,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[]): boolean {
+		if (this._workbenchMode === WorkbenchMode.Agents) {
+			return false; // the active session owns the folders in Agents mode
+		}
+
 		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
@@ -488,8 +492,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._workbenchMode;
 	}
 
-	$acceptWorkspaceData(data: IWorkspaceData | null): void {
+	$acceptWorkspaceData(data: IWorkspaceData | null, mode: WorkbenchMode): void {
 
+		const modeChanged = this._workbenchMode !== mode;
+		// An optimistic `updateWorkspaceFolders` made in Editor mode already updated the shared folder objects, so its acknowledgement always fires, even when it arrives with Agents mode
+		const previousWorkspaceKey = modeChanged && !this._unconfirmedWorkspace ? ExtHostWorkspace.workspaceEventKey(this._confirmedWorkspace) : undefined;
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
@@ -497,17 +504,21 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._confirmedWorkspace = workspace || undefined;
 		this._unconfirmedWorkspace = undefined;
 
-		// Events
-		this._onDidChangeWorkspace.fire(Object.freeze({
-			added,
-			removed,
-		}));
+		// Both events must observe the new mode.
+		this._workbenchMode = mode;
 
-		const mode = data?.mode ?? WorkbenchMode.Editor;
-		if (this._workbenchMode !== mode) {
-			this._workbenchMode = mode;
+		const onlyModeChanged = previousWorkspaceKey !== undefined && previousWorkspaceKey === ExtHostWorkspace.workspaceEventKey(workspace ?? undefined);
+		if (!onlyModeChanged) {
+			this._onDidChangeWorkspace.fire(Object.freeze({ added, removed }));
+		}
+
+		if (modeChanged) {
 			this._onDidChangeWorkbenchMode.fire(mode);
 		}
+	}
+
+	private static workspaceEventKey(workspace: ExtHostWorkspaceImpl | undefined): string {
+		return workspace ? JSON.stringify([workspace.id, workspace.name, workspace.configuration?.toString(), workspace.isUntitled, workspace.transient, workspace.workspaceFolders.map(folder => [folder.uri.toString(), folder.name, folder.index])]) : '';
 	}
 
 	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void {

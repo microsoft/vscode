@@ -774,6 +774,13 @@ export interface ISessionsManagementService {
 	/** Removes a folder a chat works in; rejects for the chat's default folder. See {@link ISessionsProvider.removeChatFolder}. */
 	removeChatFolder(session: ISession, chatUri: URI, folder: URI): Promise<void>;
 
+	/**
+	 * Detaches the sessions of every provider that were created in one of the workspace configurations (`.code-workspace`
+	 * files), for example when the configurations are deleted, so the sessions are listed by their folders. Rejects
+	 * when a provider fails to; the others still detach theirs. See {@link ISessionsProvider.detachSessionsFromWorkspace}.
+	 */
+	detachSessionsFromWorkspace(workspaceFiles: readonly URI[]): Promise<void>;
+
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
 

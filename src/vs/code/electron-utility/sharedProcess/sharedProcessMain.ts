@@ -96,6 +96,8 @@ import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../platform/agentHost/common/devContainerAgentHost.js';
 import { createDevContainerAgentHostChannel } from '../../../platform/agentHost/common/devContainerAgentHostIpc.js';
 import { DevContainerAgentHostMainService } from '../../../platform/agentHost/node/devContainerAgentHostService.js';
+import { AGENT_HOST_CLIENT_FORWARDING_CHANNEL, IAgentHostClientForwardingMainService } from '../../../platform/agentHost/common/agentHostClientForwardingMainService.js';
+import { AgentHostClientForwardingMainService } from '../../../platform/agentHost/node/agentHostClientForwardingMainService.js';
 import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
 import { ITunnelAgentHostMainService, TUNNEL_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -435,6 +437,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Dev Container Agent Host
 		services.set(IDevContainerAgentHostMainService, new SyncDescriptor(DevContainerAgentHostMainService, undefined, true));
 
+		// Forwarding this machine's agents and Git credentials to agent hosts
+		services.set(IAgentHostClientForwardingMainService, new SyncDescriptor(AgentHostClientForwardingMainService, undefined, true));
+
 		// WSL Remote Agent Host
 		services.set(IWSLRemoteAgentHostMainService, new SyncDescriptor(WSLRemoteAgentHostMainService, undefined, true));
 
@@ -529,6 +534,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Deliver inspection facts before a rejected connect RPC disposes its listeners.
 		const devContainerAgentHostChannel = createDevContainerAgentHostChannel(accessor.get(IDevContainerAgentHostMainService), this._store);
 		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
+
+		// Forwarding this machine's agents and Git credentials to agent hosts
+		const agentHostClientForwardingChannel = ProxyChannel.fromService(accessor.get(IAgentHostClientForwardingMainService), this._store);
+		this.server.registerChannel(AGENT_HOST_CLIENT_FORWARDING_CHANNEL, agentHostClientForwardingChannel);
 
 		// WSL Remote Agent Host
 		const wslRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(IWSLRemoteAgentHostMainService), this._store);

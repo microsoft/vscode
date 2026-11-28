@@ -6,7 +6,7 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { API, type DocumentIdentifier, type Snapshot } from '@typescript/native/async';
+import { API } from '@typescript/native/async';
 import { afterAll, afterEach, beforeAll, beforeEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
 import { toGitUri } from '../../../../../platform/git/common/utils';
@@ -43,7 +43,7 @@ suite('TypeScript 7 structural diff', () => {
 	});
 
 	for (const [file, languageId] of [['example.ts', 'typescript'], ['component.tsx', 'typescriptreact']]) {
-		test(`analyzes staged ${languageId} contents using the backing file only for project lookup`, async () => {
+		test(`analyzes staged ${languageId} contents using the backing file only to choose how to parse them`, async () => {
 			const fileUri = vscode.Uri.file(path.join(fixtureDirectory, file));
 			const diskContents = fs.readFileSync(fileUri.fsPath, 'utf8');
 			const original = 'function stagedOnly() { return 1; }';
@@ -56,7 +56,7 @@ suite('TypeScript 7 structural diff', () => {
 					name: node.modified, originalChanges: node.originalChanges, modifiedChanges: node.modifiedChanges,
 				})),
 				requests: native.requests,
-				disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),
+				released: native.released,
 				diskContents: fs.readFileSync(fileUri.fsPath, 'utf8'),
 			}, {
 				nodes: [{
@@ -64,8 +64,8 @@ suite('TypeScript 7 structural diff', () => {
 					originalChanges: [[0, vscode.StructuralDiffClassification.Implementation, '1', []]],
 					modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, '2', []]],
 				}],
-				requests: [{ openFiles: [{ uri: fileUri.toString() }] }, { closeFiles: [{ uri: fileUri.toString() }] }],
-				disposed: true, diskContents,
+				requests: [fileUri.fsPath, fileUri.fsPath],
+				released: [true, true], diskContents,
 			});
 		});
 	}
@@ -79,7 +79,7 @@ suite('TypeScript 7 structural diff', () => {
 			requests: native.requests,
 		}, {
 			names: ['stagedOnly'],
-			requests: [{ openFiles: [{ uri: uri.toString() }] }, { closeFiles: [{ uri: uri.toString() }] }],
+			requests: [uri.fsPath, uri.fsPath],
 		});
 	});
 
@@ -98,11 +98,11 @@ suite('TypeScript 7 structural diff', () => {
 			unstaged: summarize(unstaged, index, working).map(node => ({
 				original: node.original, modified: node.modified, modifiedChanges: node.modifiedChanges,
 			})),
-			disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),
+			released: native.released,
 		}, {
 			staged: [{ original: 'before', modified: 'renamed', modifiedChanges: [[0, vscode.StructuralDiffClassification.Header, 'renamed', []]] }],
 			unstaged: [{ original: 'renamed', modified: 'renamed', modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, '2', []]] }],
-			disposed: true,
+			released: [true, true, true, true],
 		});
 	});
 
@@ -123,19 +123,17 @@ suite('TypeScript 7 structural diff', () => {
 
 	defineStructuralDiffCases(compute);
 
-	test('balances opened files and disposes all native snapshots without modifying the project file', async () => {
+	test('releases the parsed contents and leaves the project of the backing file unchanged', async () => {
 		await compute('function oldName() {}', 'function newName() {}');
 		const snapshot = await api.createSnapshot({ openFiles: [fileName] });
 		try {
 			const project = await snapshot.getDefaultProjectForFile(fileName);
 			const source = await project?.program.getSourceFile(fileName);
 			assert.deepStrictEqual({
-				requests: native.requests,
-				disposed: native.snapshots.map(value => value.isDisposed()),
+				released: native.released,
 				contents: source?.text,
 			}, {
-				requests: [{ openFiles: [{ uri: uri.toString() }] }, { closeFiles: [{ uri: uri.toString() }] }],
-				disposed: [true, true, true, true],
+				released: [true, true],
 				contents: fs.readFileSync(fileName, 'utf8'),
 			});
 		} finally {
@@ -151,10 +149,8 @@ suite('TypeScript 7 structural diff', () => {
 		]);
 		assert.deepStrictEqual({
 			names: results.map(result => result.root.children[0].modifiedItem?.name),
-			open: native.requests.filter(request => request?.openFiles !== undefined).length,
-			close: native.requests.filter(request => request?.closeFiles !== undefined).length,
-			disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),
-		}, { names: ['first', 'second'], open: 2, close: 2, disposed: true });
+			released: native.released,
+		}, { names: ['first', 'second'], released: [true, true, true, true] });
 	});
 
 	test('declines when TS7 is unavailable', async () => {
@@ -172,62 +168,58 @@ suite('TypeScript 7 structural diff', () => {
 		assert.deepStrictEqual(native.requests, []);
 	});
 
-	test('cancels during analysis and disposes all snapshots', async () => {
+	test('cancels during analysis and releases the parsed contents', async () => {
 		const source = store.add(new vscode.CancellationTokenSource());
 		const document = createTextDocumentData(uri, 'const value = 1;', 'typescript').document;
-		native.beforeTemporaryUpdate = () => source.cancel();
+		native.beforeCreate = index => {
+			if (index === 1) {
+				source.cancel();
+			}
+		};
 		await assert.rejects(provider.provideStructuralDiff(document, document, { changes: [] }, source.token), isCancellationError);
-		assert.deepStrictEqual(native.snapshots.map(snapshot => snapshot.isDisposed()), [true, true, true]);
+		assert.deepStrictEqual(native.released, [true, true]);
 	});
 
-	test('does not publish a result when cancelled during asynchronous cleanup', async () => {
+	test('does not publish a result when cancelled while releasing the parsed contents', async () => {
 		const source = store.add(new vscode.CancellationTokenSource());
 		const document = createTextDocumentData(uri, 'const value = 1;', 'typescript').document;
-		native.afterCloseSnapshot = () => source.cancel();
+		native.beforeRelease = () => source.cancel();
 		await assert.rejects(provider.provideStructuralDiff(document, document, { changes: [] }, source.token), isCancellationError);
-		assert.deepStrictEqual(native.snapshots.map(snapshot => snapshot.isDisposed()), [true, true, true, true]);
+		assert.deepStrictEqual(native.released, [true, true]);
 	});
 
-	test('disposes snapshots on native analysis errors', async () => {
-		native.failure = new Error('Native analysis failed');
+	test('releases the parsed original contents when parsing the modified contents fails', async () => {
+		native.beforeCreate = index => {
+			if (index === 1) {
+				throw new Error('Native analysis failed');
+			}
+		};
 		await assert.rejects(compute('const x = 1;', 'const x = 2;'), /Native analysis failed/);
-		assert.deepStrictEqual(native.snapshots.map(snapshot => snapshot.isDisposed()), [true, true]);
-	});
-
-	test('rejects native snapshots with different contents', async () => {
-		native.mapText = text => `${text}\n`;
-		await assert.rejects(compute('const x = 1;', 'const x = 2;'), /snapshot does not match/);
-		assert.deepStrictEqual(native.snapshots.map(snapshot => snapshot.isDisposed()), [true, true, true]);
+		assert.deepStrictEqual(native.released, [true]);
 	});
 
 	for (const side of ['original', 'modified'] as const) {
-		test(`rejects stale ${side} documents and releases the snapshots`, async () => {
+		test(`rejects stale ${side} documents and releases the parsed contents`, async () => {
 			const original = createTextDocumentData(uri.with({ scheme: 'git' }), 'const x = 1;', 'typescript');
 			const modified = createTextDocumentData(uri, 'const x = 2;', 'typescript');
-			native.beforeTemporaryUpdate = () => setDocText(side === 'original' ? original : modified, 'const x = 3;');
+			native.beforeCreate = () => setDocText(side === 'original' ? original : modified, 'const x = 3;');
 			await assert.rejects(provider.provideStructuralDiff(original.document, modified.document, { changes: [] }, CancellationToken.None), isCancellationError);
-			assert.deepStrictEqual(native.snapshots.map(snapshot => snapshot.isDisposed()), [true, true, true]);
+			assert.deepStrictEqual(native.released, [true]);
 		});
 	}
 });
 
-type FirstOfTwoOverloads<T> = T extends {
-    (...args: infer A): infer R;
-    (...args: never[]): unknown;
-} ? (...args: A) => R : never;
-
-type CreateSnapshotParams = Parameters<
-    FirstOfTwoOverloads<API<true>['createSnapshot']>
->[0];
-
+/**
+ * Passes the provider's requests to the TypeScript 7 API and records the files whose contents the provider parses and
+ * whether it releases them. Hooks run before a text is parsed and before parsed contents are released.
+ */
 class TestTypeScript7Api {
 	available = true;
-	failure?: Error;
-	mapText?: (text: string) => string;
-	beforeTemporaryUpdate?: () => void;
-	afterCloseSnapshot?: () => void;
-	readonly snapshots: Snapshot[] = [];
-	readonly requests: CreateSnapshotParams[] = [];
+	beforeCreate?: (index: number) => void;
+	beforeRelease?: () => void;
+	readonly requests: string[] = [];
+	/** Whether the provider released each parsed text, in the order in which it parsed them. */
+	readonly released: boolean[] = [];
 
 	constructor(private readonly api: API) { }
 
@@ -236,25 +228,19 @@ class TestTypeScript7Api {
 			return undefined;
 		}
 		return {
-			clearSourceFileCache: () => this.api.clearSourceFileCache(),
-			createSnapshot: async (params?: CreateSnapshotParams) => {
-				this.requests.push(params ?? {});
-				const snapshot = params === undefined ? await this.api.createSnapshot() : await this.api.createSnapshot(params);
-				this.snapshots.push(snapshot);
-				if (params?.closeFiles !== undefined) {
-					this.afterCloseSnapshot?.();
-				}
-				return snapshot;
-			},
-			runWithTemporaryFileUpdate: async (snapshot: Snapshot, file: DocumentIdentifier, text: string, callback: (snapshot: Snapshot) => void | Promise<void>) => {
-				if (this.failure !== undefined) {
-					throw this.failure;
-				}
-				await this.api.runWithTemporaryFileUpdate(snapshot, file, this.mapText?.(text) ?? text, async temporarySnapshot => {
-					this.snapshots.push(temporarySnapshot);
-					this.beforeTemporaryUpdate?.();
-					await callback(temporarySnapshot);
-				});
+			createSourceFile: async (fileName: string, sourceText: string) => {
+				this.beforeCreate?.(this.requests.length);
+				this.requests.push(fileName);
+				const retained = await this.api.createSourceFile(fileName, sourceText);
+				const index = this.released.push(false) - 1;
+				return {
+					sourceFile: retained.sourceFile,
+					dispose: async () => {
+						this.beforeRelease?.();
+						await retained.dispose();
+						this.released[index] = true;
+					},
+				};
 			},
 		};
 	}

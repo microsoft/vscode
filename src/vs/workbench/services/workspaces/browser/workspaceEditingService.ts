@@ -7,7 +7,6 @@ import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/
 import { IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
-import { WorkspaceService } from '../../configuration/browser/configurationService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -21,7 +20,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditableWorkspaceContextService, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -30,7 +29,7 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService contextService: WorkspaceService,
+		@IWorkspaceContextService contextService: IEditableWorkspaceContextService,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@INotificationService notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,

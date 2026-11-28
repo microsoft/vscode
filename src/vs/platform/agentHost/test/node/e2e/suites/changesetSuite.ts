@@ -204,6 +204,26 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return sessionUri;
 	}
 
+	/** Creates a session working in `folders`, the first one first. */
+	async function createSessionInFolders(folders: readonly string[], prefix: string): Promise<string> {
+		context.client.setWorkingDirectory(folders[0]);
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${prefix}-${config.provider}` }, 30_000);
+		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		const workingDirectories = folders.map(folder => URI.file(folder).toString());
+		await context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories,
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		sessionWorkingDirectories.set(sessionUri, workingDirectories);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+		context.client.clearReceived();
+		return sessionUri;
+	}
+
 	/**
 	 * Writes `file` through a host-executed bang command, so the change reaches
 	 * disk the way an agent's shell edit would rather than from the test
@@ -549,6 +569,19 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await invokeDiscard(channel, fileUri(target));
 		assert.deepStrictEqual({ removed: existsSync(join(workspace, 'nested', 'remove.txt')), kept: readFileSync(join(workspace, 'nested', 'keep.log'), 'utf8') },
 			{ removed: false, kept: 'ignored witness' });
+	});
+
+	conformanceTest(context, 'regression coverage: discarding an untracked file in a session with a second, non-repository folder', async function () {
+		const workspace = createGitWorkspace('ahp-discard-two-folders-');
+		const other = createTestDirectory(join(tmpdir(), 'ahp-discard-other-folder-'));
+		tempDirs.push(other);
+		const session = await createSessionInFolders([workspace, other], 'discard-two-folders');
+		const channel = buildUncommittedChangesetUri(session);
+		await runBangTurn(session, 'untracked-two-folders', writeFileBase64Command('remove.txt', 'remove'), 1);
+		const [target] = await waitForChangesetFiles(channel, ['remove.txt']);
+		await waitForOperation(channel, 'discard-changes');
+		await invokeDiscard(channel, fileUri(target));
+		assert.strictEqual(existsSync(join(workspace, 'remove.txt')), false);
 	});
 
 	conformanceTest(context, 'checkout lifecycle: an unused session checks out an existing branch', async function () {

@@ -9,7 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
+import { basename, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { combinedDisposable, Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { env } from '../../../../../base/common/process.js';
@@ -18,16 +18,18 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainers } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainerFolderContainers, supportsAgentHostDevContainers } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { AgentHostClientForwarding } from '../../../../../platform/agentHost/browser/agentHostClientForwarding.js';
+import { AGENT_HOST_CLIENT_FORWARDING_CHANNEL, IAgentHostClientForwardingMainService } from '../../../../../platform/agentHost/common/agentHostClientForwardingMainService.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, IDevContainerHostFolderContainer, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerCredentialForwardingEnabledSettingId, DevContainerDiscoveryEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -43,6 +45,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
@@ -463,6 +466,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 	private readonly _sandboxSupport = this._register(new Emitter<{ readonly workspaceUri: URI; readonly supported: boolean }>());
 	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
 	private readonly _mainService: IDevContainerAgentHostMainService;
+	private readonly _clientForwardingService: IAgentHostClientForwardingMainService;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -481,6 +485,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
+		this._clientForwardingService = ProxyChannel.toService<IAgentHostClientForwardingMainService>(sharedProcessService.getChannel(AGENT_HOST_CLIENT_FORWARDING_CHANNEL));
 	}
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
@@ -502,6 +507,29 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 
 	isLocalDockerAvailable(): Promise<boolean> {
 		return this._mainService.isDockerAvailable();
+	}
+
+	async listLocalFolderContainers(): Promise<readonly IDevContainerHostFolderContainer[]> {
+		return await this._mainService.listFolderContainers?.() ?? [];
+	}
+
+	/** Whether the folder's container is running on its host, which may be a host that can't tell. */
+	private async _isFolderContainerRunning(workspaceUri: URI, token: CancellationToken): Promise<boolean> {
+		let folder = workspaceUri;
+		let containers: readonly IDevContainerHostFolderContainer[];
+		if (workspaceUri.scheme === Schemas.file) {
+			containers = await this.listLocalFolderContainers();
+		} else {
+			const connection = await resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, token);
+			const service = connection.devContainerService;
+			if (!supportsAgentHostDevContainerFolderContainers(connection.initializeResult.get()) || !service?.listFolderContainers) {
+				return false;
+			}
+			containers = await raceCancellationError(service.listFolderContainers(), token);
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- compares with the host's file URIs of its folders
+			folder = fromAgentHostUri(workspaceUri);
+		}
+		return containers.some(container => container.running && isEqual(URI.parse(container.folder), folder));
 	}
 
 	/** Whether this computer's Docker engine has the environment's volume; a lookup that fails or stalls counts as no. */
@@ -594,15 +622,21 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry && !sample && !localEnvironment) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container Agent Hosts require a local, SSH, Tunnel, or WSL workspace."));
 		}
+		const requireRunning = !!options?.requireRunning && !sample && !environment;
+		// Checked here too, so that a container that isn't running is neither revealed nor reported as a failed connection.
+		if (requireRunning && !await this._isFolderContainerRunning(workspaceUri, token)) {
+			throw new Error(localize('devContainerAgentHost.notRunning', "The Dev Container of '{0}' is not running.", basename(workspaceUri)));
+		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const remoteService = sourceEntry ? new RemoteDevContainerService(async token => environment ? this._resolveConnectedHostService(workspaceUri) : this._resolveWorkspaceService(workspaceUri, token), this._logService) : undefined;
 		const mainService = remoteService ?? this._mainService;
 		const connectionId = generateUuid();
+		// Reconnecting without user action must not start a container that stopped meanwhile either.
 		const source = sample ? { sampleId: sample.id }
 			: environment ? { environmentId: environment.environmentId, image: devContainerEnvironmentImage }
-				: { workspaceFolder: devContainerSourcePath(workspaceUri) };
+				: { workspaceFolder: devContainerSourcePath(workspaceUri), ...(requireRunning ? { requireRunning } : {}) };
 		// Each environment on a host needs its own name, which its connection shows, e.g., in the chat input.
 		const name = (environment ? options?.name?.trim() : undefined)
 			|| (environment && sourceEntry ? localize('devContainerEnvironment.connectionName', "Dev Container on {0}", sourceEntry.name)
@@ -772,6 +806,12 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					loadCertificates: () => this._requestService.loadCertificates(),
 				},
 				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true, env),
+				clientForwarding: connectionStore.add(new AgentHostClientForwarding(this._clientForwardingService, {
+					// Sandboxed containers get only the Git identity, as before.
+					forwardCredentials: () => !options?.sandboxEnabled && this._configurationService.getValue<boolean>(DevContainerCredentialForwardingEnabledSettingId) !== false,
+					onDidChangeForwardCredentials: Event.signal(Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(DevContainerCredentialForwardingEnabledSettingId))),
+					folder: workspaceUri.scheme === Schemas.file ? workspaceUri.fsPath : undefined,
+				})),
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,
@@ -791,7 +831,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			};
 		} catch (error) {
 			try {
-				if (!token.isCancellationRequested && !isCancellationError(error)) {
+				// Connections that require a running container are made without user action or fall back quietly.
+				if (!token.isCancellationRequested && !isCancellationError(error) && !requireRunning) {
 					await outputWriter.reveal();
 				}
 			} finally {
@@ -820,10 +861,17 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
 		const connector = this._register(instantiationService.createInstance(DevContainerAgentHostConnector));
 		this._register(service.registerConnector(connector));
+		// Editor windows open and close the containers of folders while this window is in the background.
+		this._register(hostService.onDidChangeFocus(focused => {
+			if (focused) {
+				service.refreshFolderContainers().catch(error => logService.warn('[DevContainerAgentHostConnector] Failed to list folder Dev Containers', error));
+			}
+		}));
 		const createDevContainer = instantiationService.createInstance(CreateDevContainerTool);
 		this._register(toolsService.registerTool(createDevContainer.getToolData(), createDevContainer));
 		void reportDevContainerEnvironment(
@@ -861,6 +909,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[DevContainerCredentialForwardingEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.credentialForwarding.enabled', "Controls whether Dev Container sessions without terminal sandboxing copy your Git configuration and use your Git credentials, SSH agent, and GPG agent, like the Dev Containers extension. Sessions with terminal sandboxing only get your Git user name and email. Turning this on applies the next time a Dev Container connects."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[DevContainerSamplesEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.agentHost.devContainer.samples.enabled', "Show Dev Container samples in the Agents window workspace picker. The sample is cloned into a Docker volume and started when you send the first prompt. Requires Dev Container Agent Host sessions to be enabled."),
@@ -883,6 +939,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
+		},
+		[DevContainerDiscoveryEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('chat.agentHost.devContainer.discovery.enabled', "List the running Dev Containers of folders on this computer and on connected SSH, Tunnel, and WSL hosts in Remote Environments in the Agents window, such as those opened in editor windows, and connect to them so that their sessions appear in the Agents window. Containers are never started to list or connect them. Requires {0}.", '`#chat.agentHost.devContainer.enabled#`'),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 		},
 		[DevContainerIdleTimeoutSettingId]: {
 			type: 'integer',

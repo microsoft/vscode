@@ -132,6 +132,11 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 export interface IOpenNewSessionResult {
 	readonly session: ISession | undefined;
 	readonly trustDeclined: boolean;
+	/**
+	 * Whether {@link session} is a draft created for this request. Otherwise it is a draft shown before, such as when
+	 * creating one fails.
+	 */
+	readonly created?: boolean;
 }
 
 /** Options for {@link ISessionsService.closeChat}. */
@@ -142,6 +147,12 @@ export interface ICloseChatOptions {
 	 * the batch would make one arbitrary member of it reopenable.
 	 */
 	readonly skipHistory?: boolean;
+	/**
+	 * When the active pane is the session's own pane and shows the chat, show
+	 * the new-session view in its place, as marking its session done does,
+	 * instead of another chat of the session. Used when the chat is marked done.
+	 */
+	readonly showNewSession?: boolean;
 }
 
 /** Options for {@link ISessionsService.closeSession}. */
@@ -881,15 +892,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
-				const preserveFocus = this._hasFocusOutsideGrid();
-				if (activeSession.isQuickChat?.read(undefined)) {
-					this._openQuickChat(undefined, 'automatic', preserveFocus);
-				} else {
-					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
-					void this._openNewSession(folderUri
-						? { folderUri, ...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri) }
-						: undefined, CancellationToken.None, 'automatic', preserveFocus).catch(onUnexpectedError);
-				}
+				this._showNewSessionInPlaceOf(activeSession).catch(onUnexpectedError);
 			}
 			wasArchived = isArchived;
 		}));
@@ -998,6 +1001,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 			} else {
 				void this._openNewSession(undefined, CancellationToken.None, 'automatic', preserveFocus).catch(onUnexpectedError);
 			}
+		}
+	}
+
+	/**
+	 * Shows the new-session view, or the quick-chat composer for a quick chat, in place of `session`, keeping its
+	 * workspace and target, such as when the session or its shown chat is marked done. Resolves once it shows, which can
+	 * wait for workspace trust; it does not show once `token` is cancelled meanwhile, such as by opening another session.
+	 */
+	private async _showNewSessionInPlaceOf(session: ISession, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const preserveFocus = this._hasFocusOutsideGrid();
+		if (session.isQuickChat?.get()) {
+			this._openQuickChat(undefined, 'automatic', preserveFocus);
+		} else {
+			const folderUri = session.workspace.get()?.folders[0]?.root;
+			await this._openNewSession(folderUri
+				? { folderUri, ...inheritableSessionTarget(this.sessionsManagementService, session, folderUri) }
+				: undefined, token, 'automatic', preserveFocus);
 		}
 	}
 
@@ -1433,7 +1453,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		this._cancelRestore();
-		this._startOpenSession();
+		const token = this._startOpenSession();
+		const activePane = this._visibility.activePane.get();
+		// A detached pane closes with its chat, so only the session's own slot would show another of its chats instead.
+		if (options?.showNewSession && activePane?.kind === SessionGridPaneKind.Slot && activePane.session.get()?.sessionId === session.sessionId && this.uriIdentityService.extUri.isEqual(activePane.chat.get()?.resource, chat.resource)) {
+			// Before closing it, which would first show another chat of the session, and the sessions list scroll to it.
+			// The chat closes even when opening another session meanwhile cancels this.
+			await this._showNewSessionInPlaceOf(session, token).catch(onUnexpectedError);
+		}
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
@@ -1562,9 +1589,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 				closedChatResources.add(chatResource);
 			}
 		}
+		// A session that the grid no longer shows, such as after its shown chat was marked done, must not reopen on a closed chat.
+		const keepsActiveChat = visible || existing?.activeChatResource !== chatResource;
 		this._sessionStates.set(session.resource, {
 			...existing,
 			sessionResource: session.resource.toString(),
+			activeChatResource: keepsActiveChat ? existing?.activeChatResource : undefined,
+			activeChatOrigin: keepsActiveChat ? existing?.activeChatOrigin : undefined,
 			closedChatResources: closedChatResources.size ? [...closedChatResources] : undefined,
 			openedChatResources: openedChatResources.size ? [...openedChatResources] : undefined,
 		});
@@ -2192,7 +2223,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordNewSessionOpened();
 				}
-				return { session, trustDeclined: false };
+				return { session, trustDeclined: false, created: true };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
 				// workspace uses an unsupported scheme like 'unknown:/'), fall

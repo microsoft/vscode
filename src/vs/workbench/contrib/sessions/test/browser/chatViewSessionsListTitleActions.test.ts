@@ -8,6 +8,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
 import { Menus } from '../../browser/menus.js';
+import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
+import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsView } from '../../browser/views/sessionsView.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('Chat view sessions list title actions', () => {
 
@@ -34,6 +48,115 @@ suite('Chat view sessions list title actions', () => {
 			}, { find: true, compact: true, collapse: true, filter: true, onlyForChatView: true, gatedOnAiAndVisibleList: true, headerKept: true });
 		} finally {
 			store.dispose();
+		}
+	});
+
+	test('the Chat view title offers Toggle Inbox only with the Inbox setting on, in the sessions list, while AI is visible', () => {
+		const store = registerSessionsListActions();
+		try {
+			const item = MenuRegistry.getMenuItems(MenuId.ViewTitle).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.inboxMode' && item.when?.serialize().includes('chatViewSessionsList'));
+			const shows = ({ setting = true, list = true, aiEnabled = true, setupHidden = false, offered = [...EDITOR_WINDOW_SESSIONS_GROUPINGS.offered, SessionsGrouping.Inbox] }: { setting?: boolean; list?: boolean; aiEnabled?: boolean; setupHidden?: boolean; offered?: readonly SessionsGrouping[] }) => {
+				const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: setting });
+				const contextKeyService = new ContextKeyService(configurationService);
+				try {
+					contextKeyService.createKey('view', 'workbench.panel.chat.view.copilot');
+					ChatViewSessionsListContext.bindTo(contextKeyService).set(list);
+					ChatContextKeys.enabled.bindTo(contextKeyService).set(aiEnabled);
+					ChatContextKeys.agentSessionsViewerVisible.bindTo(contextKeyService).set(true);
+					ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService).set(setupHidden);
+					bindSessionsViewGroupings(contextKeyService, offered);
+					return contextKeyService.contextMatchesRules(item?.when);
+				} finally {
+					contextKeyService.dispose();
+				}
+			};
+			assert.deepStrictEqual({
+				on: shows({}),
+				settingOff: shows({ setting: false }),
+				oldChatList: shows({ list: false }),
+				aiDisabled: shows({ aiEnabled: false }),
+				aiHidden: shows({ setupHidden: true }),
+				notOffered: shows({ offered: EDITOR_WINDOW_SESSIONS_GROUPINGS.offered }),
+			}, { on: true, settingOff: false, oldChatList: false, aiDisabled: false, aiHidden: false, notOffered: false });
+		} finally {
+			store.dispose();
+		}
+	});
+
+	test('Toggle Inbox from the Command Palette toggles the list of the window that offers Inbox: the Agents window\'s view, else the one the Chat view embeds, and an editor window offers it only once that list is there', () => {
+		const store = registerSessionsListActions();
+		try {
+			const toggled: string[] = [];
+			const view = (name: string, offersInbox: boolean) => upcastPartial<SessionsView>({
+				offersGrouping: grouping => offersInbox || grouping !== SessionsGrouping.Inbox,
+				toggleInbox: () => { toggled.push(name); return true; },
+				isInboxToggleFocused: () => false, isHeaderInTitle: false, grouping: SessionsGrouping.Inbox,
+			});
+			const run = (registered: SessionsView | null, embedded: SessionsView | undefined) => CommandsRegistry.getCommand('sessionsViewPane.inboxMode')!.handler(upcastPartial<ServicesAccessor>({
+				get: <T>(id: unknown): T => (id === IViewsService ? { getViewWithId: () => registered } : { getEmbeddedView: () => embedded }) as T,
+			}));
+			// The Agents window; an editor window, whose Agents view does not offer Inbox; and one whose Chat view has no list yet
+			run(view('agents', true), undefined);
+			run(view('editor agents', false), view('chat', true));
+			run(view('editor agents', false), undefined);
+
+			const precondition = MenuRegistry.getCommand('sessionsViewPane.inboxMode')?.precondition;
+			const enabled = (window: 'agents' | 'editor', chatListOffersInbox: boolean) => {
+				const contextKeyService = new ContextKeyService(new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true }));
+				try {
+					(window === 'agents' ? IsSessionsWindowContext : EditorWindowSessionsContext).bindTo(contextKeyService).set(true);
+					EditorWindowSessionsViewOffersInboxContext.bindTo(contextKeyService).set(chatListOffersInbox);
+					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+					return contextKeyService.contextMatchesRules(precondition);
+				} finally {
+					contextKeyService.dispose();
+				}
+			};
+
+			assert.deepStrictEqual({
+				toggled,
+				enabled: { agents: enabled('agents', false), editorBeforeChatList: enabled('editor', false), editorWithChatList: enabled('editor', true) },
+			}, {
+				toggled: ['agents', 'chat'],
+				enabled: { agents: true, editorBeforeChatList: false, editorWithChatList: true },
+			});
+		} finally {
+			store.dispose();
+		}
+	});
+});
+
+suite('Chat view sessions list focus', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('focus that Toggle Inbox in the title loses as it goes moves to the toggle that replaces it, else to the list, unless it went elsewhere or the view went too', async () => {
+		const handOver = Reflect.get(SessionsView.prototype, 'handOverInboxToggleFocus') as (this: object) => void;
+		const elsewhere = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+		try {
+			const lost = async ({ toggleShown = false, moveFocusElsewhere = false, viewDisposed = false }) => {
+				const focused: string[] = [];
+				(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+				handOver.call({
+					inboxToggles: new Set([{ isShown: () => toggleShown, focus: () => focused.push('toggle') }]),
+					_store: { isDisposed: viewDisposed },
+					isBodyVisible: () => true,
+					sessionsControl: { focus: () => focused.push('list') },
+				});
+				if (moveFocusElsewhere) {
+					elsewhere.focus();
+				}
+				await Promise.resolve();
+				return focused.join() || 'none';
+			};
+			assert.deepStrictEqual({
+				replacementToggle: await lost({ toggleShown: true }),
+				noToggle: await lost({}),
+				focusMovedElsewhere: await lost({ toggleShown: true, moveFocusElsewhere: true }),
+				viewGone: await lost({ viewDisposed: true }),
+			}, { replacementToggle: 'toggle', noToggle: 'list', focusMovedElsewhere: 'none', viewGone: 'none' });
+		} finally {
+			elsewhere.remove();
 		}
 	});
 });

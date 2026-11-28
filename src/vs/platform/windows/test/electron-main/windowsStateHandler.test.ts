@@ -7,12 +7,21 @@ import assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IStateService } from '../../../state/node/state.js';
+import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { IWindowsMainService } from '../../electron-main/windows.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, WindowsStateHandler } from '../../electron-main/windowsStateHandler.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getUIState(): IWindowUIState {
 		return {
@@ -135,6 +144,44 @@ suite('Windows State Storing', () => {
 		assertRestoring(windowState, 'lastPluginDevelopmentHostWindow');
 	});
 
+	test('restores each window in its own Agents mode after a restart', () => {
+		const stored = getWindowsStateStoreData({
+			lastActiveWindow: { backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+			openedWindows: [
+				{ backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+				{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI },
+				{ backupPath: testBackupPath2, uiState: getUIState(), workspace: toWorkspace(testWSPath), agentsMode: true },
+			]
+		});
+
+		const restored = restoreWindowsState(JSON.parse(JSON.stringify(stored)));
+
+		assert.deepStrictEqual({
+			lastActiveWindow: restored.lastActiveWindow?.agentsMode,
+			openedWindows: restored.openedWindows.map(window => window.agentsMode),
+		}, {
+			lastActiveWindow: true,
+			openedWindows: [true, undefined, true],
+		});
+	});
+
+	test('knows which empty windows hot exit restores in Agents mode', () => {
+		const testBackupPath3 = join(tmpdir(), 'windowStateTest', 'backupFolder3');
+		const state: IWindowsState = {
+			lastActiveWindow: { backupPath: testBackupPath1, uiState: getUIState(), agentsMode: true },
+			openedWindows: [
+				{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI, agentsMode: true },
+				{ backupPath: testBackupPath3, uiState: getUIState() },
+			]
+		};
+
+		const storedState = getWindowsStateStoreData(state);
+		const stateService = upcastPartial<IStateService>({ getItem: <T>(key: string) => (key === 'windowsState' ? storedState : undefined) as T | undefined });
+		const handler = store.add(new WindowsStateHandler(upcastPartial<IWindowsMainService>({ onDidChangeWindowsCount: Event.None, onDidDestroyWindow: Event.None }), stateService, new TestLifecycleMainService(), new NullLogService(), new TestConfigurationService(), { on: () => undefined }));
+
+		assert.deepStrictEqual(['backupFolder1', 'backupFolder2', 'backupFolder3', 'unknown'].map(backupFolder => handler.wasEmptyWindowInAgentsMode(backupFolder)), [true, false, false, false]);
+	});
+
 	test('open 1_32', () => {
 		const v1_32_workspace = `{
 			"openedWindows": [],
@@ -217,6 +264,4 @@ suite('Windows State Storing', () => {
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

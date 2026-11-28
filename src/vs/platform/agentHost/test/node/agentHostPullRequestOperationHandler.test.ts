@@ -34,7 +34,8 @@ import { PREPARE_PULL_REQUEST_OPERATION_ID, createPullRequestConversationMeta, c
 import { IAgentHostPullRequestAutopilotService, type IPullRequestAutopilotResult } from '../../node/agentHostPullRequestAutopilot.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, type Turn } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { MessageKind, ResponsePartKind, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, withFolderScopeGitState, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -1539,6 +1540,25 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			diffBaseBranches: ['refs/remotes/origin/main'],
 			pullRequestBase: 'main',
+		});
+	});
+
+	test('a folder of a session of several folders on its own computes and targets the base its own Git state records, not the conversation\'s', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = { branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode' };
+		const gitHubClient = new TestGitHubClient();
+		const { handler, session, stateManager } = setup(disposables, gitService, gitHubClient, { baseBranch: 'origin/release' });
+		const otherFolder = URI.file('/other').toString();
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: otherFolder });
+		stateManager.setSessionMeta(session.toString(), withFolderScopeGitState(stateManager.getSessionState(session.toString())?._meta, getWorkingDirectoryScopeId([otherFolder]), { branchName: 'feature/test', baseBranchName: 'develop', baseBranchRef: 'refs/remotes/origin/develop' }));
+		const channel = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([otherFolder])));
+
+		await handler.invoke({ channel, operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({ requestedBaseBranches: gitService.requestedBaseBranches, diffBaseBranches: gitService.diffBaseBranches, pullRequestBase: gitHubClient.lastBase }, {
+			requestedBaseBranches: ['refs/remotes/origin/develop'],
+			diffBaseBranches: ['refs/remotes/origin/develop'],
+			pullRequestBase: 'develop',
 		});
 	});
 

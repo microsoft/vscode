@@ -81,7 +81,7 @@ suite('Release notes highlights video telemetry', () => {
 
 	test('video links have separate attribution and cannot inflate generic engagement counts', () => {
 		const { tracker, service } = createTracker();
-		const document = new mainWindow.DOMParser().parseFromString('<h2>Highlights</h2><details class="release-highlights-video"><video></video><a href="https://example.com/transcript">Transcript</a></details><a href="https://code.visualstudio.com/docs">Documentation</a>', 'text/html');
+		const document = new mainWindow.DOMParser().parseFromString('<h2>Highlights</h2><figure class="release-highlights-video"><video></video><a href="https://example.com/transcript">Transcript</a></figure><a href="https://code.visualstudio.com/docs">Documentation</a>', 'text/html');
 		tracker.manifest = indexReleaseNotesContent(document.body);
 		tracker.receive({ ...sample, highlightsVideoVisible: false });
 		tracker.receive({ type: 'releaseNotesTelemetryLink', index: 0 });
@@ -94,8 +94,8 @@ suite('Release notes highlights video telemetry', () => {
 	});
 
 	for (const serialized of [false, true]) {
-		test(`samples the real disclosure without autoplay or synthetic playback (${serialized ? 'serialized' : 'direct'})`, async () => {
-			const url = mainWindow.URL.createObjectURL(new Blob(['<!DOCTYPE html><body><details class="release-highlights-video" open><summary>Watch release highlights</summary><video width="320" height="120" preload="none"></video></details></body>'], { type: 'text/html' }));
+		test(`samples the visible player without a disclosure or synthetic playback (${serialized ? 'serialized' : 'direct'})`, async () => {
+			const url = mainWindow.URL.createObjectURL(new Blob(['<!DOCTYPE html><body><figure class="release-highlights-video"><video width="320" height="120" preload="none"></video></figure></body>'], { type: 'text/html' }));
 			store.add(toDisposable(() => mainWindow.URL.revokeObjectURL(url)));
 			const iframe = $<HTMLIFrameElement>('iframe', { src: url });
 			const loaded = new DeferredPromise<void>();
@@ -106,7 +106,6 @@ suite('Release notes highlights video telemetry', () => {
 			await loaded.p;
 			const document = iframe.contentDocument!;
 			const window = getWindow(document.body);
-			const disclosure = document.querySelector('details')!;
 			const video = document.querySelector('video')!;
 			const messages: object[] = [];
 			const initialize: typeof initializeReleaseNotesTelemetry = serialized ? new Function(`return (${initializeReleaseNotesTelemetry.toString()});`)() : initializeReleaseNotesTelemetry;
@@ -124,21 +123,25 @@ suite('Release notes highlights video telemetry', () => {
 			const stalePresentation = messages.length;
 			window.dispatchEvent(new window.MessageEvent('message', { data: { type: 'releaseNotesTelemetryMeasure', documentId: 'video-document' } }));
 			await render();
-			const expanded = visible();
-			disclosure.open = false;
+			const shown = visible();
+			video.hidden = true;
 			await render();
-			const collapsed = visible();
-			disclosure.open = true;
+			const hidden = visible();
+			video.hidden = false;
+			video.style.marginTop = '400px';
+			await render();
+			const offscreen = visible();
+			video.style.marginTop = '';
 			await render();
 			video.dispatchEvent(new window.Event('playing'));
 			video.dispatchEvent(new window.Event('ended'));
 			video.dispatchEvent(new window.Event('error'));
 			dispose();
 			assert.deepStrictEqual({
-				beforePresentation, stalePresentation, expanded, collapsed, reexpanded: visible(),
+				beforePresentation, stalePresentation, shown, hidden, offscreen, restored: visible(),
 				paused: video.paused,
 				playbackMessages: messages.filter((message): message is { type: 'releaseNotesTelemetryVideo' } => 'type' in message && message.type === 'releaseNotesTelemetryVideo').length,
-			}, { beforePresentation: 0, stalePresentation: 0, expanded: true, collapsed: false, reexpanded: true, paused: true, playbackMessages: 0 });
+			}, { beforePresentation: 0, stalePresentation: 0, shown: true, hidden: false, offscreen: false, restored: true, paused: true, playbackMessages: 0 });
 		});
 	}
 });

@@ -12,6 +12,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAgentsModeService } from '../../../services/agentsMode/common/agentsMode.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -97,6 +98,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IOnboardingService private readonly onboardingService: IOnboardingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super();
 
@@ -114,6 +116,11 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Agents mode shows no startup editor; it closes the Welcome pages the window restored in the mode itself
+		if (this.agentsModeService.isActive) {
+			return;
+		}
 
 		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
 			// If the auxiliary bar is maximized, we do not show the welcome page.

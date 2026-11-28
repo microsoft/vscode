@@ -1251,6 +1251,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
+	/* Above what the chat layers over its content, such as its sticky scroll, its pet and its scroll-down button, which the drop covers too. */
+	z-index: 20;
 
 	display: none;
 }
@@ -1259,6 +1261,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+/*
+ * While it only shows that the input takes the drag, the drag reaches the input under it: the overlay would otherwise
+ * replace what is under the drag as the input takes it, which ends the drag over it without a `dragleave`.
+ */
+.chat-dnd-overlay.chat-dnd-overlay-input-hint {
+	pointer-events: none;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
@@ -3669,7 +3679,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: unset;
 }
 
-.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button {
+.interactive-session .chat-used-context:is(.show-checkmarks, .chat-model-router-routing) .chat-used-context-label .monaco-button {
 	gap: 4px;
 	margin-left: 0;
 }
@@ -3699,12 +3709,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
-/* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
+/* Hide the leading icon on collapsible parts by default; show-checkmarks restores it, and a model router's routing line always shows its icon */
 .interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
 	display: none;
 }
 
-.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+.interactive-session .chat-used-context:is(.show-checkmarks, .chat-model-router-routing) .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
 	display: inline-block;
 }
 

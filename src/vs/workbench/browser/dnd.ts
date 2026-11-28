@@ -69,6 +69,12 @@ export interface IInputDropTarget {
 	 * change, until the drag leaves it.
 	 */
 	adoptHint?(hint: string): void;
+
+	/**
+	 * Whether the input still takes the drags over its {@link area} as the key that lets drags through was held over it
+	 * earlier in the drag: it does until the drag leaves it, also once the key is released.
+	 */
+	letsThrough?(): boolean;
 }
 
 const inputDropTargets = new Map<HTMLElement, IInputDropTarget>();
@@ -149,16 +155,15 @@ export function isPassThroughModifierHeld(event: DragEvent): boolean {
 
 /**
  * Whether a placement overlay over `scope` lets the drag through to an input under it, such as a chat input that attaches
- * what is dragged: the {@link PASS_THROUGH_MODIFIER_LABEL key} is held, and the drag is over the
+ * what is dragged: the {@link PASS_THROUGH_MODIFIER_LABEL key} is held, or was held earlier in the drag over the input,
+ * which still lets it through ({@link IInputDropTarget.letsThrough}), and the drag is over the
  * {@link IInputDropTarget.area area} of a registered input inside `scope` that takes it, where {@link InputDropTargetHints}
  * says so.
  */
 export function isPassThroughToInputDrag(event: DragEvent, scope: HTMLElement): boolean {
-	if (!isPassThroughModifierHeld(event)) {
-		return false;
-	}
+	const held = isPassThroughModifierHeld(event);
 	for (const [input, target] of inputDropTargets) {
-		if (scope.contains(input) && isOver(target.area ?? input, event) && target.accepts(event)) {
+		if (scope.contains(input) && (held || target.letsThrough?.()) && isOver(target.area ?? input, event) && target.accepts(event)) {
 			return true;
 		}
 	}

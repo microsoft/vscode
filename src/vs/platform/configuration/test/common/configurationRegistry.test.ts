@@ -20,6 +20,19 @@ suite('ConfigurationRegistry', () => {
 	setup(() => reset());
 	teardown(() => reset());
 
+	test('Agents mode metadata leaves ordinary and registered override defaults unchanged', () => {
+		configurationRegistry.registerConfiguration({
+			id: 'agentsModeMetadataTest',
+			properties: {
+				'test.agentsModeDefault': { type: 'string', default: 'ordinary', agentsMode: { default: 'agentsMode' } },
+			},
+		});
+		const ordinary = configurationRegistry.getConfigurationProperties()['test.agentsModeDefault'].default;
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'test.agentsModeDefault': 'overridden' } }]);
+		const property = configurationRegistry.getConfigurationProperties()['test.agentsModeDefault'];
+		assert.deepStrictEqual({ ordinary, overridden: property.default, agentsMode: property.agentsMode?.default }, { ordinary: 'ordinary', overridden: 'overridden', agentsMode: 'agentsMode' });
+	});
+
 	test('configuration override', async () => {
 		configurationRegistry.registerConfiguration({
 			'id': '_test_default',

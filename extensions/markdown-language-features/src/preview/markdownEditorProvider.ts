@@ -23,7 +23,7 @@ import {
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { clampMarkdownEditorZoomPercent, codeBlockEditorPresentation, DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT, MARKDOWN_EDITOR_ZOOM_STEP_PERCENT, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, stepMarkdownEditorZoomDelta, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename, renameApi } from './markdownEditorRename';
 import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
@@ -32,6 +32,7 @@ import { MarkdownEditorNavigation } from './markdownEditorNavigation';
 import { MarkdownEditorUndoGrouper } from './markdownEditorUndoGrouping';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
 import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from './markdownDocumentFeatures';
+import { MarkdownPreviewConfiguration } from './previewConfig';
 
 /** Delay before a new Markdown editor's document is scanned for telemetry, to stay off the open path. */
 const FEATURE_SCAN_DELAY_MS = 2_000;
@@ -279,6 +280,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #telemetryReporter: TelemetryReporter;
 	readonly #telemetrySessions = new Set<MarkdownEditorSessionTelemetry>();
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
+	readonly #configurationUpdaters = new Map<vscode.WebviewPanel, { readonly document: vscode.TextDocument; readonly post: () => void }>();
+	#zoomDelta = 0;
 	readonly #navigation = new Map<vscode.WebviewPanel, MarkdownEditorNavigation>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
@@ -569,8 +572,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document, documentReadonly)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(getMarkdownEditorConfiguration(document, documentReadonly, this.#zoomDelta)));
 		};
+		this.#configurationUpdaters.set(webviewPanel, {
+			document,
+			post: () => {
+				if (editorWebview.ready) {
+					postConfiguration();
+				}
+			},
+		});
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
 				editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
@@ -833,8 +844,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if ((event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri)
-				|| event.affectsConfiguration('markdown.editor.renderWhitespace', document.uri)) && editorWebview.ready) {
+			if (editorWebview.ready && markdownEditorConfigurationSettings.some(setting => event.affectsConfiguration(setting, document.uri))) {
 				postConfiguration();
 			}
 		});
@@ -858,6 +868,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			resolveCancellation.dispose();
 			disposeHostTransports();
 			this.#webviewPanels.delete(webviewPanel);
+			this.#configurationUpdaters.delete(webviewPanel);
 			this.#focusedWebviewPanels.delete(webviewPanel);
 			this.#updateEditorFocusContext();
 			editorWebview.dispose();
@@ -929,9 +940,29 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	}
 
 	public async executeCommand(command: string): Promise<void> {
-		const activeWebview = Array.from(this.#webviewPanels).find(([panel]) => panel.active)?.[1];
-		if (!activeWebview) {
+		const activeEntry = Array.from(this.#webviewPanels).find(([panel]) => panel.active);
+		if (!activeEntry) {
 			this.#logger.trace('Markdown editor command', `Ignored ${command} because no Markdown editor is active`);
+			return;
+		}
+		const [activePanel, activeWebview] = activeEntry;
+		if (command === 'markdown.editor.zoomIn' || command === 'markdown.editor.zoomOut' || command === 'markdown.editor.resetZoom') {
+			const activeUri = this.#configurationUpdaters.get(activePanel)?.document.uri;
+			const configured = this.#getConfiguredZoom(activeUri);
+			const nextDelta = command === 'markdown.editor.resetZoom'
+				? 0
+				: stepMarkdownEditorZoomDelta(
+					configured,
+					this.#zoomDelta,
+					command === 'markdown.editor.zoomIn' ? MARKDOWN_EDITOR_ZOOM_STEP_PERCENT : -MARKDOWN_EDITOR_ZOOM_STEP_PERCENT,
+				);
+			if (nextDelta === this.#zoomDelta) {
+				return;
+			}
+			this.#zoomDelta = nextDelta;
+			for (const updater of this.#configurationUpdaters.values()) {
+				updater.post();
+			}
 			return;
 		}
 		await activeWebview.renderer.command({ command });
@@ -1320,7 +1351,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document, documentReadonly),
+			...getMarkdownEditorConfiguration(document, documentReadonly, this.#zoomDelta),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1360,16 +1391,41 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </body>
 </html>`;
 	}
-
-	#getEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean): MarkdownEditorConfiguration {
-		const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
-		return {
-			highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
-			renderWhitespace: config.get<boolean>('renderWhitespace', false),
-			lineBreak: vsCodeLineBreak(document),
-			documentReadonly,
-		};
+	#getConfiguredZoom(resource?: vscode.Uri): number {
+		const config = vscode.workspace.getConfiguration('markdown.editor', resource);
+		return clampMarkdownEditorZoomPercent(config.get<number>('zoom', DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT));
 	}
+}
+
+const markdownEditorConfigurationSettings: readonly string[] = [
+	'markdown.editor.highlightActiveBlock',
+	'markdown.editor.renderWhitespace',
+	'markdown.editor.zoom',
+	'markdown.preview.fontFamily',
+	'markdown.preview.fontSize',
+	'markdown.preview.lineHeight',
+];
+
+export function getMarkdownEditorConfiguration(document: vscode.TextDocument, documentReadonly: boolean, zoomDelta = 0): MarkdownEditorConfiguration {
+	const config = vscode.workspace.getConfiguration('markdown.editor', document.uri);
+	const previewConfig = vscode.workspace.getConfiguration('markdown.preview', document.uri);
+	const rawFontSize = previewConfig.get<unknown>('fontSize');
+	const rawLineHeight = previewConfig.get<unknown>('lineHeight');
+	const { fontFamily, fontSize, lineHeight } = MarkdownPreviewConfiguration.getForResource(document.uri);
+	return {
+		highlightActiveBlock: config.get<boolean>('highlightActiveBlock', true),
+		renderWhitespace: config.get<boolean>('renderWhitespace', false),
+		lineBreak: vsCodeLineBreak(document),
+		zoomPercent: clampMarkdownEditorZoomPercent(config.get<number>('zoom', DEFAULT_MARKDOWN_EDITOR_ZOOM_PERCENT) + zoomDelta),
+		documentReadonly,
+		fontFamily: typeof fontFamily === 'string' && fontFamily.trim().length > 0 ? fontFamily : undefined,
+		fontSize: isFiniteNumber(rawFontSize) && Number.isFinite(fontSize) ? fontSize : undefined,
+		lineHeight: isFiniteNumber(rawLineHeight) && Number.isFinite(lineHeight) ? lineHeight : undefined,
+	};
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
 }
 
 function advancePosition(pos: vscode.Position, text: string): vscode.Position {

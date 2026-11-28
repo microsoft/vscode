@@ -56,6 +56,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IAgentsModeService } from '../../../services/agentsMode/common/agentsMode.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING, IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -297,10 +298,11 @@ export class SettingsEditor2 extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
 		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
+		@IAgentsModeService agentsModeService: IAgentsModeService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
-		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, isAgentsMode: agentsModeService.isActive };
 
 		this.settingFastUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE));
 		this.settingSlowUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE));
@@ -339,6 +341,8 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(chatEntitlementService.onDidChangeSentiment(() => {
 			this.updateAiSearchToggleVisibility();
 		}));
+
+		this._register(agentsModeService.onDidChange(isActive => this.onDidChangeAgentsMode(isActive)));
 
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			e.join(this.whenCurrentProfileChanged());
@@ -952,6 +956,15 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.settingsTarget = target;
 
 		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate(undefined, true);
+	}
+
+	/**
+	 * Agents mode shows its own defaults and read-only settings, so every
+	 * setting element follows the mode.
+	 */
+	private onDidChangeAgentsMode(isActive: boolean): void {
+		this.viewState.isAgentsMode = isActive;
 		this.onConfigUpdate(undefined, true);
 	}
 
