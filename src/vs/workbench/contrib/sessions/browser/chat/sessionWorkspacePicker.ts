@@ -3413,7 +3413,7 @@ export class WorkspacePicker extends Disposable {
 					// A missing workspace's file can't be opened: it is there to repair or remove
 					...(workspace.missing ? [] : [toAction({
 						id: 'workspacePicker.sessionWorkspace.openInEditor',
-						label: localize('workspacePicker.sessionWorkspace.openInEditor', "Open in Editor"),
+						label: localize('workspacePicker.sessionWorkspace.openInEditor', "Open in Editor Window"),
 						class: ThemeIcon.asClassName(Codicon.window),
 						run: () => this._runSessionWorkspaceCommand(OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID, workspace.uri),
 					})]),

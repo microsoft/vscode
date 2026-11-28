@@ -129,7 +129,7 @@ registerAction2(class OpenSessionWorkspaceInEditorAction extends SessionWorkspac
 	constructor() {
 		super({
 			id: OPEN_SESSION_WORKSPACE_IN_EDITOR_COMMAND_ID,
-			title: localize2('openWorkspaceInEditor', "Open Workspace in Editor..."),
+			title: localize2('openWorkspaceInEditor', "Open Workspace in Editor Window..."),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: SESSION_WORKSPACE_EDITOR_WHEN,

@@ -180,7 +180,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/' }, {
 	}),
 	WorkspaceFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['With the keyboard, the Product workspace row is focused, showing its Open in Editor (window icon), Edit Workspace (gear) and Remove Workspace buttons.'],
+		expectedVisualDescriptions: ['With the keyboard, the Product workspace row is focused, showing its Open in Editor Window (window icon), Edit Workspace (gear) and Remove Workspace buttons.'],
 		virtualTime: { enabled: false },
 		render: context => renderPicker(context, false, true, 'workspaceRow'),
 	}),
