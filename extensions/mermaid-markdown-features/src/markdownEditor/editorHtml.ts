@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * The page of the Mermaid code block editor. Its script, `index.js`, loads relative to the page's base URL,
- * `markdown-editor-out/`. `configSpan` carries the `markdown-mermaid` settings, as in the Markdown preview.
+ * The page of the Mermaid code block editor. Its script, `markdown-editor.js`, loads relative to the page's base URL,
+ * `webview-out/`. `configSpan` carries the `markdown-mermaid` settings, as in the Markdown preview.
  */
 export function renderMermaidEditorHtml(configSpan: string): string {
 	return `<!DOCTYPE html>
@@ -27,7 +27,7 @@ export function renderMermaidEditorHtml(configSpan: string): string {
 <body>
 	${configSpan}
 	<main aria-label="Mermaid diagram" aria-busy="true"></main>
-	<script type="module" src="./index.js"></script>
+	<script type="module" src="./markdown-editor.js"></script>
 </body>
 </html>`;
 }

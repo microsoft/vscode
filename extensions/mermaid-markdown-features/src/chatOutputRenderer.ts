@@ -54,7 +54,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		});
 
 		// Set the options for the webview
-		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out');
+		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'webview-out');
 		webview.options = {
 			enableScripts: true,
 			localResourceRoots: [mediaRoot],
@@ -62,7 +62,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 
 		// Set the HTML content for the webview
 		const nonce = generateUuid();
-		const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'index.js');
+		const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'chat.js');
 		const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'codicon.css'));
 		const openInEditorLabel = vscode.l10n.t('Open Diagram in Editor');
 

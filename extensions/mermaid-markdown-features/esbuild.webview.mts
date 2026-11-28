@@ -43,49 +43,18 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 	splitting: true,
 };
 
-await Promise.all([
-	// Chat
-	run({
-		entryPoints: {
-			'index': path.join(chatSrcDir, 'index.ts'),
-			'index-editor': path.join(chatSrcDir, 'index-editor.ts'),
-			'codicon': path.join(resolvePackageDirectory(rootDir, '@vscode/codicons'), 'dist', 'codicon.css'),
-		},
-		srcDir: chatSrcDir,
-		outdir: path.join(rootDir, 'chat-webview-out'),
-		additionalOptions: {
-			loader: {
-				'.ttf': 'dataurl',
-			},
-		}
-	}, process.argv),
-	// Markdown preview
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'markdown', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'markdown-preview-out'),
-		additionalOptions: mermaidMarkdownBuildOptions,
-	}, process.argv),
-	// Notebook
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'notebook', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'notebook-out'),
-		additionalOptions: {
-			...mermaidMarkdownBuildOptions,
-		},
-	}, process.argv),
-	// Markdown editor code blocks
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'markdown-editor-out'),
-		additionalOptions: mermaidMarkdownBuildOptions,
-	}, process.argv),
-]);
+await run({
+	// All webviews, built together into one folder so that they share their chunks and the extension contains Mermaid once.
+	// The entry modules stay in the folder of the chunks: a notebook only loads a renderer's files from the folder of its entry module.
+	entryPoints: {
+		'markdown-preview': path.join(previewSrcDir, 'markdown', 'index.ts'),
+		'notebook': path.join(previewSrcDir, 'notebook', 'index.ts'),
+		'markdown-editor': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
+		'chat': path.join(chatSrcDir, 'index.ts'),
+		'diagram-editor': path.join(chatSrcDir, 'index-editor.ts'),
+		'codicon': path.join(resolvePackageDirectory(rootDir, '@vscode/codicons'), 'dist', 'codicon.css'),
+	},
+	srcDir: previewSrcDir,
+	outdir: path.join(rootDir, 'webview-out'),
+	additionalOptions: mermaidMarkdownBuildOptions,
+}, process.argv);
