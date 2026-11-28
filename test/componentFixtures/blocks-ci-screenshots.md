@@ -208,10 +208,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d9a2ae34e8d118e1006023600907f022d1ef272062c9df74206c5810b11f4152)
 
 #### sessions/sessionsList/SessionsList_LightweightNewButton/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/27750194694cd6b4941e11c7752732c04f934269141b93ad9bbd6131217ace45)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d495dbe3e4b8500c79b2e452da0f9eede791c2e8f017173287852a512782f6dd)
 
 #### sessions/sessionsList/SessionsList_LightweightNewButtonWithKeybindingBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/54f5cf2d72ea720ff9c6f07388c686f91f7541abff62ef516b321588260da824)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f5d96de51bda242517b39c4ccbe0463f90781977880ad6fe1349551ca940572f)
 
 #### sessions/sessionsList/SessionsList_NarrowHoverToolbar/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d6897983c4807abb9809df9367403a85717d2dcb3e94c1b642aa986a69e1a766)
