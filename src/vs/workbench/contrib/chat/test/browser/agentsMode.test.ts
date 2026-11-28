@@ -282,6 +282,8 @@ suite('Agents mode actions', () => {
 			readonly panelVisible?: boolean;
 			/** Whether the editor area has focus when entering */
 			readonly editorFocused?: boolean;
+			/** Whether the chat part has focus when leaving: it hides as the mode's settings go, and the focus it had with it */
+			readonly chatPartFocusedOnLeave?: boolean;
 			/** What happens in the mode before leaving it */
 			readonly inMode?: 'openEditor' | 'restart' | 'restartWithWelcome' | 'restartWithoutMode' | 'showChatPart' | 'reopenChatPart';
 		}
@@ -291,8 +293,10 @@ suite('Agents mode actions', () => {
 			const storage = disposables.add(new InMemoryStorageService());
 			const visibleEditorsChange = disposables.add(new Emitter<IVisibleEditorsChangeEvent>());
 			const partVisibilityChange = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
-			const agentsMode = { isSupported: true, isActive: false };
+			const willChange = disposables.add(new Emitter<boolean>());
+			const agentsMode = { isSupported: true, isActive: false, onWillChange: willChange.event };
 			const calls: string[] = [];
+			let chatPartFocused = false;
 			let welcome = !!scenario.welcome;
 			let editors = scenario.editors ?? 0;
 			let editorVisible = true;
@@ -323,7 +327,7 @@ suite('Agents mode actions', () => {
 				onDidChangePartVisibility: partVisibilityChange.event,
 				isAuxiliaryBarMaximized: () => false,
 				isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.CHAT_PART ? chatPartVisible : part === Parts.AUXILIARYBAR_PART || (part === Parts.PANEL_PART && panelVisible),
-				hasFocus: (part: Parts) => part === Parts.EDITOR_PART && !!scenario.editorFocused && editorVisible,
+				hasFocus: (part: Parts) => part === Parts.EDITOR_PART ? !!scenario.editorFocused && editorVisible : part === Parts.CHAT_PART && chatPartFocused,
 				focusPart: (part: Parts) => { calls.push(`focus ${part}`); },
 				setPartHidden: (hidden: boolean, part: Parts) => {
 					if (!laidOut) {
@@ -397,7 +401,11 @@ suite('Agents mode actions', () => {
 				inMode = state();
 			}
 
+			chatPartFocused = !!scenario.chatPartFocusedOnLeave;
+			willChange.fire(false);
 			agentsMode.isActive = false;
+			// Like the window: the chat part hides as the mode's settings go, which leaves the focus it had nowhere
+			chatPartFocused = false;
 			editorArea.leave();
 			editorArea.dispose();
 			return { afterEnter, ...(inMode ? { inMode } : {}), afterLeave: state() };
@@ -422,6 +430,8 @@ suite('Agents mode actions', () => {
 				emptyChatPartReopenedInMode: await run({ chatPartVisible: true, inMode: 'reopenChatPart' }),
 				withEditors: await run({ editors: 1, chatPartVisible: true }),
 				editorOpenedInMode: await run({ chatPartVisible: true, inMode: 'openEditor' }),
+				chatPartFocusedOnLeave: await run({ chatPartVisible: true, panelVisible: true, chatPartFocusedOnLeave: true }),
+				chatPartFocusedOnLeaveWithEditors: await run({ editors: 1, chatPartVisible: true, chatPartFocusedOnLeave: true }),
 			}, {
 				emptyWithChatPart: { afterEnter: hiddenByChat, afterLeave: shownOnLeave },
 				// The Welcome page closes before the editor area is looked at
@@ -441,6 +451,9 @@ suite('Agents mode actions', () => {
 				emptyChatPartReopenedInMode: { afterEnter: hiddenByChat, inMode: hiddenByChat, afterLeave: shownOnLeave },
 				withEditors: { afterEnter: untouched, afterLeave: untouched },
 				editorOpenedInMode: { afterEnter: hiddenByChat, inMode: { editorVisible: true, panelVisible: false, calls: [`show ${Parts.EDITOR_PART}`] }, afterLeave: untouched },
+				// The focus the chat part had goes to the editor area that shows again, as the window entered with it
+				chatPartFocusedOnLeave: { afterEnter: { ...hiddenByChat, panelVisible: true }, afterLeave: { editorVisible: true, panelVisible: true, calls: [`show ${Parts.EDITOR_PART}`, `focus ${Parts.EDITOR_PART}`] } },
+				chatPartFocusedOnLeaveWithEditors: { afterEnter: untouched, afterLeave: { ...untouched, calls: [`focus ${Parts.EDITOR_PART}`] } },
 			});
 		});
 	});

@@ -22,13 +22,17 @@ import { gettingStartedInputTypeId } from '../../../welcomeGettingStarted/browse
  * place (the chat part, the panel or a maximized secondary side bar), so hiding it never makes
  * the layout open the panel; otherwise it is hidden once the chat part shows. Closing the chat
  * part shows the editor area again; the next chat part shown in the mode takes its place again. The Welcome page, which is
- * not for the mode, closes on entering and when the window restores in the mode.
+ * not for the mode, closes on entering and when the window restores in the mode. The focus the chat part had as the window
+ * leaves the mode goes to the editor area, or else to the panel.
  */
 export class AgentsModeEditorArea extends Disposable {
 
 	static readonly HIDDEN_ON_ENTER_STORAGE_KEY = 'chat.agentsMode.editorAreaHiddenOnEnter';
 
 	private readonly pendingHide = this._register(new MutableDisposable());
+
+	/** Whether the chat part had focus as the window was about to leave the mode, before leaving hid it. */
+	private chatPartFocusedOnLeave = false;
 
 	constructor(
 		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
@@ -46,6 +50,10 @@ export class AgentsModeEditorArea extends Disposable {
 		}
 
 		if (agentsModeService.isSupported) {
+			// Taken before the mode's settings go, which hides the chat part and leaves the focus it had nowhere
+			this._register(agentsModeService.onWillChange(entering => {
+				this.chatPartFocusedOnLeave = !entering && layoutService.hasFocus(Parts.CHAT_PART);
+			}));
 			this._register(editorService.onDidVisibleEditorsChange(() => this.showIfEditorOpened()));
 			// Closing the chat part shows the empty editor area again: the next chat shown takes its place again
 			this._register(layoutService.onDidChangePartVisibility(e => {
@@ -158,13 +166,22 @@ export class AgentsModeEditorArea extends Disposable {
 
 	leave(): void {
 		this.pendingHide.clear();
-		if (!this.wasHiddenOnEnter()) {
-			return;
+		if (this.wasHiddenOnEnter()) {
+			this.storageService.remove(AgentsModeEditorArea.HIDDEN_ON_ENTER_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			}
 		}
 
-		this.storageService.remove(AgentsModeEditorArea.HIDDEN_ON_ENTER_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-			this.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		// Once the editor area shows again, as the window entered with it focused
+		const chatPartFocused = this.chatPartFocusedOnLeave;
+		this.chatPartFocusedOnLeave = false;
+		if (chatPartFocused && !this.layoutService.hasFocus(Parts.EDITOR_PART) && !this.layoutService.hasFocus(Parts.PANEL_PART)) {
+			if (this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
+			} else {
+				this.layoutService.focusPart(Parts.PANEL_PART);
+			}
 		}
 	}
 }
