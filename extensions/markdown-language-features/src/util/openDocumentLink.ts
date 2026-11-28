@@ -91,9 +91,20 @@ export class MdLinkOpener {
 		}
 
 		switch (resolved.kind) {
-			case 'external':
-				await openExternal(uri);
+			case 'external': {
+				// Pass the original link text as a string to avoid
+				// double-encoding of percent-encoded fragment characters.
+				// When the opener service receives a string whose parsed URI
+				// matches the resolved external URI it uses the string AS IS,
+				// preserving sequences like %2D instead of re-encoding them
+				// to %252D (which breaks text-fragment highlighting).
+				if (uri.scheme === 'http' || uri.scheme === 'https') {
+					await vscode.commands.executeCommand('vscode.open', linkText);
+				} else {
+					await openExternal(uri);
+				}
 				return;
+			}
 
 			case 'folder':
 				return vscode.commands.executeCommand('revealInExplorer', uri);
@@ -159,9 +170,12 @@ async function openExternal(uri: vscode.Uri): Promise<void> {
  * Parses URI-like absolute links while leaving Windows drive paths unresolved.
  */
 export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
-	return !/^[a-z]:[\\/]/i.test(linkText) && /^[a-z][a-z0-9+.-]*:/i.test(linkText)
-		? vscode.Uri.parse(linkText, true)
-		: undefined;
+	if (/^[a-z]:[\\/]/i.test(linkText) || !/^[a-z][a-z0-9+.-]*:/i.test(linkText)) {
+		return undefined;
+	}
+	const uri = vscode.Uri.parse(linkText, true);
+	const hashIndex = linkText.indexOf('#');
+	return hashIndex !== -1 ? uri.with({ fragment: linkText.slice(hashIndex + 1) }) : uri;
 }
 
 function getSelectionFromLocationFragment(fragment: string): vscode.Range | undefined {

@@ -67,4 +67,18 @@ suite('Open Markdown document link', () => {
 			target: { kind: 'external', uri: 'https://example.com/docs#section' },
 		});
 	});
+
+	test('preserves percent-encoded characters in external link fragments', async () => {
+		const opener = new MdLinkOpener({
+			resolveLinkTarget: async () => undefined,
+		});
+
+		const urlWithFragment = 'https://example.com/docs#:~:text=percent%2Dencoded';
+		const target = await opener.resolveDocumentLink(urlWithFragment, vscode.Uri.file('/workspace/readme.md'));
+
+		assert.strictEqual(
+			target && vscode.Uri.from(target.uri).fragment,
+			':~:text=percent%2Dencoded'
+		);
+	});
 });
