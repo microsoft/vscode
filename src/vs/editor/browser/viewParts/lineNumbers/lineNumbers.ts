@@ -34,7 +34,14 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderResult: string[] | null;
 	private _activeModelLineNumber: number;
 
-	constructor(context: ViewContext) {
+	constructor(
+		context: ViewContext,
+		/**
+		 * Render only lines carrying a `lineNumberClassName` decoration. Another
+		 * renderer (`EditorViewGpu`) draws the undecorated labels beneath.
+		 */
+		private readonly _decoratedLinesOnly = false,
+	) {
 		super();
 		this._context = context;
 
@@ -179,6 +186,10 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			}
 
 			if (!renderLineNumber && !extraClassNames) {
+				output[lineIndex] = '';
+				continue;
+			}
+			if (this._decoratedLinesOnly && !extraClassNames) {
 				output[lineIndex] = '';
 				continue;
 			}

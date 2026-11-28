@@ -12,6 +12,16 @@ import { ViewModelDecoration } from '../../common/viewModel/viewModelDecoration.
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+	/**
+	 * {@link linesVisibleRangesForRange} for each request, for lines that
+	 * measure several ranges together faster than one at a time.
+	 */
+	linesVisibleRangesForRanges?(requests: readonly ILinesVisibleRangesRequest[]): (LineVisibleRanges[] | null)[];
+}
+
+export interface ILinesVisibleRangesRequest {
+	readonly range: Range;
+	readonly includeNewLines: boolean;
 }
 
 export abstract class RestrictedRenderingContext {
@@ -89,19 +99,40 @@ export class RenderingContext extends RestrictedRenderingContext {
 		if (!this._viewLinesGpu) {
 			return domRanges;
 		}
-		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
-		if (!domRanges) {
-			return gpuRanges;
-		}
-		if (!gpuRanges) {
-			return domRanges;
-		}
-		return domRanges.concat(gpuRanges).sort((a, b) => a.lineNumber - b.lineNumber);
+		return mergeLinesVisibleRanges(domRanges, this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines));
+	}
+
+	/**
+	 * {@link linesVisibleRangesForRange} for each request. Lines that can
+	 * measure the ranges together do, in one call: GPU lines, and `ViewLines`
+	 * while another renderer paints the text.
+	 */
+	public linesVisibleRangesForRanges(requests: readonly ILinesVisibleRangesRequest[]): (LineVisibleRanges[] | null)[] {
+		const viewLinesGpu = this._viewLinesGpu;
+		const domBatch = this._viewLines.linesVisibleRangesForRanges?.(requests);
+		const gpuRanges = viewLinesGpu?.linesVisibleRangesForRanges?.(requests);
+		return requests.map((request, i) => {
+			const domRanges = domBatch ? domBatch[i] : this._viewLines.linesVisibleRangesForRange(request.range, request.includeNewLines);
+			if (!viewLinesGpu) {
+				return domRanges;
+			}
+			return mergeLinesVisibleRanges(domRanges, gpuRanges ? gpuRanges[i] : viewLinesGpu.linesVisibleRangesForRange(request.range, request.includeNewLines));
+		});
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
 		return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 	}
+}
+
+function mergeLinesVisibleRanges(domRanges: LineVisibleRanges[] | null, gpuRanges: LineVisibleRanges[] | null): LineVisibleRanges[] | null {
+	if (!domRanges) {
+		return gpuRanges;
+	}
+	if (!gpuRanges) {
+		return domRanges;
+	}
+	return domRanges.concat(gpuRanges).sort((a, b) => a.lineNumber - b.lineNumber);
 }
 
 export class LineVisibleRanges {

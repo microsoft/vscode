@@ -114,6 +114,29 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 			tags: ['experimental'],
 		},
+		'editor.experimental.editorViewGlyphCache': {
+			type: 'string',
+			enum: ['runs', 'characters'],
+			default: 'characters',
+			enumDescriptions: [
+				nls.localize('editor.experimental.editorViewGlyphCache.runs', "Rasterize each token's text as one image."),
+				nls.localize('editor.experimental.editorViewGlyphCache.characters', "Rasterize each character of ASCII text in a monospace font once per subpixel position, and place it in its cell."),
+			],
+			markdownDescription: nls.localize('editor.experimental.editorViewGlyphCache', "Controls how the renderer of `#editor.experimentalGpuAcceleration#` `editorView` caches text."),
+			tags: ['experimental'],
+		},
+		'editor.experimental.editorViewIncrementalRendering': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('editor.experimental.editorViewIncrementalRendering', "Controls whether the renderer of `#editor.experimentalGpuAcceleration#` `editorView` keeps its pixels between frames and redraws only what changed. When off, it redraws every frame in full."),
+			tags: ['experimental'],
+		},
+		'editor.experimental.editorViewOverscan': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('editor.experimental.editorViewOverscan', "Controls whether the renderer of `#editor.experimentalGpuAcceleration#` `editorView` draws beyond the visible part of the editor, so that scrolling moves its picture instead of drawing it again. It applies at whole-number display scales, with `#editor.experimental.editorViewIncrementalRendering#`."),
+			tags: ['experimental'],
+		},
 		'editor.experimental.treeSitterTelemetry': {
 			type: 'boolean',
 			default: false,

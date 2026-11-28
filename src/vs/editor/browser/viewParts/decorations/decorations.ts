@@ -5,22 +5,34 @@
 
 import './decorations.css';
 import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
-import { HorizontalRange, RenderingContext } from '../../view/renderingContext.js';
+import { HorizontalRange, LineVisibleRanges, RenderingContext } from '../../view/renderingContext.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 
+interface INormalDecoration {
+	readonly range: Range;
+	readonly className: string;
+	readonly shouldFillLineOnLineBreak: boolean;
+	readonly showIfCollapsed: boolean;
+}
+
 export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
+	private readonly _shouldRenderDecoration: (decoration: ViewModelDecoration) => boolean;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[] | null;
 
-	constructor(context: ViewContext) {
+	constructor(
+		context: ViewContext,
+		shouldRenderDecoration?: (decoration: ViewModelDecoration) => boolean,
+	) {
 		super();
 		this._context = context;
+		this._shouldRenderDecoration = shouldRenderDecoration ?? (() => true);
 		const options = this._context.configuration.options;
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._renderResult = null;
@@ -72,7 +84,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			const d = _decorations[i];
-			if (d.options.className) {
+			if (d.options.className && this._shouldRenderDecoration(d)) {
 				decorations[decorationsLen++] = d;
 			}
 		}
@@ -145,6 +157,17 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let prevShowIfCollapsed: boolean = false;
 		let prevRange: Range | null = null;
 		let prevShouldFillLineOnLineBreak: boolean = false;
+		const normalDecorations: INormalDecoration[] = [];
+		const flush = () => {
+			if (prevClassName !== null) {
+				normalDecorations.push({
+					range: prevRange!,
+					className: prevClassName,
+					shouldFillLineOnLineBreak: prevShouldFillLineOnLineBreak,
+					showIfCollapsed: prevShowIfCollapsed,
+				});
+			}
+		};
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];
@@ -169,7 +192,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			// flush previous decoration
 			if (prevClassName !== null) {
-				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
+				flush();
 			}
 
 			prevClassName = className;
@@ -179,12 +202,28 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 
 		if (prevClassName !== null) {
-			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
+			flush();
+		}
+
+		// Measured together: GPU lines that can measure several ranges at once do.
+		const linesVisibleRanges = ctx.linesVisibleRangesForRanges(normalDecorations.map(decoration => ({
+			range: decoration.range,
+			includeNewLines: /*TODO@Alex*/decoration.className === 'findMatch',
+		})));
+		for (let i = 0; i < normalDecorations.length; i++) {
+			const decoration = normalDecorations[i];
+			this._renderNormalDecoration(
+				linesVisibleRanges[i],
+				decoration.className,
+				decoration.shouldFillLineOnLineBreak,
+				decoration.showIfCollapsed,
+				visibleStartLineNumber,
+				output,
+			);
 		}
 	}
 
-	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[]): void {
-		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
+	private _renderNormalDecoration(linesVisibleRanges: LineVisibleRanges[] | null, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[]): void {
 		if (!linesVisibleRanges) {
 			return;
 		}

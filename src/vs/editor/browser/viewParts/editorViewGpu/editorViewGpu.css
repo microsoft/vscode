@@ -1,0 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The editorView canvas is the editor's bottom layer and paints the editor and
+ * gutter backgrounds itself. Let it show through the DOM layers above it.
+ */
+.monaco-editor.editor-view-gpu .lines-content.monaco-editor-background,
+.monaco-editor.editor-view-gpu .margin {
+	background-color: transparent;
+}
