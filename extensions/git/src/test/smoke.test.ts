@@ -270,6 +270,37 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('opens deleted files with their name as the editor title, without a (Deleted) suffix', async function () {
+		const fileName = 'index.pug';
+		const deleted = uri(fileName);
+		const internalRepository = getModel().getRepository(cwd)!;
+
+		try {
+			// Deleted in the working tree
+			fs.unlinkSync(deleted.fsPath);
+			await repository.status();
+			const workingTreeResource = internalRepository.workingTreeChanges.find(r => r.resourceUri.path === deleted.path);
+			assert.strictEqual(workingTreeResource?.type, Status.DELETED);
+			assert.strictEqual(workingTreeResource.command.arguments?.[2], fileName);
+
+			// Deleted in the index
+			cp.execSync(`git rm -q ${fileName}`, { cwd });
+			await repository.status();
+			const indexResource = internalRepository.indexChanges.find(r => r.resourceUri.path === deleted.path);
+			assert.strictEqual(indexResource?.type, Status.INDEX_DELETED);
+			assert.strictEqual(indexResource.command.arguments?.[2], fileName);
+
+			await commands.executeCommand(indexResource.command.command, ...indexResource.command.arguments!);
+			assert.strictEqual(window.tabGroups.activeTabGroup.activeTab?.label, fileName);
+		} finally {
+			// Restore the file so the following tests start from a clean tree
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+			cp.execSync(`git reset -q HEAD -- ${fileName}`, { cwd });
+			cp.execSync(`git checkout -q -- ${fileName}`, { cwd });
+			await repository.status();
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('opens notebook diff and file from active notebook editor', async function () {
 		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });

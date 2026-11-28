@@ -611,7 +611,10 @@ class ResourceCommandResolver {
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return l10n.t('{0} (Deleted)', basename);
+				// Deleted files are indicated through file decorations
+				// (see `GitDecorationProvider`), like editors whose file
+				// was deleted on disk, instead of a suffix in the label.
+				return basename;
 
 			case Status.DELETED_BY_US:
 				return l10n.t('{0} (Theirs)', basename);
