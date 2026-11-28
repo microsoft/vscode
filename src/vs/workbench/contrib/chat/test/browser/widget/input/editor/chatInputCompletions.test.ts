@@ -1207,6 +1207,31 @@ suite('prompt slash command matching', () => {
 		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:review'), '/my-plugin:review /my-plugin review');
 	});
 
+	test('keeps long hyphenated plugin commands matchable by their plugin prefix', () => {
+		const matches = (name: string, patterns: string[]) => {
+			// Without a filter text, the suggest widget matches against the label.
+			const filterText = getPromptSlashCommandFilterText(name) ?? `/${name}`;
+			return patterns.map(pattern => !!fuzzyScore(pattern, pattern.toLowerCase(), 0, filterText, filterText.toLowerCase(), 0, FuzzyScoreOptions.default));
+		};
+		assert.deepStrictEqual([
+			matches('example-dev-tools:migration-example-platform-version-four-to-version-five-guide', ['/example-dev-tools', '/example-dev-tools:migration', '/platform-version', '/qqq']),
+			matches('dev-tools:migrate-platform-from-version-four-to-five', ['/dev-tools', '/dev-tools migrate', '/version-four', '/qqq']),
+			matches(`${'a'.repeat(128)}-summary`, [`/${'a'.repeat(32)}`, '/summary', '/qqq']),
+			matches(`${'a'.repeat(64)}:${'b'.repeat(56)}-summary`, [`/${'a'.repeat(64)}`, '/summary', '/qqq']),
+			matches(`${'p'.repeat(64)}:ab-review-${'z'.repeat(54)}`, [`/${'p'.repeat(64)}`, '/review', `/${'z'.repeat(20)}`, '/qqq']),
+			matches(`${'p'.repeat(64)}:${'b'.repeat(56)}-implementation`, [`/${'p'.repeat(64)}`, '/implementation', '/qqq']),
+			matches(`plugin:${'a-'.repeat(126)}a`, ['/plugin', '/a-a-a', '/qqq']),
+		], [
+			[true, true, true, false],
+			[true, true, true, false],
+			[true, true, false],
+			[true, true, false],
+			[true, true, true, false],
+			[true, true, false],
+			[true, true, false],
+		]);
+	});
+
 	test('uses the label for commands without word separators', () => {
 		assert.strictEqual(getPromptSlashCommandFilterText('summary'), undefined);
 	});
