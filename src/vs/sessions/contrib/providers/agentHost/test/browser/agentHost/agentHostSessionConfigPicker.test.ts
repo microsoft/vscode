@@ -60,7 +60,7 @@ import { ISessionChangesService } from '../../../../../../../workbench/contrib/s
 import { CHANGES_VIEW_ID } from '../../../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionRepositoryKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, MobileAgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { IConfigPickerItem } from '../../../../../../../workbench/contrib/sessions/browser/newSessionInputPresentation.js';
@@ -131,20 +131,28 @@ function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' =
 }
 
 /** A workspace whose folders are in the given Git repositories, or in no repository for `undefined`. */
-function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[]): ISessionWorkspace {
+/**
+ * A workspace of one folder per entry, each in the Git repository at the given root as the host reports it, or in no
+ * repository for `undefined`. Like the provider's, each folder's own repository is the folder itself.
+ */
+function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[], reported = true): ISessionWorkspace {
 	const workspace = makeWorkspace(undefined);
+	const folders = repositories.map((repository, index) => {
+		const root = URI.file(`/folder${index}`);
+		return {
+			root,
+			workingDirectory: root,
+			name: `folder${index}`,
+			description: undefined,
+			gitRepository: repository === undefined ? undefined : { ...workspace.folders[0].gitRepository!, uri: root },
+		};
+	});
 	return {
 		...workspace,
-		folders: repositories.map((repository, index) => {
-			const root = URI.file(`/folder${index}`);
-			return {
-				root,
-				workingDirectory: root,
-				name: `folder${index}`,
-				description: undefined,
-				gitRepository: repository === undefined ? undefined : { ...workspace.folders[0].gitRepository!, uri: URI.file(repository) },
-			};
-		}),
+		folders,
+		...(reported ? {
+			repositories: repositories.flatMap((repository, index) => repository === undefined ? [] : [{ root: URI.file(repository), folder: folders[index].root, kind: SessionRepositoryKind.Folder }]),
+		} : {}),
 	};
 }
 
@@ -752,24 +760,23 @@ suite('Agent Host Session Config Picker', () => {
 		]);
 	});
 
-	test('offers New Worktree for All Folders as folders are added and their repositories resolve', async () => {
+	test('offers New Worktree for All Folders as folders are added and the host finds their repositories', async () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(SESSIONS_WORKSPACES_ENABLED_SETTING, true);
 		services.workspaceObs.set(makeMultiFolderWorkspace(['/repo']), undefined);
 		services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
 		const { container } = renderPicker(store, services);
 		const labels = [isolationSlot(container)?.textContent];
-		const isRepository = observableValue('isRepository', false);
-		const workspace = makeMultiFolderWorkspace(['/repo', '/other']);
-		services.workspaceObs.set({
-			...workspace,
-			folders: [workspace.folders[0], { ...workspace.folders[1], gitRepository: { ...workspace.folders[1].gitRepository!, isRepository } }],
-		}, undefined);
-		labels.push(isolationSlot(container)?.textContent);
-		isRepository.set(true, undefined);
-		labels.push(isolationSlot(container)?.textContent);
-		isRepository.set(false, undefined);
-		labels.push(isolationSlot(container)?.textContent);
+		for (const workspace of [
+			// A second folder the host has not looked into yet
+			makeMultiFolderWorkspace(['/repo', '/other'], false),
+			makeMultiFolderWorkspace(['/repo', '/other']),
+			// The second folder is a subfolder of the first's repository
+			makeMultiFolderWorkspace(['/repo', '/repo']),
+		]) {
+			services.workspaceObs.set(workspace, undefined);
+			labels.push(isolationSlot(container)?.textContent);
+		}
 		assert.deepStrictEqual({ labels, writes: services.provider.setSessionConfigValueArguments }, {
 			labels: ['New Worktree', 'New Worktree', 'New Worktree for All Folders', 'New Worktree'],
 			writes: [],

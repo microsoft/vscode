@@ -88,7 +88,7 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ensureSelectedBranchPickerItem, filterBranchPickerItems, getBranchPickerListOptions, IPinnedBranchGroup, takePinnedBranchItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
+import { type IChat, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession, SessionRepositoryKind } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import type { IConfigPickerItem, ISessionIsolationPickerPresentation } from '../../../browser/newSessionInputPresentation.js';
@@ -522,7 +522,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private readonly _property: string | undefined;
 	private readonly _isolationPresentation: ISessionIsolationPickerPresentation | undefined;
 	private readonly _workspacesEnabled: IObservable<boolean>;
-	/** Whether the session's folders are in at least two Git repositories, as their repositories resolve. */
+	/** Whether the session's folders are in at least two Git repositories, as the host finds them. */
 	private readonly _hasSeveralGitRepositories: IObservable<boolean>;
 
 	constructor(
@@ -554,13 +554,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._isolationPresentation = options?.isolationPresentation;
 		this._workspacesEnabled = observableSessionWorkspacesEnabled(this._configurationService, productService);
 		this._hasSeveralGitRepositories = derived(this, reader => {
-			const repositories = new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri));
-			for (const folder of this._session.read(reader)?.workspace.read(reader)?.folders ?? []) {
-				if (folder.gitRepository && folder.gitRepository.isRepository?.read(reader) !== false) {
-					repositories.add(folder.gitRepository.uri);
+			// The roots of the folders' own repositories, as the host found them: folders in one repository share its root
+			const roots = new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri));
+			for (const repository of this._session.read(reader)?.workspace.read(reader)?.repositories ?? []) {
+				if (repository.kind === SessionRepositoryKind.Folder) {
+					roots.add(repository.root);
 				}
 			}
-			return repositories.size > 1;
+			return roots.size > 1;
 		});
 
 		this._register(autorun(reader => {

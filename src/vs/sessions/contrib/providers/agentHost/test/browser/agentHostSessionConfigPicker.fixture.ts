@@ -29,7 +29,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.j
 import { ISessionsHostLayoutService } from '../../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionChangeset, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionWorkspace, SessionRepositoryKind, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -123,6 +123,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 			description: undefined,
 			gitRepository: { uri: URI.file(path), workTreeUri: undefined, baseBranchName: undefined, branchName: 'main', uncommittedChanges: uncommittedFiles ? UNCOMMITTED_FILES.length : 0, gitHubInfo: constObservable(undefined) },
 		})),
+		...(allFolders ? { repositories: ['/repo', '/docs'].map(path => ({ root: URI.file(path), folder: URI.file(path), kind: SessionRepositoryKind.Folder })) } : {}),
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	} : undefined;

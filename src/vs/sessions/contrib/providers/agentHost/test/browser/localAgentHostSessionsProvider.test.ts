@@ -20039,7 +20039,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 				_meta: withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]),
 			});
 			await timeout(0);
-			assert.deepStrictEqual({ before, after: webRepository()?.isRepository?.get(), branchName: webRepository()?.branchName }, { before: false, after: true, branchName: 'main' });
+			const afterGitState = { isRepository: webRepository()?.isRepository?.get(), branchName: webRepository()?.branchName };
+			// The host finds that both folders are in one repository, without a change of their Git state
+			agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), provider.sessionTypes[0].id, {
+				provider: provider.sessionTypes[0].id,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				_meta: withSessionRepositories(withFolderScopeGitState(undefined, getWorkingDirectoryScopeId([web.toString()]), { branchName: 'main' }, [web.toString()]), {
+					[getWorkingDirectoryKey(api.toString())]: [{ root: api.toString(), kind: 'folder' }],
+					[getWorkingDirectoryKey(web.toString())]: [{ root: api.toString(), kind: 'folder' }],
+				}),
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				before,
+				afterGitState,
+				repositories: session.workspace.get()?.repositories?.map(repository => [repository.root.toString(), repository.kind]),
+			}, {
+				before: false,
+				afterGitState: { isRepository: true, branchName: 'main' },
+				repositories: [[api.toString(), 'folder']],
+			});
 		});
 
 		test('does not create a draft whose other folder is untrusted', async () => {

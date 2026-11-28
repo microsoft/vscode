@@ -4036,7 +4036,13 @@ class NewSession extends Disposable {
 	applyFolderState(meta: SessionMeta | undefined, toHost: (uri: URI) => URI, toClient: (uri: URI) => URI): void {
 		const workspace = this._workspace.get();
 		const next = withSessionFolderState(workspace, meta, toHost, toClient);
-		if (next && next !== workspace && !sessionWorkspaceEqual(workspace, next)) {
+		// The workspace's equality leaves out its repositories, which can change alone
+		const sameRepositories = (workspace?.repositories ?? []).length === (next?.repositories ?? []).length
+			&& (workspace?.repositories ?? []).every((repository, index) => {
+				const other = next?.repositories?.[index];
+				return !!other && other.kind === repository.kind && isEqual(other.root, repository.root) && isEqual(other.folder, repository.folder);
+			});
+		if (next && next !== workspace && (!sessionWorkspaceEqual(workspace, next) || !sameRepositories)) {
 			this._workspace.set(next, undefined);
 		}
 	}
