@@ -49,9 +49,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 		const shifted = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Minus)]))[0];
 		assert.deepStrictEqual({
 			unshiftedMenu: unshifted.getElectronMenuAccelerator(),
-			unshiftedGlobal: unshifted.getElectronAccelerator(),
+			unshiftedGlobal: unshifted.getElectronGlobalShortcutAccelerator(),
 			shiftedMenu: shifted.getElectronMenuAccelerator(),
-			shiftedGlobal: shifted.getElectronAccelerator(),
+			shiftedGlobal: shifted.getElectronGlobalShortcutAccelerator(),
 			shiftedDispatch: shifted.getDispatchChords(),
 		}, {
 			unshiftedMenu: 'Cmd+\'',
@@ -1880,7 +1880,7 @@ suite('keyboardMapper - MAC layout-dependent accelerators', () => {
 			const keybinding = resolve(mapping, modifiers);
 			assert.deepStrictEqual({
 				menu: keybinding.getElectronMenuAccelerator(),
-				global: keybinding.getElectronAccelerator(),
+				global: keybinding.getElectronGlobalShortcutAccelerator(),
 			}, { menu: expected, global: null });
 		});
 	}
@@ -1906,7 +1906,7 @@ suite('keyboardMapper - MAC pt_pt', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
 			menu: binding.getElectronMenuAccelerator(),
-			global: binding.getElectronAccelerator(),
+			global: binding.getElectronGlobalShortcutAccelerator(),
 			dispatch: binding.getDispatchChords(),
 			settings: binding.getUserSettingsLabel(),
 			label: binding.getLabel(),
@@ -1923,7 +1923,7 @@ suite('keyboardMapper - MAC pt_pt', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
 			menu: binding.getElectronMenuAccelerator(),
-			global: binding.getElectronAccelerator(),
+			global: binding.getElectronGlobalShortcutAccelerator(),
 			dispatch: binding.getDispatchChords(),
 		}, { menu: null, global: null, dispatch: ['shift+meta+[Equal]'] });
 	});
@@ -1932,7 +1932,7 @@ suite('keyboardMapper - MAC pt_pt', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, true, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
 			menu: binding.getElectronMenuAccelerator(),
-			global: binding.getElectronAccelerator(),
+			global: binding.getElectronGlobalShortcutAccelerator(),
 			dispatch: binding.getDispatchChords(),
 		}, { menu: 'Alt+Cmd+Plus', global: null, dispatch: ['alt+meta+[Equal]'] });
 	});
@@ -1940,7 +1940,7 @@ suite('keyboardMapper - MAC pt_pt', () => {
 	test('stable keys preserve all modifier combinations for menus and global shortcuts', () => {
 		for (let mask = 0; mask < 16; mask++) {
 			const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(!!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8), ScanCode.KeyA)]))[0];
-			assert.strictEqual(binding.getElectronAccelerator(), binding.getElectronMenuAccelerator());
+			assert.strictEqual(binding.getElectronGlobalShortcutAccelerator(), binding.getElectronMenuAccelerator());
 		}
 	});
 });

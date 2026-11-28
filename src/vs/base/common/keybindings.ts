@@ -247,13 +247,13 @@ export abstract class ResolvedKeybinding {
 	 */
 	public abstract getAriaLabel(): string | null;
 	/**
-	 * This prints the binding in a format suitable for electron's accelerators.
+	 * This prints the binding in a format suitable for Electron's globalShortcut API.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
-	public abstract getElectronAccelerator(): string | null;
+	public abstract getElectronGlobalShortcutAccelerator(): string | null;
 	/**
-	 * This prints the binding in a format suitable for accelerators of electron's native menus.
-	 * Unlike {@link getElectronAccelerator}, it may use layout-dependent characters, which
+	 * This prints the binding in a format suitable for accelerators of Electron's native menus.
+	 * Unlike {@link getElectronGlobalShortcutAccelerator}, it may use layout-dependent characters, which
 	 * native menus match but which cannot preserve physical key/modifier matching for global shortcuts.
 	 */
 	public abstract getElectronMenuAccelerator(): string | null;

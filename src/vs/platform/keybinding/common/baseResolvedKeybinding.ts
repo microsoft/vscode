@@ -30,8 +30,8 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 		return AriaLabelProvider.toLabel(this._os, this._chords, (keybinding) => this._getAriaLabel(keybinding));
 	}
 
-	public getElectronAccelerator(): string | null {
-		return this._toElectronAccelerator(keybinding => this._getElectronAccelerator(keybinding));
+	public getElectronGlobalShortcutAccelerator(): string | null {
+		return this._toElectronAccelerator(keybinding => this._getElectronGlobalShortcutAccelerator(keybinding));
 	}
 
 	public getElectronMenuAccelerator(): string | null {
@@ -88,9 +88,9 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
-	protected abstract _getElectronAccelerator(keybinding: T): string | null;
+	protected abstract _getElectronGlobalShortcutAccelerator(keybinding: T): string | null;
 	protected _getElectronMenuAccelerator(keybinding: T): string | null {
-		return this._getElectronAccelerator(keybinding);
+		return this._getElectronGlobalShortcutAccelerator(keybinding);
 	}
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;

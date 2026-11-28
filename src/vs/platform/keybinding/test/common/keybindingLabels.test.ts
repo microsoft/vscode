@@ -131,7 +131,7 @@ suite('KeybindingLabels', () => {
 	test('Electron Accelerator label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string | null): void {
 			const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
-			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator(), expected);
+			assert.strictEqual(usResolvedKeybinding.getElectronGlobalShortcutAccelerator(), expected);
 			assert.strictEqual(usResolvedKeybinding.getElectronMenuAccelerator(), expected);
 		}
 

@@ -27,7 +27,7 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 	return {
 		label: kb.getLabel(),
 		ariaLabel: kb.getAriaLabel(),
-		electronAccelerator: kb.getElectronAccelerator(),
+		electronAccelerator: kb.getElectronGlobalShortcutAccelerator(),
 		userSettingsLabel: kb.getUserSettingsLabel(),
 		isWYSIWYG: kb.isWYSIWYG(),
 		isMultiChord: kb.hasMultipleChords(),

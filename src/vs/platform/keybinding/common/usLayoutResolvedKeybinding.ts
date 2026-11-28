@@ -48,7 +48,7 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<KeyCodeCh
 		return KeyCodeUtils.toString(chord.keyCode);
 	}
 
-	protected _getElectronAccelerator(chord: KeyCodeChord): string | null {
+	protected _getElectronGlobalShortcutAccelerator(chord: KeyCodeChord): string | null {
 		return KeyCodeUtils.toElectronAccelerator(chord.keyCode);
 	}
 

@@ -65,7 +65,7 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<KeyC
 		return this._mapper.getAriaLabelForKeyCode(chord.keyCode);
 	}
 
-	protected _getElectronAccelerator(chord: KeyCodeChord): string | null {
+	protected _getElectronGlobalShortcutAccelerator(chord: KeyCodeChord): string | null {
 		return this._mapper.getElectronAcceleratorForKeyBinding(chord);
 	}
 

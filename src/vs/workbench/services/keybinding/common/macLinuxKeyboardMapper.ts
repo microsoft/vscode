@@ -42,7 +42,7 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeCho
 		return this._mapper.getAriaLabelForScanCodeChord(chord);
 	}
 
-	protected _getElectronAccelerator(chord: ScanCodeChord): string | null {
+	protected _getElectronGlobalShortcutAccelerator(chord: ScanCodeChord): string | null {
 		return this._mapper.getElectronAcceleratorLabelForScanCodeChord(chord);
 	}
 
