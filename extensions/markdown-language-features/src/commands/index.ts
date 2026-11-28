@@ -19,6 +19,7 @@ import { CopyImageCommand } from './copyImage';
 import { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 import { ShowSourceCommand } from './showSource';
 import { ToggleLockCommand } from './toggleLock';
+import { ToggleTableOfContentsCommand } from './toggleTableOfContents';
 import { OpenImageCommand } from './openImage';
 import { OpenFrontMatterSettingsCommand } from './openFrontMatterSettings';
 
@@ -44,6 +45,7 @@ export function registerMarkdownCommands(
 	commandManager.register(new RefreshPreviewCommand(previewManager, engine));
 	commandManager.register(new ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
 	commandManager.register(new ToggleLockCommand(previewManager));
+	commandManager.register(new ToggleTableOfContentsCommand(previewManager));
 	commandManager.register(new RenderDocument(engine));
 	commandManager.register(new ReloadPlugins(previewManager, engine));
 	commandManager.register(new InsertLinkFromWorkspace());
