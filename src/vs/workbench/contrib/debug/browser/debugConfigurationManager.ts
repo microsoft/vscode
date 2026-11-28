@@ -359,7 +359,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, this.adapterManager, folder));
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		// The Agents mode workspace is a multi-root workspace without a workspace file, so it has no workspace launch configuration
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().configuration) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this, this.adapterManager));
 		}
 		this.launches.push(this.instantiationService.createInstance(UserLaunch, this, this.adapterManager));
@@ -408,11 +409,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	getWorkspaceLaunch(): ILaunch | undefined {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.launches[this.launches.length - 1];
-		}
-
-		return undefined;
+		return this.launches.find(launch => launch instanceof WorkspaceLaunch);
 	}
 
 	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
