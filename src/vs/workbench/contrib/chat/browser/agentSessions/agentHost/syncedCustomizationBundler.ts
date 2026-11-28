@@ -12,7 +12,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash, hashAsync, StringSHA1 } from '../../../../../../base/common/hash.js';
-import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStat, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -95,8 +95,9 @@ class DrainingFileOperationLimiter implements IDisposable {
 	}
 }
 
-async function collectDirectoryFiles(fileService: IFileService, logService: ILogService, root: URI, directory: URI, queueFileOperation: QueueFileOperation): Promise<IFileStatWithPartialMetadata[]> {
+async function collectDirectoryFiles(fileService: IFileService, logService: ILogService, root: URI, directory: URI, queueFileOperation: QueueFileOperation, parentIgnore = SKILL_DIRECTORY_IGNORE): Promise<IFileStatWithPartialMetadata[]> {
 	const stat = await queueFileOperation(() => fileService.resolve(directory));
+	const ignore = await readSkillDirectoryIgnore(fileService, logService, root, directory, stat.children, queueFileOperation, parentIgnore);
 	const children = (await Promise.all((stat.children ?? []).map(async child => {
 		try {
 			return await queueFileOperation(() => fileService.stat(child.resource));
@@ -113,15 +114,41 @@ async function collectDirectoryFiles(fileService: IFileService, logService: ILog
 		if (relativePath === undefined) {
 			throw new Error(`Unable to resolve skill resource path: ${child.resource.toString()}`);
 		}
-		if (child.isSymbolicLink || !SKILL_DIRECTORY_IGNORE.isPathIncludedInTraversal(`/${relativePath}`, child.isDirectory)) {
+		if (child.isSymbolicLink || !ignore.isPathIncludedInTraversal(`/${relativePath}`, child.isDirectory)) {
 			return [];
 		}
 		if (child.isDirectory) {
-			return collectDirectoryFiles(fileService, logService, root, child.resource, queueFileOperation);
+			return collectDirectoryFiles(fileService, logService, root, child.resource, queueFileOperation, ignore);
 		}
 		return child.isFile ? [child] : [];
 	}));
 	return files.flat();
+}
+
+/**
+ * Layers a `.gitignore` found in {@link directory} on top of {@link parent},
+ * so data a skill keeps next to its instructions (caches, build output) is
+ * not synced to agent hosts.
+ */
+async function readSkillDirectoryIgnore(fileService: IFileService, logService: ILogService, root: URI, directory: URI, children: readonly IFileStat[] | undefined, queueFileOperation: QueueFileOperation, parent: IgnoreFile): Promise<IgnoreFile> {
+	const gitignore = children?.find(child => child.name === '.gitignore' && child.isFile && !child.isSymbolicLink);
+	if (!gitignore) {
+		return parent;
+	}
+	const relativeDirectory = extUri.relativePath(root, directory);
+	if (relativeDirectory === undefined) {
+		return parent;
+	}
+	try {
+		const content = await queueFileOperation(() => fileService.readFile(gitignore.resource));
+		return new IgnoreFile(content.value.toString(), `/${relativeDirectory}`, parent, true);
+	} catch (error) {
+		if (isCancellationError(error)) {
+			throw error;
+		}
+		logService.trace('[SyncedCustomizationBundler] Failed to read skill .gitignore', gitignore.resource.toString(), error);
+		return parent;
+	}
 }
 
 export interface ISyncableFile {
