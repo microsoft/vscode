@@ -77,7 +77,10 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 				break;
 			}
 			case WorkbenchState.WORKSPACE:
-				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! }, remoteAuthority }]);
+				// A workspace without a workspace file (Agents mode) can't be reopened from the history
+				if (workspace.configuration) {
+					this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration }, remoteAuthority }]);
+				}
 				break;
 		}
 	}

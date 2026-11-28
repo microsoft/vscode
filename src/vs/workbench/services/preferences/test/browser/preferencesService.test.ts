@@ -25,11 +25,16 @@ import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiati
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentsWorkspaceContextService } from '../../../configuration/browser/agents/agentsWorkspaceContextService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ITextFileService } from '../../../textfile/common/textfiles.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('PreferencesService', () => {
 	let lastOpenUntypedEditor: IUntypedEditorInput | undefined;
@@ -37,7 +42,7 @@ suite('PreferencesService', () => {
 	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, contextService?: IWorkspaceContextService): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService, contextService?: IWorkspaceContextService, textFileService?: ITextFileService): PreferencesService {
 		lastOpenUntypedEditor = undefined;
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
@@ -73,6 +78,9 @@ suite('PreferencesService', () => {
 		}
 		if (contextService) {
 			testInstantiationService.stub(IWorkspaceContextService, contextService);
+		}
+		if (textFileService) {
+			testInstantiationService.stub(ITextFileService, textFileService);
 		}
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
@@ -180,5 +188,29 @@ suite('PreferencesService', () => {
 		await testObject.openUserSettings({ jsonEditor: false, groupId: modalGroup.id });
 
 		assert.strictEqual(lastOpenEditorGroup, MODAL_GROUP);
+	});
+
+	test('creates and opens the folder settings file in a workspace without a workspace file', async () => {
+		const folderUri = URI.file('/project');
+		const settingsFile = URI.joinPath(folderUri, '.vscode', 'settings.json');
+		const writes: string[] = [];
+		// Like an editor window in Agents mode: the workbench state is WORKSPACE, without a workspace file
+		const contextService = new class extends TestContextService {
+			override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
+		}(new Workspace('agents', testWorkspace(folderUri).folders, false, null, () => false));
+		const testObject = createTestObject(undefined, undefined, contextService, upcastPartial<ITextFileService>({
+			read: async () => { throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND); },
+			write: async (resource: URI, content: string) => { writes.push(`${resource.toString()}: ${content}`); return upcastPartial<IFileStatWithMetadata>({ resource }); }
+		}));
+
+		await testObject.openWorkspaceSettings({ jsonEditor: true });
+
+		assert.deepStrictEqual({
+			writes,
+			opened: EditorResourceAccessor.getCanonicalUri(lastOpenUntypedEditor)?.toString()
+		}, {
+			writes: [`${settingsFile.toString()}: {\n}`],
+			opened: settingsFile.toString()
+		});
 	});
 });

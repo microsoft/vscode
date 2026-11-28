@@ -25,7 +25,8 @@ import { IPager } from '../../../../../base/common/paging.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtensionService, toExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TestExtensionTipsService, TestSharedProcessService } from '../../../../test/electron-browser/workbenchTestServices.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -3038,6 +3039,29 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 		assert.ok(testObject.enabled);
 	});
 
+});
+
+suite('ConfigureWorkspaceRecommendedExtensionsAction', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens the folder extensions file in a workspace without a workspace file', async () => {
+		const folderUri = URI.file('/project');
+		const opened: string[] = [];
+		// Like an editor window in Agents mode: the workbench state is WORKSPACE, without a workspace file
+		const testObject = Object.assign(Object.create(ExtensionsActions.ConfigureWorkspaceRecommendedExtensionsAction.prototype), {
+			contextService: {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => new Workspace('agents', testWorkspace(folderUri).folders, false, null, () => false)
+			},
+			openExtensionsFile: async (resource: URI) => { opened.push(`extensions: ${resource.toString()}`); },
+			openWorkspaceConfigurationFile: async (resource: URI | null) => { opened.push(`workspace: ${resource?.toString()}`); }
+		}) as ExtensionsActions.ConfigureWorkspaceRecommendedExtensionsAction;
+
+		await testObject.run();
+
+		assert.deepStrictEqual(opened, [`extensions: ${URI.joinPath(folderUri, '.vscode', 'extensions.json').toString()}`]);
+	});
 });
 
 function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin, galleryProperties: Partial<IGalleryExtension> = {}): Extension {

@@ -2644,8 +2644,17 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
 				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(EXTENSIONS_CONFIG));
-			case WorkbenchState.WORKSPACE:
-				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
+			case WorkbenchState.WORKSPACE: {
+				const workspace = this.contextService.getWorkspace();
+				if (workspace.configuration) {
+					return this.openWorkspaceConfigurationFile(workspace.configuration);
+				}
+				// A workspace without a workspace file (Agents mode) keeps its recommendations in the folder
+				if (workspace.folders.length) {
+					return this.openExtensionsFile(workspace.folders[0].toResource(EXTENSIONS_CONFIG));
+				}
+				break;
+			}
 		}
 		return Promise.resolve();
 	}
