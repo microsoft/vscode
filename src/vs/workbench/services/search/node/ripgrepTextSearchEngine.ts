@@ -12,7 +12,7 @@ import { groupBy } from '../../../../base/common/collections.js';
 import { isEqualOrParent } from '../../../../base/common/extpath.js';
 import { getFoldersSkippedByExcludeExceptions, parseExcludeExpression, splitGlobAware } from '../../../../base/common/glob.js';
 import { relativePath } from '../../../../base/common/resources.js';
-import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { createRegExp, escapeRegExpCharacters, isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
@@ -502,6 +502,8 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 	return { numLines, lastLineLength };
 }
 
+const UNICODE_WORD_CHARACTER = /[\p{L}\p{N}\p{M}\p{Pc}]/u;
+
 // exported for testing
 export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions, excludeExceptions?: readonly string[]): string[] {
 	const args = ['--hidden', '--no-require-git'];
@@ -569,7 +571,21 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
 		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
-		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
+		let regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
+		if (!regexpStr.startsWith('\\b') && query.pattern.length > 0) {
+			const firstCodePoint = String.fromCodePoint(query.pattern.codePointAt(0)!);
+			if (UNICODE_WORD_CHARACTER.test(firstCodePoint)) {
+				regexpStr = '\\b' + regexpStr;
+			}
+		}
+		if (!regexpStr.endsWith('\\b') && query.pattern.length > 0) {
+			const lastCodePoint = isLowSurrogate(query.pattern.charCodeAt(query.pattern.length - 1)) && query.pattern.length > 1 && isHighSurrogate(query.pattern.charCodeAt(query.pattern.length - 2))
+				? query.pattern.slice(-2)
+				: query.pattern.slice(-1);
+			if (UNICODE_WORD_CHARACTER.test(lastCodePoint)) {
+				regexpStr = regexpStr + '\\b';
+			}
+		}
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
 		let fixedRegexpQuery = fixRegexNewline(query.pattern);
