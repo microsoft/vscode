@@ -5,7 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import type { ClientForwardingSocket, ClientGitCredentialOperation } from '../common/clientForwardingProtocol.js';
+import type { ClientForwardingDescription, ClientForwardingSocket, ClientGitCredentialOperation } from '../common/clientForwardingProtocol.js';
 
 /*
  * Telemetry of the forwarding a client's connection sets up and uses, with the vocabulary of the Dev Containers
@@ -28,6 +28,37 @@ export interface IClientForwardingSetup {
 	readonly forwardGitCredentialHelper: ClientForwardingGitCredentialHelperSetup;
 	readonly forwardGitConfig: ClientForwardingGitConfigSetup;
 	readonly forwardGitIdentity: ClientForwardingGitIdentitySetup;
+}
+
+/** What the agent host did with what a client offers. */
+export interface IClientForwardingSetupState {
+	/** Whether the client described what it offers, `undefined` when that failed. */
+	readonly description: ClientForwardingDescription | undefined;
+	readonly sshAgentStarted: boolean;
+	readonly gitCredentialHelper: 'environment' | 'legacyEnvironment' | 'noGit' | 'failed';
+	/** How the client's GPG agent is forwarded, when it offers it. */
+	readonly gpgAgent: 'local' | 'windows' | 'noGnuPG' | 'ownKeys' | 'failed' | undefined;
+	readonly keyboxd: boolean;
+	readonly gitConfig: ClientForwardingGitConfigSetup;
+	readonly gitIdentity: ClientForwardingGitIdentitySetup;
+}
+
+/**
+ * Each value is `local` when the client's is forwarded, else the first reason that applies. A client forwarding only the
+ * identity, e.g., to a sandboxed container, offers no Git credentials, so what it does not offer is `withheld` then.
+ */
+export function getClientForwardingSetup(state: IClientForwardingSetupState): IClientForwardingSetup {
+	const { description } = state;
+	const notOffered = !description ? 'failed' : !description.gitCredentials ? 'withheld' : 'none';
+	const helperStarted = state.gitCredentialHelper === 'environment' || state.gitCredentialHelper === 'legacyEnvironment';
+	return {
+		forwardSshAgent: !state.sshAgentStarted ? 'failed' : description?.sshAgent ? 'local' : notOffered,
+		forwardGpgAgent: description?.gpgAgent ? state.gpgAgent ?? 'failed' : notOffered,
+		forwardKeyboxd: state.keyboxd ? 'local' : 'none',
+		forwardGitCredentialHelper: !helperStarted ? state.gitCredentialHelper : description?.gitCredentials ? state.gitCredentialHelper : description ? 'withheld' : 'failed',
+		forwardGitConfig: state.gitConfig,
+		forwardGitIdentity: state.gitIdentity,
+	};
 }
 
 /**
@@ -81,7 +112,7 @@ type ClientForwardingUseEvent = {
 
 type ClientForwardingUseClassification = {
 	owner: 'chrmarti';
-	comment: 'Reports the first use per client connection of each forwarded service with a given operation, outcome, protocol and host category, like the Dev Containers extension\'s forwardingUse event. The agent host\'s own import of the client\'s GPG keys is not counted.';
+	comment: 'Reports the first use per client connection of each forwarded service with a given operation, outcome, protocol and host category, like the Dev Containers extension\'s forwardingUse event. Like there, connections to the GPG agent and keyboxd while the agent host imports the client\'s GPG keys, once when the first client offering its GPG agent connects, are not counted, as importing connects to them.';
 	clientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier of the client serving the request, else of the newest connected client, to join with agentHost.forwardingSetup. Absent when no client is connected.' };
 	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed id of the forwarded service a process of the agent host used: ssh-agent, gpg-agent, keyboxd or git-credential-helper.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed operation: connect for agent sockets; get, store or erase for the Git credential helper.' };

@@ -20,7 +20,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { clientGitCredentialOperationValidator, type ClientForwardingDescription, type ClientForwardingSocket, type ClientGitConfig, type ClientGitCredentialOperation, type ClientGpgKeys } from '../common/clientForwardingProtocol.js';
-import { ClientForwardingTelemetry, getGitCredentialOutcome, type ClientForwardingGitConfigSetup, type ClientForwardingGitCredentialHelperSetup, type ClientForwardingGitIdentitySetup, type ClientForwardingSocketOutcome, type IClientForwardingSetup } from './agentHostClientForwardingTelemetry.js';
+import { ClientForwardingTelemetry, getClientForwardingSetup, getGitCredentialOutcome, type ClientForwardingGitConfigSetup, type ClientForwardingGitIdentitySetup, type ClientForwardingSocketOutcome, type IClientForwardingSetupState } from './agentHostClientForwardingTelemetry.js';
 import { parseGpgDirs, useKeyboxdPattern } from './clientForwardingHost.js';
 import { applyClientGitConfig, IClientGitConfigTarget } from './clientGitConfig.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -160,9 +160,9 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 	private _gpgPlan: Promise<IGpgPlan | GpgSkipReason> | undefined;
 	/** Until it fails, so the next client can retry. */
 	private _gpgImport: Promise<void> | undefined;
-	/** While the agent host imports the client's GPG keys, which is not use of its GPG agent. */
+	/** While the agent host imports the client's GPG keys, which connects to the GPG agent without that being use of it. */
 	private _importingGpgKeys = 0;
-	private _gitCredentialHelperSetup: ClientForwardingGitCredentialHelperSetup = 'failed';
+	private _gitCredentialHelperSetup: IClientForwardingSetupState['gitCredentialHelper'] = 'failed';
 	private _sshAgentStarted = false;
 
 	/**
@@ -264,16 +264,16 @@ export class AgentHostClientForwardingService extends Disposable implements IAge
 					gpg = 'failed';
 				}
 			}
-			// The client offers its Git credentials unless it forwards only the identity, e.g., to a sandboxed container.
-			const withheld = !described ? 'failed' : !description.gitCredentials ? 'withheld' : undefined;
-			const gitConfig = await this._applyGitConfig(registered, description, described ? 'withheld' : 'failed');
-			this._telemetry.reportSetup(client.clientId, () => ({
-				forwardSshAgent: withheld ?? (!this._sshAgentStarted ? 'failed' : description.sshAgent ? 'local' : 'none'),
-				forwardGpgAgent: withheld ?? (!description.gpgAgent ? 'none' : isWindows ? 'windows' : typeof gpg === 'string' ? gpg : 'local'),
-				forwardKeyboxd: typeof gpg === 'object' && gpg.keyboxdSocket ? 'local' : 'none',
-				forwardGitCredentialHelper: this._gitCredentialHelperSetup === 'environment' || this._gitCredentialHelperSetup === 'legacyEnvironment' ? withheld ?? this._gitCredentialHelperSetup : this._gitCredentialHelperSetup,
-				...gitConfig,
-			} satisfies IClientForwardingSetup));
+			const { forwardGitConfig, forwardGitIdentity } = await this._applyGitConfig(registered, description, described ? 'withheld' : 'failed');
+			this._telemetry.reportSetup(client.clientId, () => getClientForwardingSetup({
+				description: described ? description : undefined,
+				sshAgentStarted: this._sshAgentStarted,
+				gitCredentialHelper: this._gitCredentialHelperSetup,
+				gpgAgent: isWindows ? 'windows' : typeof gpg === 'object' ? 'local' : gpg,
+				keyboxd: typeof gpg === 'object' && !!gpg.keyboxdSocket,
+				gitConfig: forwardGitConfig,
+				gitIdentity: forwardGitIdentity,
+			}));
 		}).catch(error => this._logService.error('[AgentHostClientForwarding] Failed to start forwarding', error));
 		return toDisposable(() => {
 			store.dispose();

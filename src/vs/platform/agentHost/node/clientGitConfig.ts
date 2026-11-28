@@ -188,8 +188,8 @@ export interface IClientGitConfigResult {
 	 * `ownConfig`: the agent host's own was kept; `none`: the client has none; `notOffered`: the client does not supply it.
 	 */
 	readonly config: 'copied' | 'xdgOnly' | 'ownConfig' | 'none' | 'notOffered' | 'noGit';
-	/** `set`: the client's user name or email was set, also over a copy with the same; `existing`: Git's own was kept; `none`: the client has none. */
-	readonly identity: 'set' | 'existing' | 'none' | 'noGit';
+	/** `set`: the client's user name or email was set, also over a copy with the same; `existing`: Git's own was kept; `none`: the client has none; `failed`: Git could not set it. */
+	readonly identity: 'set' | 'existing' | 'none' | 'noGit' | 'failed';
 }
 
 /**
@@ -253,16 +253,19 @@ export async function applyClientGitConfig(
 		await removeUnavailableSigning(target, copiedFiles, await getSigningSupport(target, agents), log);
 	}
 
-	let identitySet = false;
+	let identity: 'set' | 'failed' | undefined;
 	for (const [key, value] of [['user.name', gitConfig.user.name], ['user.email', gitConfig.user.email]] as const) {
 		const current = value && await getValue(key);
 		// A copied configuration lacks the client folder's conditional includes, e.g., for a work email, and may add a
 		// second value to an earlier identity, which replacing all leaves as one.
 		if (value && (!current || copied)) {
-			await target.run('git', ['config', '--global', '--replace-all', key, value]);
-			identitySet = true;
-			if (current !== value) {
-				log(`Git: Set ${key} to the client's.`);
+			if ((await target.run('git', ['config', '--global', '--replace-all', key, value]))?.code !== 0) {
+				identity = 'failed';
+			} else {
+				identity ??= 'set';
+				if (current !== value) {
+					log(`Git: Set ${key} to the client's.`);
+				}
 			}
 		}
 	}
@@ -272,7 +275,7 @@ export async function applyClientGitConfig(
 				: copied ? 'xdgOnly'
 					: (copyConfig || copyXdgConfig) && !global?.config && !global?.xdgConfig ? 'none'
 						: 'ownConfig',
-		identity: identitySet ? 'set' : gitConfig.user.name || gitConfig.user.email ? 'existing' : 'none',
+		identity: identity ?? (gitConfig.user.name || gitConfig.user.email ? 'existing' : 'none'),
 	};
 }
 

@@ -19,12 +19,13 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_CLIENT_FORWARDING_ENV, AgentHostClientForwardingService, IAgentHostForwardingClient } from '../../node/agentHostClientForwarding.js';
 import { AgentHostClientForwardingMainService } from '../../node/agentHostClientForwardingMainService.js';
-import { categorizeGitHost, categorizeProtocol, parseGitCredentialRequest } from '../../node/agentHostClientForwardingTelemetry.js';
+import { categorizeGitHost, categorizeProtocol, getClientForwardingSetup, parseGitCredentialRequest } from '../../node/agentHostClientForwardingTelemetry.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { IClientForwardingHost, IClientForwardingHostCommandResult, parseWindowsSocketFile } from '../../node/clientForwardingHost.js';
-import { canCopyGitConfig, getCommandName } from '../../node/clientGitConfig.js';
+import { applyClientGitConfig, canCopyGitConfig, getCommandName } from '../../node/clientGitConfig.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 
@@ -91,6 +92,34 @@ suite('AgentHostClientForwarding', () => {
 			['https', 'other'],
 			['none', 'none'],
 		]);
+	});
+
+	test('reports the setup of each capability a client offers, and what a client forwarding only the identity does not as withheld', () => {
+		const state = { sshAgentStarted: true, gitCredentialHelper: 'environment', gpgAgent: undefined, keyboxd: false, gitConfig: 'copied', gitIdentity: 'set' } as const;
+		const description = { gitConfig: true, gitCredentials: true, sshAgent: true, gpgAgent: true, keyboxd: false };
+		assert.deepStrictEqual([
+			getClientForwardingSetup({ ...state, description, gpgAgent: 'ownKeys' }),
+			// An agent a client offers is forwarded without its Git credentials as well.
+			getClientForwardingSetup({ ...state, description: { ...description, gitCredentials: false, gpgAgent: false } }),
+			getClientForwardingSetup({ ...state, description: undefined, gitCredentialHelper: 'legacyEnvironment' }),
+			getClientForwardingSetup({ ...state, description: { ...description, sshAgent: false, gpgAgent: false }, sshAgentStarted: false, gitCredentialHelper: 'noGit' }),
+		].map(setup => [setup.forwardSshAgent, setup.forwardGpgAgent, setup.forwardGitCredentialHelper]), [
+			['local', 'ownKeys', 'environment'],
+			['local', 'withheld', 'withheld'],
+			['failed', 'failed', 'failed'],
+			['failed', 'none', 'noGit'],
+		]);
+	});
+
+	test('reports a client identity Git could not set as failed', async () => {
+		const home = join(tmpdir(), `vscode-ah-fwd-missing-${generateUuid()}`);
+		const apply = (code: number) => applyClientGitConfig({
+			home,
+			xdgConfigHome: join(home, '.config'),
+			environment: {},
+			run: async (_command, args) => args.includes('--replace-all') ? { stdout: '', code } : args.includes('--get') ? { stdout: '', code: 1 } : { stdout: 'git version 2.47.0\n', code: 0 },
+		}, false, { sshAgent: false, gpgAgent: false }, async () => ({ user: { name: 'Client User', email: 'client@example.com' } }), () => { });
+		assert.deepStrictEqual([await apply(0), await apply(255)], [{ config: 'notOffered', identity: 'set' }, { config: 'notOffered', identity: 'failed' }]);
 	});
 
 	test('rejects Git credential requests that fail on the client for reasons other than a missing credential', async () => {
