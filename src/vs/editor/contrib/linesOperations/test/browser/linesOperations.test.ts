@@ -285,6 +285,27 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.deepStrictEqual(model.getLinesContent(), ['alpha', 'beta', 'omicron']);
 				});
 		});
+
+		test('does not include the line where the selection ends at column 1', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'alpha',
+					'beta',
+					'omicron'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					editor.setSelection(new Selection(1, 1, 4, 1));
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual({ lines: model.getLinesContent(), selection: editor.getSelection()!.toString() }, {
+						lines: ['alpha', 'beta', 'beta', 'omicron'],
+						selection: new Selection(1, 1, 2, 5).toString(),
+					});
+				});
+		});
 	});
 
 
