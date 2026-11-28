@@ -205,6 +205,8 @@ export interface IAgentProviderTurnTelemetryContext {
  * Why a draft had no pre-warmed provider session when its first send
  * materialized it:
  * - `notRequested`: the host never considered warming the draft;
+ * - `awaitingModels`: the send arrived while the warm gate still waited for
+ *   the provider to list a model, as while signed out without a BYOK model;
  * - `awaitingActiveClient`, `customizationsPending`: the send arrived while
  *   the warm gate still waited for the client's tools or the customization
  *   enablement, or enablement stayed pending (as for a worktree draft);
@@ -214,7 +216,7 @@ export interface IAgentProviderTurnTelemetryContext {
  * - `expired`: the warm launch stayed unclaimed for its lifetime;
  * - `released`: the runtime that held the warm launch was torn down.
  */
-export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
+export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingModels' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
 
 /**
  * Tool call `error.code` for a call naming a tool the session does not offer,
