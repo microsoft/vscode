@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -138,5 +138,23 @@ suite('EditorWindowComposerFoldersService', () => {
 			remote: [],
 			allAgain: [],
 		});
+	});
+
+	test('leaving the Agents mode never offers the window\'s new scope as a folder before the mode change is announced, such as the file of a multi-root workspace', () => {
+		const onDidChangeScope = store.add(new Emitter<URI | undefined>());
+		const onDidChangeMode = store.add(new Emitter<WorkbenchMode>());
+		const scope: { value: URI | undefined; readonly onDidChange: Event<URI | undefined> } = { value: URI.file('/alpha'), onDidChange: onDidChangeScope.event };
+		const mode = { value: WorkbenchMode.Agents, onDidChange: onDidChangeMode.event };
+		const service = createService([URI.file('/alpha'), URI.file('/beta')], scope, mode);
+		const seen: string[][] = [];
+		store.add(autorun(reader => seen.push((service.getComposerFolderOptions().allowedFolders?.read(reader) ?? []).map(folder => folder.path))));
+
+		// As the window switches out of the mode: its state changes at once, and the scope is announced before the mode
+		scope.value = URI.file('/multi.code-workspace');
+		mode.value = WorkbenchMode.Editor;
+		onDidChangeScope.fire(scope.value);
+		onDidChangeMode.fire(mode.value);
+
+		assert.deepStrictEqual(seen.filter((folders, index) => index === 0 || JSON.stringify(folders) !== JSON.stringify(seen[index - 1])), [['/alpha'], ['/alpha', '/beta']]);
 	});
 });

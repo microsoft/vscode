@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -84,16 +85,21 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 
 	constructor(@IWorkspaceContextService workspaceContextService: IWorkspaceContextService) {
 		const windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
-		const scope = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchScope, () => workspaceContextService.getWorkbenchScope());
-		const agentsMode = observableFromEvent(this, workspaceContextService.onDidChangeWorkbenchMode, () => workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents);
+		// One observable for both: leaving the mode announces the new scope before the mode, which read apart would offer the
+		// window's new scope, such as the file of a multi-root workspace, as the mode's folder for a moment
+		const workbench = observableFromEventOpts(
+			{ owner: this, equalsFn: (a, b) => a.agentsMode === b.agentsMode && extUri.isEqual(a.scope, b.scope) },
+			Event.any<unknown>(workspaceContextService.onDidChangeWorkbenchScope, workspaceContextService.onDidChangeWorkbenchMode),
+			() => ({ scope: workspaceContextService.getWorkbenchScope(), agentsMode: workspaceContextService.getWorkbenchMode() === WorkbenchMode.Agents })
+		);
 		this._providedOptions = derived(this, reader => this._providers.read(reader).at(-1)?.provider());
 		this._options = {
 			// A provider without folders lets its composers create sessions anywhere, as a window without folders does
 			allowedFolders: derived(this, reader => {
-				const scopeUri = scope.read(reader);
+				const { scope: scopeUri, agentsMode } = workbench.read(reader);
 				// In the Agents mode the window's folders follow the focused session: new sessions start in the workspace the
 				// window is scoped to, if it is a local folder; a remote or cloud workspace is not one this window can start in
-				if (agentsMode.read(reader)) {
+				if (agentsMode) {
 					return scopeUri?.scheme === Schemas.file ? [scopeUri] : [];
 				}
 				// The window's folder follows the focused session then, which is no folder to keep new sessions in
