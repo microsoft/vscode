@@ -256,7 +256,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['fit', 'shrink', 'fixed'],
 				'default': 'fit',
 				'enumDescriptions': [
-					localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
+					localize('workbench.editor.tabSizing.fit', "Size tabs to fit their editor labels, up to a maximum width of 400 pixels."),
 					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once."),
 					localize('workbench.editor.tabSizing.fixed', "Make all tabs the same size, while allowing them to get smaller when the available space is not enough to show all tabs at once.")
 				],

@@ -274,16 +274,16 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
-	max-width: 100%;
+	max-width: min(100%, var(--tab-sizing-fit-max-width));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-tab:not(.sticky-compact) {
-	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter)));
+	max-width: min(var(--tab-sizing-fit-max-width), max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter))));
 }
 
 /* The last tab also reserves the space of the add tab button, see its margin */
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.sizing-fit.last-tab:not(.sticky-compact) {
-	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter) * 2));
+	max-width: min(var(--tab-sizing-fit-max-width), max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter) * 2)));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label,
