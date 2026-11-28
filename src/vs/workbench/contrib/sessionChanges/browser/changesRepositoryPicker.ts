@@ -9,7 +9,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -21,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -81,6 +81,7 @@ export class ChangesRepositoryPickerActionItem extends ActionWidgetDropdownActio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		// Without an explicit scope the picker follows the active session
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
@@ -119,7 +120,7 @@ export class ChangesRepositoryPickerActionItem extends ActionWidgetDropdownActio
 						icon: failure ? Codicon.error : this._getRepositoryIcon(repository),
 						description: failure?.message ?? repository.gitRepository?.branchName,
 						ariaDescription: failure ? localize('changesRepositoryPicker.failure', "Its changes could not be loaded: {0}", failure.message) : undefined,
-						checked: !!selected && extUriBiasedIgnorePathCase.isEqual(selected.root, repository.root),
+						checked: !!selected && uriIdentityService.extUri.isEqual(selected.root, repository.root),
 						enabled: true,
 						category: { label: '', order: 1, showHeader: false },
 						run: async () => select(repository),
