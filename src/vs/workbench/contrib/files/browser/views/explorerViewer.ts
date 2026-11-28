@@ -1208,19 +1208,33 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				this.updateConfiguration();
 			}
 		}));
-		this.toDispose.push(this.fileService.onDidFilesChange(e => {
-			// Check to see if the update contains any of the ignoreFileResources
+		this.toDispose.push(this.fileService.onDidFilesChange(async e => {
+			// Process deletions synchronously across all roots before awaiting updates
+			let didDelete = false;
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
-				ignoreFileResourceSet.forEach(async ignoreResource => {
-					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
-						await this.processIgnoreFile(root, ignoreResource, true);
-					}
+				for (const ignoreResource of Array.from(ignoreFileResourceSet)) {
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
 						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
 						ignoreFileResourceSet.delete(ignoreResource);
-						this._onDidChange.fire();
+						didDelete = true;
 					}
-				});
+				}
+			}
+			if (didDelete) {
+				this._onDidChange.fire();
+			}
+
+			// Process updates sequentially
+			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
+				for (const ignoreResource of Array.from(ignoreFileResourceSet)) {
+					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
+						try {
+							await this.processIgnoreFile(root, ignoreResource, true);
+						} catch {
+							// ignore file read errors on updated ignore file
+						}
+					}
+				}
 			}
 		}));
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
