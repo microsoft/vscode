@@ -1744,7 +1744,7 @@ export class SessionsView extends ViewPane {
 
 	/**
 	 * In the Chat view ({@link ISessionsViewOptions.leaveInboxWithoutChat}), as the window switches to another profile, shows
-	 * the grouping and the filters that profile remembers, as the view would open in it, without storing anything: what the
+	 * the grouping, the sorting and the filters that profile remembers, as the view would open in it, without storing anything: what the
 	 * view remembered in the previous profile stays there. Until Chat is back after the switch restarts the extension host,
 	 * whose stopping, before the switch, left Inbox in the previous profile, it reads them again as the new profile's storage
 	 * tells the values that differ, if any, and as its settings arrive, in either order, and then once more.
@@ -1776,17 +1776,23 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Shows the grouping and the filters stored now, as the view restores them as it opens, without storing them: Inbox even
-	 * while Chat starts, but not where Inbox is unavailable.
+	 * Shows the grouping, the sorting and the filters stored now, as the view restores them as it opens, without storing them:
+	 * Inbox even while Chat starts, but not where Inbox is unavailable.
 	 */
 	private restoreStoredGrouping(): void {
 		this.sessionsControl?.filters.reload();
 		this.groupingState.migrateWorkspacesAndGroupsGrouping();
 		this.mountedNonInboxGrouping = this.storedNonInboxGrouping;
+		const previousSorting = this.sorting;
+		this.restoreSorting();
 		const stored = this.readStoredGrouping().grouping;
 		const grouping = stored === SessionsGrouping.Inbox && !this.inboxAvailable ? this.nonInboxGrouping : stored;
 		if (this.currentGrouping === grouping) {
 			this.showSeparateGroupsAndWorkspaces();
+			if (this.sorting !== previousSorting) {
+				this.sortingContextKey?.set(this.sorting);
+				this.sessionsControl?.update();
+			}
 			return;
 		}
 		this.separateGroupsAndWorkspacesContextKey?.set(this.groupingState.separateGroupsAndWorkspaces);
@@ -1842,9 +1848,10 @@ export class SessionsView extends ViewPane {
 		return this.grouping === SessionsGrouping.Inbox ? this.currentInboxSorting : this.currentSorting;
 	}
 
+	/** Reads both sortings the profile stores, each falling back to its own default rather than to the previous profile's. */
 	private restoreSorting(): void {
-		this.currentSorting = this.readStoredSorting(SORTING_STORAGE_KEY) ?? this.currentSorting;
-		this.currentInboxSorting = this.readStoredSorting(INBOX_SORTING_STORAGE_KEY) ?? this.currentInboxSorting;
+		this.currentSorting = this.readStoredSorting(SORTING_STORAGE_KEY) ?? SessionsSorting.Created;
+		this.currentInboxSorting = this.readStoredSorting(INBOX_SORTING_STORAGE_KEY) ?? SessionsSorting.Updated;
 	}
 
 	private readStoredSorting(key: string): SessionsSorting | undefined {

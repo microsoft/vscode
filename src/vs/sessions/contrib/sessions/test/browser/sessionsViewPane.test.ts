@@ -657,6 +657,37 @@ suite('Sessions - SessionsViewPane', () => {
 		});
 	});
 
+	test('as the window switches to a profile in the same grouping, the Chat view shows the sorting that profile remembers, else the default rather than the previous profile\'s, without storing it', () => {
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new class extends InMemoryStorageService {
+			profile = 'a';
+			override hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean { return (scope as IUserDataProfile).id === this.profile; }
+		});
+		const chatView = createGroupingHost(configurationService, storageService, CHAT_GROUPINGS, false, true, true);
+		let updates = 0;
+		chatView.sessionsControl = { filters: { reload: () => { } }, resetSectionCollapseState: () => { }, update: () => updates++ };
+		chatView.followProfileSwitches();
+		chatView.setSorting(SessionsSorting.Updated);
+		const before = { grouping: chatView.grouping, sorting: chatView.sorting, checked: chatView.sortingContextKey.get(), updates };
+		// As a real switch does: the extension host stops, the profile changes, the storage switches to B, which stores no sorting, and the extension host starts
+		chatView.chatEnabled.set(false);
+		const previous = chatView.userDataProfileService.currentProfile;
+		chatView.userDataProfileService.currentProfile = toUserDataProfile('b', 'B', URI.file('/profiles/b'), URI.file('/cache'));
+		chatView.profileChange.fire({ previous, profile: chatView.userDataProfileService.currentProfile, join: () => { } });
+		storageService.profile = 'b';
+		storageService.remove('sessionsViewPane.sorting', StorageScope.PROFILE);
+		const written: string[] = [];
+		const listener = storageService.onDidChangeValue(StorageScope.PROFILE, undefined, disposables.add(new DisposableStore()))(e => written.push(e.key));
+		chatView.chatEnabled.set(true);
+		listener.dispose();
+		assert.deepStrictEqual({ before, after: { grouping: chatView.grouping, sorting: chatView.sorting, checked: chatView.sortingContextKey.get(), updates }, written }, {
+			before: { grouping: SessionsGrouping.Date, sorting: SessionsSorting.Updated, checked: SessionsSorting.Updated, updates: before.updates },
+			after: { grouping: SessionsGrouping.Date, sorting: SessionsSorting.Created, checked: SessionsSorting.Created, updates: before.updates + 1 },
+			written: [],
+		});
+	});
+
 	test('as the window switches to a profile with Inbox off, the Chat view shows what that profile remembers, whichever of its settings and its storage arrives first, and stores nothing, so that profile keeps its Inbox; renaming the profile does not follow', async () => {
 		const switchToB = async (storageFirst: boolean) => {
 			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
