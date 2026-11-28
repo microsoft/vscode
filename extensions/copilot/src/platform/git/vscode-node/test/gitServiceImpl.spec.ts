@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mkdir, mkdtemp, realpath, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
 import { FileType, Uri } from 'vscode';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -37,6 +40,19 @@ suite('GitServiceImpl', () => {
 			state: { HEAD: { name: 'main' }, onDidChange: Event.None, remotes: [], worktrees: [] },
 			ui: { selected: false, onDidChange: Event.None },
 		} as unknown as Repository);
+	}
+
+	async function inTempFolder(use: (temp: string) => Promise<void>): Promise<void> {
+		const temp = await realpath(await mkdtemp(join(tmpdir(), 'git-service-')));
+		// Keep the test runner's environment from affecting repository detection.
+		vi.stubEnv('GIT_DIR', undefined);
+		vi.stubEnv('GIT_WORK_TREE', undefined);
+		try {
+			await use(temp);
+		} finally {
+			vi.unstubAllEnvs();
+			await rm(temp, { recursive: true, force: true });
+		}
 	}
 
 	beforeEach(() => {
@@ -106,4 +122,46 @@ suite('GitServiceImpl', () => {
 
 		expect(getRepositoryRoot).toHaveBeenCalledTimes(2);
 	});
+
+	test('runs at most 5 repository root lookups at once', () => inTempFolder(async repo => {
+		const modules = Array.from({ length: 20 }, (_, i) => join(repo, `module${i}`));
+		await Promise.all([join(repo, '.git'), ...modules].map(dir => mkdir(dir)));
+		const answer = new DeferredPromise<Uri | null>();
+		getRepositoryRoot.mockReturnValue(answer.p);
+
+		const checks = Promise.all(modules.map(module => gitService.getRepositoryFetchUrls(fileIn(module, 'index.html'))));
+		await vi.waitFor(() => expect(getRepositoryRoot).toHaveBeenCalledTimes(5));
+		await new Promise(resolve => setTimeout(resolve, 50));
+		const startedWhileBusy = getRepositoryRoot.mock.calls.length;
+		answer.complete(null);
+		await checks;
+
+		expect({ startedWhileBusy, lookups: getRepositoryRoot.mock.calls.length }).toEqual({ startedWhileBusy: 5, lookups: 20 });
+	}));
+
+	test('does not start git for a folder with no .git or HEAD at or above it', () => inTempFolder(async plain => {
+		const result = await gitService.getRepositoryFetchUrls(fileIn(plain, 'index.html'));
+
+		expect({ result, lookups: getRepositoryRoot.mock.calls.length }).toEqual({ result: undefined, lookups: 0 });
+	}));
+
+	test('remembers a folder outside any repository whose lookup waited while a repository opened', () => inTempFolder(async repo => {
+		const busy = Array.from({ length: 5 }, (_, i) => join(repo, `busy${i}`));
+		const waited = join(repo, 'waited');
+		await Promise.all([join(repo, '.git'), waited, ...busy].map(dir => mkdir(dir)));
+		const answer = new DeferredPromise<Uri | null>();
+		getRepositoryRoot.mockImplementation(async uri => busy.includes(uri.fsPath) ? answer.p : null);
+		const busyChecks = Promise.all(busy.map(dir => gitService.getRepositoryFetchUrls(fileIn(dir, 'index.html'))));
+		await vi.waitFor(() => expect(getRepositoryRoot).toHaveBeenCalledTimes(5));
+
+		const waiting = gitService.getRepositoryFetchUrls(fileIn(waited, 'a.html'));
+		// Lets the check reach the queue before the repository opens.
+		await new Promise(resolve => setTimeout(resolve, 50));
+		openRepository('/elsewhere');
+		answer.complete(null);
+		await Promise.all([busyChecks, waiting]);
+		await gitService.getRepositoryFetchUrls(fileIn(waited, 'b.html'));
+
+		expect(getRepositoryRoot.mock.calls.map(([uri]) => uri.fsPath).filter(path => path === waited)).toEqual([waited]);
+	}));
 });
