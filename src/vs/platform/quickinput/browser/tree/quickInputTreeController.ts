@@ -192,6 +192,9 @@ export class QuickInputTreeController extends Disposable {
 
 		const treeElements = treeData.map(item => createTreeElement(item));
 		this._tree.setChildren(null, treeElements);
+		if (this._filter.filterValue) {
+			this._tree.refilter();
+		}
 		this._container.classList.toggle(flatHierarchyClass, !hasNestedItems);
 	}
 
