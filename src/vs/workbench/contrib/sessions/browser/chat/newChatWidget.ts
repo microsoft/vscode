@@ -1618,7 +1618,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _trackSavedDraftTarget(): IDisposable {
+		// The folders the user adds or removes change the picker's selection before, or without, a change of the draft
+		const pickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
 		return autorun(reader => {
+			pickerSelectionChanged.read(reader);
 			this._restoringSavedDraft.read(reader);
 			this._savedDraftTargetUnavailable.read(reader);
 			const session = this._session.read(reader);

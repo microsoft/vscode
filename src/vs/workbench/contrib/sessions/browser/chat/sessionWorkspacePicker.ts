@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mnemonicButtonLabel } from '../../../../../base/common/labels.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import * as touch from '../../../../../base/browser/touch.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -476,7 +477,7 @@ export class WorkspacePicker extends Disposable {
 			canSelectFiles: false,
 			canSelectFolders: true,
 			canSelectMany: true,
-			openLabel: localize({ key: 'workspacePicker.addSessionFolders.open', comment: ['&& denotes a mnemonic'] }, "&&Add"),
+			openLabel: mnemonicButtonLabel(localize({ key: 'workspacePicker.addSessionFolders.open', comment: ['&& denotes a mnemonic'] }, "&&Add")),
 			// The session works on this computer, also in a window connected to a remote
 			availableFileSystems: [Schemas.file],
 		});

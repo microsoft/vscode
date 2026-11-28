@@ -1038,7 +1038,7 @@ suite('NewChatWidget', () => {
 				_savedDraftComposer: composer,
 				_restoringSavedDraft: constObservable(false),
 				_savedDraftTargetUnavailable: constObservable(false),
-				_workspacePicker: { selectedFolderUri: requested },
+				_workspacePicker: { selectedFolderUri: requested, onDidChangeSelection: Event.None },
 				sessionsProvidersService: { getProvider: () => provider },
 				_captureSavedDraftTarget: () => capture.call(harness),
 			};
@@ -1055,6 +1055,38 @@ suite('NewChatWidget', () => {
 				{ mode: 'plan', isolationMode: 'worktree', branch: 'selected', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
 				configuration,
 			]);
+		});
+
+		test('captures the folders the user adds to and removes from the draft\'s session', () => {
+			const selectionChanged = disposables.add(new Emitter<void>());
+			const session = upcastPartial<ISession>({
+				sessionId: 'draft', providerId: 'provider', sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(false),
+				modelId: constObservable('model'), mode: constObservable(undefined),
+				workspace: constObservable(undefined), application: constObservable({ id: 'test', label: 'Test' }),
+			});
+			const captured: (readonly URI[] | undefined)[] = [];
+			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push(target.sessionFolders); } };
+			const added = URI.file('/added');
+			const picker = { selectedFolderUri: requested, sessionFolderUris: undefined as readonly URI[] | undefined, onDidChangeSelection: selectionChanged.event };
+			const harness = {
+				_session: constObservable(session),
+				_environment: constObservable(undefined),
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_workspacePicker: picker,
+				sessionsProvidersService: { getProvider: () => undefined },
+				_captureSavedDraftTarget: () => capture.call(harness),
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftTarget') as (this: typeof harness) => IDisposable;
+			disposables.add(track.call(harness));
+			picker.sessionFolderUris = [requested, added];
+			selectionChanged.fire();
+			picker.sessionFolderUris = undefined;
+			selectionChanged.fire();
+			assert.deepStrictEqual(captured, [undefined, [requested, added], undefined]);
 		});
 
 		test('restoring the singleton backup does not move focus', async () => {
