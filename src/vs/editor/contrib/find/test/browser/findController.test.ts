@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Delayer } from '../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import * as platform from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { EditorAction, EditorContributionInstantiation } from '../../../../browser/editorExtensions.js';
+import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -16,12 +19,17 @@ import { Selection } from '../../../../common/core/selection.js';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithArgsAction, StartFindWithSelectionAction } from '../../browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
 import { INewFindReplaceState } from '../../browser/findState.js';
-import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { FindWidget } from '../../browser/findWidget.js';
+import { createCodeEditorServices, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
@@ -75,6 +83,43 @@ suite('FindController', () => {
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
+
+	test('closing Find preserves the scroll to the next match', async () => {
+		const container = document.body.appendChild(document.createElement('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const services = createCodeEditorServices(disposables, new ServiceCollection([IStorageService, disposables.add(new InMemoryStorageService())]));
+		const editor = disposables.add(services.createInstance(CodeEditorWidget, container,
+			{ smoothScrolling: true, find: { addExtraSpaceOnTop: true } },
+			{ contributions: [{ id: TestFindController.ID, ctor: TestFindController, instantiation: EditorContributionInstantiation.Eager }] },
+		));
+		editor.setModel(disposables.add(createTextModel(`match\n${'line\n'.repeat(100)}match`)));
+		editor.layout({ width: 480, height: 200 });
+		const controller = CommonFindController.get(editor)!;
+		const state = controller.getState();
+		disposables.add(new FindWidget(editor, {
+			replace: () => { },
+			replaceAll: () => { },
+			getGlobalBufferTerm: async () => '',
+		}, state, {
+			showContextView: () => { },
+			hideContextView: () => { },
+			layout: () => { },
+		}, services.get(IKeybindingService), services.get(IContextKeyService), services.get(IHoverService),
+		undefined, undefined, services.get(IConfigurationService), services.get(IAccessibilityService)));
+
+		editor.setSelection(new Selection(1, 1, 1, 6));
+		await executeAction(services, editor, StartFindAction);
+		await executeAction(services, editor, NextMatchFindAction);
+		assert.strictEqual(editor.getSelection()?.startLineNumber, 102);
+		assert.ok(editor.hasPendingScrollAnimation());
+
+		controller.closeFindWidget();
+		assert.strictEqual(state.isRevealed, false);
+		while (editor.hasPendingScrollAnimation()) {
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		}
+		assert.ok(editor.getVisibleRanges().some(range => range.containsPosition(new Position(102, 1))));
+	});
 
 	if (platform.isMacintosh) {
 		// eslint-disable-next-line local/code-no-any-casts
