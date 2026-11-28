@@ -14,7 +14,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -1591,6 +1592,60 @@ suite('SessionCustomizationDiscovery', () => {
 			// Never resolved past the repository root: falls back to the workspace folder.
 			joinPath(nestedWorkspace, '.github/instructions/missing.instructions.md').toString(),
 		].sort());
+	});
+
+	test('discover stops the repository-root search at an unreadable .git and at the user home', async () => {
+		const lockedGit = URI.from({ scheme: Schemas.inMemory, path: '/outer/locked/.git' });
+		class LockedGitFileService extends FileService {
+			override async stat(resource: URI) {
+				if (resource.toString() === lockedGit.toString()) {
+					throw new FileOperationError('permission denied', FileOperationResult.FILE_PERMISSION_DENIED);
+				}
+				return super.stat(resource);
+			}
+		}
+		const lockedFileService = disposables.add(new LockedGitFileService(new NullLogService()));
+		disposables.add(lockedFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = lockedFileService;
+		instantiationService.stub(IFileService, lockedFileService);
+
+		const sourcePath = '.github/instructions/rule.instructions.md';
+		await seed('/outer/.git/HEAD', 'ref: refs/heads/main');
+		await seed(`/outer/${sourcePath}`, 'outer repository');
+		await seed('/home/.git/HEAD', 'ref: refs/heads/main');
+		await seed(`/home/${sourcePath}`, 'dotfiles repository');
+
+		const resolve = async (path: string) => {
+			const folder = URI.from({ scheme: Schemas.inMemory, path });
+			const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [folder], userHome, inMemoryPathToUri));
+			const client = {
+				rpc: {
+					hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+					mcp: { discover: async () => ({ servers: [] }) },
+					agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+					instructions: {
+						getDiscoveryPaths: async () => ({ paths: [] }),
+						discover: async () => ({ sources: [{ id: 'rule', label: 'Rule', sourcePath, applyTo: ['**'], type: 'vscode', location: 'repository', projectPath: folder.fsPath }] }),
+					},
+					skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+				},
+			} as unknown as CopilotClient;
+			const customizations = await discovery.discover(client, CancellationToken.None);
+			return customizations
+				.filter(customization => customization.contents === 'rule')
+				.flatMap(customization => (customization.children ?? []).map(child => URI.parse(child.uri).path));
+		};
+
+		assert.deepStrictEqual({
+			unreadableGit: await resolve('/outer/locked/app'),
+			insideHomeRepository: await resolve('/home/project'),
+			homeRepository: await resolve('/home'),
+		}, {
+			// Neither borrows an instruction from a repository that may not contain the folder.
+			unreadableGit: [`/outer/locked/app/${sourcePath}`],
+			insideHomeRepository: [`/home/project/${sourcePath}`],
+			homeRepository: [`/home/${sourcePath}`],
+		});
 	});
 
 	test('discover surfaces agents and skills from every working directory in one call', async () => {

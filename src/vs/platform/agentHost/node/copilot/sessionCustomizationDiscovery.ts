@@ -763,17 +763,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private async _resolveRelativeInstructionPath(anchor: URI, instruction: InstructionSource): Promise<URI> {
 		const fallback = joinPath(anchor, instruction.sourcePath);
 		const folders: URI[] = [];
-		let repositoryRoot: URI | undefined;
-		for (let folder = anchor; ; folder = uriDirname(folder)) {
-			folders.push(folder);
-			if (await this._fileService.exists(joinPath(folder, '.git'))) {
-				repositoryRoot = folder;
-				break;
-			}
-			if (extUriBiasedIgnorePathCase.isEqual(uriDirname(folder), folder) || extUriBiasedIgnorePathCase.isEqual(folder, this._osUserHome)) {
-				break;
-			}
-		}
+		const repositoryRoot = await this._findRepositoryRoot(anchor, folders);
 		if (!repositoryRoot) {
 			return fallback;
 		}
@@ -785,6 +775,33 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		return fallback;
+	}
+
+	/**
+	 * Walks up from `folder` to the nearest folder with a `.git` entry, adding each folder
+	 * it checks to `visited`. Gives up when a `.git` entry can't be read for a reason other
+	 * than it not existing, and before ascending into the filesystem root's parent or the
+	 * user's home folder: home is only checked when the walk starts there, so a dotfiles
+	 * repository in it doesn't contain every folder in the home folder.
+	 */
+	private async _findRepositoryRoot(folder: URI, visited: URI[]): Promise<URI | undefined> {
+		for (let current = folder; ; current = uriDirname(current)) {
+			visited.push(current);
+			try {
+				const stat = await this._fileService.stat(joinPath(current, '.git'));
+				if (stat.isDirectory || stat.isFile) {
+					return current;
+				}
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					return undefined;
+				}
+			}
+			const parent = uriDirname(current);
+			if (extUriBiasedIgnorePathCase.isEqual(parent, current) || extUriBiasedIgnorePathCase.isEqual(current, this._osUserHome) || extUriBiasedIgnorePathCase.isEqual(parent, this._osUserHome)) {
+				return undefined;
+			}
+		}
 	}
 
 	private _isAgentInstructionSource(instruction: InstructionSource): boolean {
