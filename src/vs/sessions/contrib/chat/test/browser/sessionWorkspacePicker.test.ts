@@ -777,7 +777,7 @@ suite('WorkspacePicker - session folders', () => {
 		});
 		assert.ok(picker instanceof DispatchingWorkspacePicker);
 		const changed: string[] = [];
-		store.add(picker.onDidChangeSelectedWorkspaceFolders(folder => changed.push(folder.path)));
+		store.add(picker.onDidChangeSelectedWorkspaceFolders(workspace => changed.push(`${workspace.path} in ${picker.selectedFolderUri?.path}`)));
 		await picker.dispatchItem({ folderUri: app, providerId: 'local-agent-host', sessionWorkspaceUri: product.uri });
 		const edit = (workspace: IRecentSessionWorkspace, folders: URI[]) => workspaces.set(workspaces.get().map(candidate => candidate === workspace || extUri.isEqual(candidate.uri, workspace.uri) ? { ...candidate, folders } : candidate), undefined);
 		// Another workspace, and the selected one with the same folders
@@ -787,10 +787,22 @@ suite('WorkspacePicker - session folders', () => {
 		// A folder removed from the selected workspace, then one added
 		edit(product, [app]);
 		edit(product, [app, lib]);
-		assert.deepStrictEqual({ unchanged, changed, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
+		const added = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
+		// Its first folder removed, then replaced: the workspace stays selected, in the folder it starts with now
+		edit(product, [lib, docs]);
+		const firstRemoved = picker.selectedWorkspaceConfig?.folders.map(folder => folder.path);
+		edit(product, [app, docs]);
+		assert.deepStrictEqual({ unchanged, changed, added, firstRemoved, folders: picker.selectedWorkspaceConfig?.folders.map(folder => folder.path) }, {
 			unchanged: [],
-			changed: ['/agent-host/app', '/agent-host/app'],
-			folders: ['/agent-host/app', '/agent-host/lib'],
+			changed: [
+				'/ws/product.code-workspace in /agent-host/app',
+				'/ws/product.code-workspace in /agent-host/app',
+				'/ws/product.code-workspace in /agent-host/lib',
+				'/ws/product.code-workspace in /agent-host/app',
+			],
+			added: ['/agent-host/app', '/agent-host/lib'],
+			firstRemoved: ['/agent-host/lib', '/agent-host/docs'],
+			folders: ['/agent-host/app', '/agent-host/docs'],
 		});
 	});
 

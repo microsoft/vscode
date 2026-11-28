@@ -831,7 +831,7 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri, this._workspacePicker.selectionSnapshot.origin !== WorkspaceSelectionOrigin.User)));
-		this._register(this._workspacePicker.onDidChangeSelectedWorkspaceFolders(folderUri => this._handleSelectedWorkspaceFoldersChange(folderUri).catch(onUnexpectedError)));
+		this._register(this._workspacePicker.onDidChangeSelectedWorkspaceFolders(() => this._handleSelectedWorkspaceFoldersChange().catch(onUnexpectedError)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
@@ -3480,6 +3480,10 @@ export class NewChatWidget extends Disposable {
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
+		// A draft being replaced after its workspace's folders changed is sent once it works in them, as they are last
+		while (this._workspaceFoldersReconciliation) {
+			await this._workspaceFoldersReconciliation.catch(() => undefined);
+		}
 		let session = this._session.get();
 		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
 		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
@@ -3869,16 +3873,41 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	/** Replacing the draft after its workspace's folders changed; a send waits for it. */
+	private _workspaceFoldersReconciliation: Promise<void> | undefined;
+
 	/**
 	 * A draft works in its workspace's folders as they are: a draft not yet sent, in a workspace whose folders changed, is
-	 * replaced, as when the user adds or removes a folder, without moving focus. Nothing changes while a draft is being
-	 * created or for a session that started.
+	 * replaced, as when the user adds or removes a folder, without moving focus. Changes are handled one at a time, each
+	 * once any creation of a draft has settled, against the selection as it is then, so that the last one applies. Nothing
+	 * changes for a session that started.
 	 */
-	private async _handleSelectedWorkspaceFoldersChange(folderUri: URI): Promise<void> {
-		const session = this._session.get();
-		if (session && !isSessionCreated(session) && !this._pendingWorkspaceCreation && !this._isCurrentWorkspaceSelection(folderUri)) {
+	private _handleSelectedWorkspaceFoldersChange(): Promise<void> {
+		const previous = this._workspaceFoldersReconciliation;
+		const reconciliation = (async () => {
+			await previous;
+			while (this._pendingWorkspaceCreation) {
+				await this._pendingWorkspaceCreation.catch(() => undefined);
+			}
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			const session = this._session.get();
+			if (!folderUri || !session || isSessionCreated(session) || this._isCurrentWorkspaceSelection(folderUri)) {
+				return;
+			}
+			const host = this._draftHost;
+			if (host?.setRequestedTarget && !this.uriIdentityService.extUri.isEqual(host.requestedTarget?.get()?.folderUri, folderUri)) {
+				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'user');
+			}
 			await this._onWorkspaceSelected(folderUri);
-		}
+		})();
+		this._workspaceFoldersReconciliation = reconciliation;
+		const clear = () => {
+			if (this._workspaceFoldersReconciliation === reconciliation) {
+				this._workspaceFoldersReconciliation = undefined;
+			}
+		};
+		reconciliation.then(clear, clear);
+		return reconciliation;
 	}
 
 	/** The workspace configuration this composer requested its draft in, for a provider that does not record it. */

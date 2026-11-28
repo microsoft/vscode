@@ -4498,13 +4498,12 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(results, cases.map(({ name, reuse }) => ({ name, reuse })));
 	});
 
-	test('replaces a draft not yet sent when its workspace\'s folders change, but not while it is created, once it started, or when it still matches', async () => {
-		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object, folderUri: URI) => Promise<void>;
+	test('replaces a draft not yet sent when its workspace\'s folders change, but not once it started or when it still matches', async () => {
+		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object) => Promise<void>;
 		const folder = URI.file('/project');
-		const cases: { name: string; noDraft?: boolean; isCreated?: boolean; pending?: boolean; current?: boolean }[] = [
+		const cases: { name: string; noDraft?: boolean; isCreated?: boolean; current?: boolean }[] = [
 			{ name: 'draft in other folders' },
 			{ name: 'draft still matching', current: true },
-			{ name: 'draft being created', pending: true },
 			{ name: 'started session', isCreated: true },
 			{ name: 'no draft', noDraft: true },
 		];
@@ -4513,19 +4512,68 @@ suite('NewChatWidget', () => {
 			const replaced: string[] = [];
 			await handleFoldersChange.call({
 				_session: constObservable(options.noDraft ? undefined : upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', ...withCreatedStatus(constObservable(!!options.isCreated)) })),
-				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
+				_workspacePicker: { selectedFolderUri: folder },
+				uriIdentityService: { extUri },
 				_isCurrentWorkspaceSelection: () => !!options.current,
 				_onWorkspaceSelected: async (folderUri: URI) => { replaced.push(folderUri.path); },
-			}, folder);
+			});
 			results.push({ name: options.name, replaced });
 		}
 		assert.deepStrictEqual(results, [
 			{ name: 'draft in other folders', replaced: ['/project'] },
 			{ name: 'draft still matching', replaced: [] },
-			{ name: 'draft being created', replaced: [] },
 			{ name: 'started session', replaced: [] },
 			{ name: 'no draft', replaced: [] },
 		]);
+	});
+
+	test('a workspace\'s folders changed again while its draft is created are applied once that creation settles', async () => {
+		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object) => Promise<void>;
+		const same = (folders: readonly string[], others: readonly string[]) => folders.length === others.length && folders.every((folder, index) => folder === others[index]);
+		let selected = ['/alpha', '/beta', '/gamma'];
+		let draftFolders = ['/alpha', '/beta'];
+		const created: string[][] = [];
+		const settle: (() => void)[] = [];
+		const composer: { _pendingWorkspaceCreation: Promise<void> | undefined; _workspaceFoldersReconciliation: Promise<void> | undefined;[key: string]: unknown } = {
+			_pendingWorkspaceCreation: undefined,
+			_workspaceFoldersReconciliation: undefined,
+			_session: constObservable(upcastPartial<ITestSessionWithChat>({ sessionId: 'draft', ...withCreatedStatus(constObservable(false)) })),
+			_workspacePicker: { get selectedFolderUri() { return URI.file(selected[0]); } },
+			uriIdentityService: { extUri },
+			_isCurrentWorkspaceSelection: () => !composer._pendingWorkspaceCreation && same(draftFolders, selected),
+			// As the composer creates a draft in the selection's folders as they are when it starts
+			_onWorkspaceSelected: async () => {
+				const folders = [...selected];
+				created.push(folders);
+				const creation = new DeferredPromise<void>();
+				composer._pendingWorkspaceCreation = creation.p;
+				settle.push(() => {
+					draftFolders = folders;
+					composer._pendingWorkspaceCreation = undefined;
+					creation.complete();
+				});
+				await creation.p;
+			},
+		};
+		const first = handleFoldersChange.call(composer);
+		await timeout(0);
+		// Saved again while the first replacement is created
+		selected = ['/alpha', '/gamma'];
+		const second = handleFoldersChange.call(composer);
+		const third = handleFoldersChange.call(composer);
+		await timeout(0);
+		const createdWhilePending = created.length;
+		settle.shift()!();
+		await first;
+		await timeout(0);
+		settle.shift()?.();
+		await Promise.all([second, third]);
+		assert.deepStrictEqual({ createdWhilePending, created, draftFolders, reconciling: !!composer._workspaceFoldersReconciliation }, {
+			createdWhilePending: 1,
+			created: [['/alpha', '/beta', '/gamma'], ['/alpha', '/gamma']],
+			draftFolders: ['/alpha', '/gamma'],
+			reconciling: false,
+		});
 	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {

@@ -313,7 +313,10 @@ export class WorkspacePicker extends Disposable {
 	private readonly _onDidSelectWorkspaceMode = this._register(new Emitter<{ readonly folderUri: URI; readonly preferDevContainer: boolean }>());
 	readonly onDidSelectWorkspaceMode = this._onDidSelectWorkspaceMode.event;
 	private readonly _onDidChangeSelectedWorkspaceFolders = this._register(new Emitter<URI>());
-	/** The folders of the selected workspace changed, as its file was edited: its session works in other folders now. Fires the selected folder. */
+	/**
+	 * The folders of the selected workspace changed, as its file was edited, which the selection follows: a workspace that
+	 * starts with another folder now is selected in it, where it can be. Fires the workspace's URI.
+	 */
 	readonly onDidChangeSelectedWorkspaceFolders: Event<URI> = this._onDidChangeSelectedWorkspaceFolders.event;
 	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
@@ -698,10 +701,16 @@ export class WorkspacePicker extends Disposable {
 			workspaceFolders = new ResourceMap<readonly URI[]>(workspaces.map((workspace): [URI, readonly URI[]] => [workspace.uri, workspace.folders]), uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			if (initialized) {
 				this._updateTriggerLabel();
-				const folders = this._selectedSessionWorkspaceUri && workspaceFolders.get(this._selectedSessionWorkspaceUri);
-				if (previousFolders && folders && this._selectedFolderUri && !this._isSameFolderList(previousFolders, folders)) {
-					this._onDidChangeSelection.fire();
-					this._onDidChangeSelectedWorkspaceFolders.fire(this._selectedFolderUri);
+				const workspaceUri = this._selectedSessionWorkspaceUri;
+				const folders = workspaceUri && workspaceFolders.get(workspaceUri);
+				if (previousFolders && workspaceUri && folders?.length && this._selectedFolderUri && !this._isSameFolderList(previousFolders, folders)) {
+					if (!this.uriIdentityService.extUri.isEqual(folders[0], this._selectedFolderUri)) {
+						// The workspace starts with another folder now: it stays selected, in that folder, where a composer can work in it
+						this._selectFolder(folders[0], false, this._selectedResolved?.providerId, false, this._preselectionSource, this._selectionOrigin, workspaceUri, this._addedSessionFolders);
+					} else {
+						this._onDidChangeSelection.fire();
+					}
+					this._onDidChangeSelectedWorkspaceFolders.fire(workspaceUri);
 				}
 			}
 			initialized = true;
