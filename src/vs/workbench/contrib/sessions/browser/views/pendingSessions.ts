@@ -53,16 +53,21 @@ export function isPendingSessionItem(item: SessionListItem): item is IPendingSes
 	return 'pendingSession' in item && item.pendingSession === true;
 }
 
-export function matchesPendingSession(item: IPendingSessionItem, filters: SessionsListFilters, inbox: boolean, providerIds?: readonly string[]): boolean {
+export function matchesPendingSession(item: IPendingSessionItem, filters: SessionsListFilters, options: {
+	readonly applyScope: boolean;
+	readonly ignoreEnvironmentExclusions: boolean;
+	readonly providerIds?: readonly string[];
+}): boolean {
+	const { applyScope, ignoreEnvironmentExclusions, providerIds } = options;
 	if (providerIds && (!item.providerId || !providerIds.includes(item.providerId))) {
 		return false;
 	}
 	if (item.harness && filters.isExcluded({ kind: 'harness', id: item.harness })
-		|| !inbox && item.environmentId && filters.isExcluded({ kind: 'environment', id: item.environmentId })
+		|| !ignoreEnvironmentExclusions && item.environmentId && filters.isExcluded({ kind: 'environment', id: item.environmentId })
 		|| item.applicationId && item.applicationId !== UNKNOWN_SESSION_APPLICATION_ID && item.environmentId && filters.isExcluded({ kind: 'application', environment: item.environmentId, id: item.applicationId })) {
 		return false;
 	}
-	if (inbox) {
+	if (applyScope) {
 		const { environment, workspace } = filters.inboxScope;
 		if (environment && item.environmentId !== environment.id) {
 			return false;

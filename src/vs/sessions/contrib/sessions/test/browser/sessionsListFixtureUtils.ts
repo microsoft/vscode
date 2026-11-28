@@ -910,7 +910,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore, undefined, () => view.grouping ?? SessionsGrouping.Workspace);
+		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore, () => view.grouping ?? SessionsGrouping.Workspace);
 		renderedHeader.toolbar?.refresh();
 		findWidgetContainer = DOM.append(renderedHeader.row, DOM.$('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';

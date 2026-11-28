@@ -29,7 +29,7 @@ import { ChatEntitlementContextKeys } from '../../../../services/chat/common/cha
 import { IsSessionsWindowContext, WorkbenchScopeContext } from '../../../../common/contextkeys.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { SessionsCategories } from '../../common/categories.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HIDE_CANVAS_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, OPEN_SESSION_SECTION_FOLDER_IN_NEW_WINDOW_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext, SessionWorkspacesEnabledContext } from '../../common/contextkeys.js';
 import { getSessionListChats, GROUPS_SECTION_ID, isAutomationSession, WORKSPACES_SECTION_ID } from './sessionsListHelpers.js';
@@ -980,41 +980,32 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-		submenu: Menus.SessionsViewFilter,
-		title: localize2('filterSessions', "Filter Sessions"),
-		icon: Codicon.filter,
-		group: 'navigation',
-		order: 10,
-	}));
-	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: Menus.SessionsViewFilter,
-		title: localize2('filterSessions', "Filter Sessions"),
-		icon: Codicon.filter,
-		group: 'navigation',
-		order: 10,
-		when: ChatViewSessionsListTitleContext,
-	}));
-
-	store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-		command: {
-			id: 'sessionsViewPane.find',
-			title: localize2('find', "Find Session"),
-			icon: Codicon.search,
-		},
-		group: 'navigation',
-		order: 20,
-	}));
-	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		command: {
-			id: 'sessionsViewPane.find',
-			title: localize2('find', "Find Session"),
-			icon: Codicon.search,
-		},
-		group: 'navigation',
-		order: 20,
-		when: ChatViewSessionsListTitleContext,
-	}));
+	const filterChipsEnabled = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${SESSIONS_LIST_FILTER_CHIPS_SETTING}`, true), IsPhoneLayoutContext.negate())!;
+	for (const menu of [Menus.SidebarSessionsHeader, MenuId.ViewTitle]) {
+		const titleContext = menu === MenuId.ViewTitle ? ChatViewSessionsListTitleContext : undefined;
+		store.add(MenuRegistry.appendMenuItem(menu, {
+			submenu: Menus.SessionsViewGrouping,
+			title: localize2('grouping', "Grouping"),
+			icon: Codicon.groupByRefType,
+			group: 'navigation',
+			order: 10,
+			when: ContextKeyExpr.and(titleContext, ChatContextKeys.enabled, filterChipsEnabled),
+		}));
+		store.add(MenuRegistry.appendMenuItem(menu, {
+			submenu: Menus.SessionsViewFilter,
+			title: localize2('filterSessions', "Filter Sessions"),
+			icon: Codicon.filter,
+			group: 'navigation',
+			order: 10,
+			when: ContextKeyExpr.and(titleContext, filterChipsEnabled.negate()),
+		}));
+		store.add(MenuRegistry.appendMenuItem(menu, {
+			command: { id: 'sessionsViewPane.find', title: localize2('find', "Find Session"), icon: Codicon.search },
+			group: 'navigation',
+			order: 20,
+			when: ContextKeyExpr.and(titleContext, filterChipsEnabled.negate()),
+		}));
+	}
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 		submenu: Menus.SessionsViewOrdering,
@@ -1022,12 +1013,12 @@ function createSessionsListActions(): DisposableStore {
 		group: '1_presentation',
 		order: 0,
 	}));
-
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 		submenu: Menus.SessionsViewGrouping,
 		title: localize2('grouping', "Grouping"),
 		group: '1_presentation',
 		order: 1,
+		when: filterChipsEnabled.negate(),
 	}));
 
 	// Recent and All apply only to groupings that cap their sections; the visibility section below them applies to every grouping

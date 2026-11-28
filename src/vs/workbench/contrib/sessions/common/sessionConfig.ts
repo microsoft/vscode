@@ -55,6 +55,7 @@ export const SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING = 'sessions.sessionActivi
 export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
+export const SESSIONS_LIST_FILTER_CHIPS_SETTING = 'sessions.list.filterChips.enabled';
 
 export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 

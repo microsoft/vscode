@@ -1017,6 +1017,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 			}));
 			store.add(toDisposable(() => this.sessionsControl = undefined));
+			if (provided?.control.onDidChangeSearchMode) {
+				this.bindSessionsListTitleState(provided.control, store);
+			}
 			// With content in the center of the empty chat, the Chat view's own list only takes the height of its rows
 			if (sessionsControl instanceof AgentSessionsControl) {
 				store.add(sessionsControl.onDidChangeContentHeight(() => {
@@ -1349,7 +1352,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * bar, which shows them while the view is merged with its container. The view's own header, shown otherwise, does not.
 	 */
 	private titleFitsWidths(): boolean {
-		return !this.headerVisible && this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.AuxiliaryBar;
+		return !(this.requestedHeaderVisibility ?? super.headerVisible) && this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.AuxiliaryBar;
+	}
+
+	private requestedHeaderVisibility: boolean | undefined;
+	private sessionsListSearchOpen = false;
+
+	private bindSessionsListTitleState(control: IChatViewSessionsListControl, store: DisposableStore): void {
+		const searchOpen = ChatContextKeys.sessionsListSearchOpen.bindTo(this.contextKeyService);
+		const updateSearch = (open: boolean) => {
+			searchOpen.set(open);
+			this.setSessionsListSearchOpen(open);
+		};
+		if (control.onDidChangeSearchMode) {
+			store.add(control.onDidChangeSearchMode(updateSearch));
+		}
+		store.add(toDisposable(() => {
+			searchOpen.reset();
+			this.setSessionsListSearchOpen(false);
+		}));
+		updateSearch(control.searchOpen ?? false);
 	}
 
 	override get headerVisible(): boolean {
@@ -1357,11 +1379,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override set headerVisible(visible: boolean) {
-		const changed = visible !== super.headerVisible;
-		super.headerVisible = visible;
+		const changed = visible !== (this.requestedHeaderVisibility ?? super.headerVisible);
+		this.requestedHeaderVisibility = visible;
+		super.headerVisible = visible && !this.sessionsListSearchOpen;
 		if (changed) {
 			this.updateActions();
 		}
+	}
+
+	private setSessionsListSearchOpen(open: boolean): void {
+		this.requestedHeaderVisibility ??= super.headerVisible;
+		this.sessionsListSearchOpen = open;
+		super.headerVisible = this.requestedHeaderVisibility && !open;
 	}
 
 	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */

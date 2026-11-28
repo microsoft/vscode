@@ -20,13 +20,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { AgentHostClaudeAgentEnabledSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
-import { IChatViewSessionsList, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
 import { IChatViewDropTargetProvider, IChatViewHostNewChatOptions, IChatViewHostService, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
@@ -42,6 +43,7 @@ import { AgentSessionsControl } from '../../../../browser/agentSessions/agentSes
 import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSessionsFilter.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
@@ -529,6 +531,34 @@ suite('ChatViewPane sessions refresh', () => {
 suite('ChatViewPane title actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a replacement list inherits the current search state', () => {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const searchChanged = store.add(new Emitter<boolean>());
+		const binding = store.add(new DisposableStore());
+		const host: ChatViewPane = Object.assign(Object.create(ChatViewPane.prototype), {
+			contextKeyService,
+			_headerVisible: true,
+			element: document.createElement('div'),
+			updateHeader: () => { },
+			_onDidChange: { fire: () => { } },
+		});
+		const bindTitle = Reflect.get(ChatViewPane.prototype, 'bindSessionsListTitleState') as (this: ChatViewPane, control: IChatViewSessionsListControl, store: DisposableStore) => void;
+		const state = () => ({
+			search: contextKeyService.contextMatchesRules(ChatContextKeys.sessionsListSearchOpen),
+			header: host.headerVisible,
+		});
+		bindTitle.call(host, upcastPartial<IChatViewSessionsListControl>({ searchOpen: true, onDidChangeSearchMode: searchChanged.event }), binding);
+		const attached = state();
+		searchChanged.fire(false);
+		const closed = state();
+		binding.dispose();
+		assert.deepStrictEqual({ attached, closed, removed: state() }, {
+			attached: { search: true, header: false },
+			closed: { search: false, header: true },
+			removed: { search: false, header: true },
+		});
+	});
+
 	test('the sessions list fits its title actions by width only in the secondary side bar\'s title, and the title redraws as the view merges, unmerges or moves', () => {
 		const containerLocationChanged = store.add(new Emitter<{ viewContainer: object }>());
 		const container = {};
@@ -557,6 +587,7 @@ suite('ChatViewPane title actions', () => {
 			updateActions: () => rendered.push((host.createActionViewItem(toAction({ id: 'newChat', label: 'New', run: () => { } })) as unknown as { titleFitsWidths: boolean }).titleFitsWidths ? 'split' : 'stock'),
 		});
 		const setHeaderVisible = (visible: boolean) => host.headerVisible = visible;
+		const setSearchOpen = (open: boolean) => (Reflect.get(ChatViewPane.prototype, 'setSessionsListSearchOpen') as (this: ChatViewPane, open: boolean) => void).call(host, open);
 		const move = (to: ViewContainerLocation) => {
 			location = to;
 			containerLocationChanged.fire({ viewContainer: container });
@@ -566,11 +597,21 @@ suite('ChatViewPane title actions', () => {
 		host.updateActions(); // merged in the secondary side bar
 		setHeaderVisible(true); // unmerged: the view's own header
 		setHeaderVisible(true); // unchanged: no redraw
+		setSearchOpen(true);
+		const duringSearch = host.headerVisible;
+		setSearchOpen(false);
+		const afterSearch = host.headerVisible;
 		setHeaderVisible(false); // merged again
+		setSearchOpen(true);
+		setSearchOpen(false);
+		const mergedAfterSearch = host.headerVisible;
 		move(ViewContainerLocation.Panel); // merged elsewhere
 		move(ViewContainerLocation.AuxiliaryBar);
 
-		assert.deepStrictEqual(rendered, ['split', 'stock', 'split', 'stock', 'split']);
+		assert.deepStrictEqual({ rendered, duringSearch, afterSearch, mergedAfterSearch }, {
+			rendered: ['split', 'stock', 'split', 'stock', 'split'],
+			duringSearch: false, afterSearch: true, mergedAfterSearch: false,
+		});
 	});
 });
 

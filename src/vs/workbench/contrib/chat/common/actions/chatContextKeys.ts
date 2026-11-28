@@ -177,6 +177,7 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
+	export const sessionsListSearchOpen = new RawContextKey<boolean>('chatSessionsSearchOpen', false, { type: 'boolean', description: localize('chatSessionsSearchOpen', "Whether search is open in the Chat view's sessions list.") });
 	/** Whether a chat widget shows a session chat, as the Agents window does, in whatever window: it then behaves as there. */
 	export const inSessionsChat = new RawContextKey<boolean>('chatInSessionsChat', false, { type: 'boolean', description: localize('chatInSessionsChat', "True when the chat widget shows a session chat, as the Agents Window does.") });
 	/** Whether an editor window shows the Sessions view, whose chat part replaces the Chat view: it is set as the window starts. */

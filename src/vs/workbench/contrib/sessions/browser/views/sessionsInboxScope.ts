@@ -21,6 +21,7 @@ import { ENVIRONMENT_PICKER_LIST_OPTIONS } from '../chat/sessionEnvironmentPicke
 import { createSessionPickerToolbar } from '../chat/sessionPickerToolbar.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from '../chat/sessionWorkspacePicker.js';
 import { getInboxWorkspaceOptions, getSessionEnvironments, LOCAL_SESSIONS_ENVIRONMENT, SessionsListFilters } from './sessionsListFilters.js';
+import { ISessionsFilterChip } from './sessionsFilterChips.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 interface IInboxScopePickerItem {
@@ -36,6 +37,7 @@ export class SessionsInboxScope extends Disposable {
 	private static readonly PICKER_USER = 'sessionsInboxScope';
 
 	readonly element: HTMLElement;
+	readonly chips: IObservable<readonly ISessionsFilterChip[]>;
 	private activeTrigger: HTMLElement | undefined;
 
 	constructor(
@@ -162,7 +164,7 @@ export class SessionsInboxScope extends Disposable {
 			environment.action.tooltip = environmentText;
 		}));
 
-		const pickWorkspace = () => {
+		const pickWorkspace = (anchor = workspace.trigger) => {
 			const { scope, workspaces, environments, hasQuickChats } = options.get();
 			const items: IActionListItem<IInboxScopePickerItem>[] = [{
 				kind: ActionListItemKind.Action,
@@ -190,14 +192,14 @@ export class SessionsInboxScope extends Disposable {
 					},
 				});
 			}
-			this.showPicker(workspace.trigger, items, workspacePickerLabel(), {
+			this.showPicker(anchor, items, workspacePickerLabel(), {
 				...WORKSPACE_PICKER_LIST_OPTIONS,
 				showFilter: true,
 				focusFilterOnOpen: true,
 				filterPlaceholder: localize('searchWorkspaces', "Search"),
 			}, announce);
 		};
-		const pickEnvironment = () => {
+		const pickEnvironment = (anchor = environment.trigger) => {
 			const { scope, environments } = options.get();
 			const selectEnvironment = (environment: { id: string; label: string } | undefined) => {
 				if (filters.setInboxEnvironment(environment)) {
@@ -223,8 +225,29 @@ export class SessionsInboxScope extends Disposable {
 					run: () => selectEnvironment({ id: environment.id, label: environment.label }),
 				},
 			}))];
-			this.showPicker(environment.trigger, items, environmentPickerLabel(), ENVIRONMENT_PICKER_LIST_OPTIONS);
+			this.showPicker(anchor, items, environmentPickerLabel(), ENVIRONMENT_PICKER_LIST_OPTIONS);
 		};
+		this.chips = derived(this, reader => {
+			const { scope } = options.read(reader);
+			const workspaceText = workspaceLabel.read(reader);
+			const environmentText = environmentLabel.read(reader);
+			return [
+				{
+					id: 'workspace',
+					label: scope.workspace ? localize('workspaceChip', "Workspace: {0}", workspaceText) : workspaceText,
+					hasListbox: true,
+					edit: pickWorkspace,
+					clear: scope.workspace ? () => { filters.setInboxWorkspace(undefined); announce(); } : undefined,
+				},
+				{
+					id: 'scopeEnvironment',
+					label: scope.environment ? localize('environmentChip', "Environment: {0}", environmentText) : environmentText,
+					hasListbox: true,
+					edit: pickEnvironment,
+					clear: scope.environment ? () => { filters.setInboxEnvironment(undefined); announce(); } : undefined,
+				},
+			];
+		});
 	}
 
 	private showPicker(trigger: HTMLElement, items: IActionListItem<IInboxScopePickerItem>[], label: string, options: IActionListOptions, onSelect?: () => void): void {

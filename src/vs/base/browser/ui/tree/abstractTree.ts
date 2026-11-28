@@ -842,6 +842,7 @@ export interface IFindWidgetStyles {
 
 export interface IFindWidgetOptions {
 	readonly history?: string[];
+	readonly ariaDescribedBy?: string;
 	readonly styles?: IFindWidgetStyles;
 	/** Returns focus to the results when they span more than one tree. */
 	readonly focusTree?: () => void;
@@ -896,7 +897,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		contextViewProvider: IContextViewProvider,
 		placeholder: string,
 		toggleContributions: ITreeFindToggleContribution[] = [],
-		options?: IFindWidgetOptions
+		options?: IFindWidgetOptions,
 	) {
 		super();
 
@@ -929,6 +930,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			history: new Set(history),
 			hoverLifecycleOptions,
 		}));
+		if (options?.ariaDescribedBy) {
+			this.findInput.inputBox.inputElement.setAttribute('aria-describedby', options.ariaDescribedBy);
+		}
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
 
@@ -968,7 +972,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			}
 		}));
 
-		const closeAction = this._register(new Action('close', localize('close', "Close"), 'codicon codicon-close', true, () => this.dispose()));
+		const closeAction = this._register(new Action('close', localize('close', "Close"), 'codicon codicon-close', true, () => this._onDidDisable.fire()));
 		this.actionbar.push(closeAction, { icon: true, label: false });
 
 		this.onDidChangeValue = this.findInput.onDidChange;
@@ -993,8 +997,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput.focus();
 	}
 
-	select() {
-		this.findInput.select();
+	select(atEnd = false) {
+		const end = this.value.length;
+		this.findInput.inputBox.select(atEnd ? { start: end, end } : null);
 
 		// Reposition to last in history
 		this.findInput.inputBox.addToHistory(true);
@@ -1009,7 +1014,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 	}
 
 	override async dispose(): Promise<void> {
-		this._onDidDisable.fire();
 		this.elements.root.classList.add('disabled');
 		await timeout(300);
 		super.dispose();
@@ -1075,10 +1079,13 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		return !!this.widget;
 	}
 
-	open(): void {
+	open(initialPattern?: string): void {
 		if (this.widget) {
 			this.widget.focus();
-			this.widget.select();
+			if (initialPattern !== undefined) {
+				this.widget.value += initialPattern;
+			}
+			this.widget.select(initialPattern !== undefined);
 			return;
 		}
 
@@ -1096,8 +1103,8 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 
 		this.widget.focus();
 
-		this.widget.value = this.previousPattern;
-		this.widget.select();
+		this.widget.value = initialPattern ?? this.previousPattern;
+		this.widget.select(initialPattern !== undefined);
 
 		this._onDidChangeOpenState.fire(true);
 	}
@@ -1118,7 +1125,11 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 
 		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');
-		this.tree.domFocus();
+		if (this.options.focusTree) {
+			this.options.focusTree();
+		} else {
+			this.tree.domFocus();
+		}
 
 		this._onDidChangeOpenState.fire(false);
 	}
@@ -1165,6 +1176,7 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 	dispose() {
 		this._history = undefined;
 		this._onDidChangePattern.dispose();
+		this._onDidChangeOpenState.dispose();
 		this.enabledDisposables.dispose();
 		this.disposables.dispose();
 	}

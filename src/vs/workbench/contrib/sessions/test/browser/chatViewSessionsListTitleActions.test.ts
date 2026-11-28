@@ -11,6 +11,7 @@ import { Menus } from '../../browser/menus.js';
 import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { bindSessionsViewGroupings, ChatViewSessionsListContext, EditorWindowSessionsContext, EditorWindowSessionsViewOffersInboxContext, SessionsView } from '../../browser/views/sessionsView.js';
@@ -20,7 +21,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../browser/agentsView/editorWindowSessionsList.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('Chat view sessions list title actions', () => {
@@ -38,6 +39,7 @@ suite('Chat view sessions list title actions', () => {
 				find: title.includes('sessionsViewPane.find'),
 				compact: title.includes('sessionsViewPane.toggleCompact'),
 				collapse: title.includes('sessionsViewPane.collapseAllGroups'),
+				grouping: title.includes(Menus.SessionsViewGrouping.id),
 				filter: title.includes(Menus.SessionsViewFilter.id),
 				onlyForChatView: titleItems.every(item => item.when?.serialize().includes(`view == 'workbench.panel.chat.view.copilot'`)),
 				gatedOnAiAndVisibleList: titleItems.every(item => {
@@ -45,8 +47,58 @@ suite('Chat view sessions list title actions', () => {
 					return when.includes('chatIsEnabled') && when.includes('agentSessionsViewerVisible');
 				}),
 				headerKept: header.includes('sessionsViewPane.find'),
-			}, { find: true, compact: true, collapse: true, filter: true, onlyForChatView: true, gatedOnAiAndVisibleList: true, headerKept: true });
+			}, { find: true, compact: true, collapse: true, grouping: true, filter: true, onlyForChatView: true, gatedOnAiAndVisibleList: true, headerKept: true });
 		} finally {
+			store.dispose();
+		}
+	});
+
+	test('the chip setting switches the title actions only for the new Sessions list', async () => {
+		const store = registerSessionsListActions();
+		const configurationService = new TestConfigurationService();
+		const context = new ContextKeyService(configurationService);
+		try {
+			context.createKey('view', 'workbench.panel.chat.view.copilot');
+			const newList = ChatViewSessionsListContext.bindTo(context);
+			newList.set(true);
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			ChatContextKeys.agentSessionsViewerVisible.bindTo(context).set(true);
+			const searchOpen = ChatContextKeys.sessionsListSearchOpen.bindTo(context);
+			const setChipsEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(SESSIONS_LIST_FILTER_CHIPS_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: key => key === SESSIONS_LIST_FILTER_CHIPS_SETTING,
+					affectedKeys: new Set([SESSIONS_LIST_FILTER_CHIPS_SETTING]),
+					change: { keys: [SESSIONS_LIST_FILTER_CHIPS_SETTING], overrides: [] },
+					source: ConfigurationTarget.USER,
+				});
+			};
+			const items = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+				.filter(item => context.contextMatchesRules(item.when))
+				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id)
+				.filter(id => id === 'sessionsViewPane.find' || id === Menus.SessionsViewGrouping.id || id === Menus.SessionsViewFilter.id);
+
+			const off = { chat: items(MenuId.ViewTitle), agents: items(Menus.SidebarSessionsHeader), filter: items(Menus.SessionsViewFilter) };
+			await setChipsEnabled(true);
+			const on = { chat: items(MenuId.ViewTitle), agents: items(Menus.SidebarSessionsHeader), filter: items(Menus.SessionsViewFilter) };
+			searchOpen.set(true);
+			const searching = items(MenuId.ViewTitle);
+			searchOpen.reset();
+			const restored = items(MenuId.ViewTitle);
+			newList.set(false);
+			const legacyChat = items(MenuId.ViewTitle);
+			newList.set(true);
+			await setChipsEnabled(false);
+			const offAgain = { chat: items(MenuId.ViewTitle), agents: items(Menus.SidebarSessionsHeader), filter: items(Menus.SessionsViewFilter) };
+			assert.deepStrictEqual({ off, on, searching, restored, legacyChat, offAgain }, {
+				off: { chat: [Menus.SessionsViewFilter.id, 'sessionsViewPane.find'], agents: [Menus.SessionsViewFilter.id, 'sessionsViewPane.find'], filter: [Menus.SessionsViewGrouping.id] },
+				on: { chat: [Menus.SessionsViewGrouping.id], agents: [Menus.SessionsViewGrouping.id], filter: [] },
+				searching: [], restored: [Menus.SessionsViewGrouping.id], legacyChat: [],
+				offAgain: { chat: [Menus.SessionsViewFilter.id, 'sessionsViewPane.find'], agents: [Menus.SessionsViewFilter.id, 'sessionsViewPane.find'], filter: [Menus.SessionsViewGrouping.id] },
+			});
+		} finally {
+			context.dispose();
+			configurationService.onDidChangeConfigurationEmitter.dispose();
 			store.dispose();
 		}
 	});

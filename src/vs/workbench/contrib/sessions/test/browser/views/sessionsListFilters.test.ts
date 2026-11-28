@@ -324,6 +324,18 @@ suite('SessionsListFilters', () => {
 		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
 	});
 
+	test('clearing an exclusion removes the override and restores the default after reload', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const filter = { kind: 'application', environment: 'cloud', id: 'slack' } as const;
+		filters.setExcluded(filter, false);
+		const included = filters.isExcluded(filter);
+		filters.clearExclusion(filter);
+		assert.deepStrictEqual({ included, current: filters.isExcluded(filter), restored: createFilters(storage).isExcluded(filter) }, {
+			included: false, current: true, restored: true,
+		});
+	});
+
 	test('reloads the filters that storage holds, such as of the profile the window switches to, without storing them', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const filters = createFilters(storage);

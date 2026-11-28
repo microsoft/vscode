@@ -124,7 +124,8 @@ import { TestSessionWorkspacesService } from '../../../../../workbench/contrib/s
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
-import { renderSessionsHeader, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsFilterChips } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFilterChips.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
@@ -407,12 +408,13 @@ suite('Sessions - SessionsList', () => {
 			comparisons: [comparison],
 		});
 		harness.managementService.unlistedSessions = attempts;
-		const render = (scoped: IObservable<boolean> | undefined) => {
+		const render = (scoped?: IObservable<boolean>, scopeChips?: IObservable<boolean>) => {
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
 				scoped,
+				scopeChips,
 				onSessionOpen: () => { },
 			}));
 			list.layout(1400, 400);
@@ -422,9 +424,10 @@ suite('Sessions - SessionsList', () => {
 			};
 		};
 
-		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+		assert.deepStrictEqual({ unscoped: render(), scoped: render(constObservable(true)), chips: render(undefined, constObservable(true)) }, {
 			unscoped: { sessions: ['here'], comparison: true },
 			scoped: { sessions: ['here'], comparison: false },
+			chips: { sessions: ['here'], comparison: false },
 		});
 	});
 
@@ -3991,7 +3994,7 @@ suite('Sessions - SessionsList', () => {
 			return { list, triggers: telemetryService.triggers, harness, container };
 		}
 
-		test('reports the Done default trigger when the Filter Sessions dropdown shows, until an archived filter is chosen', () => {
+		test('reports the Done default trigger when the filter dropdown opens, until an archived filter is chosen', () => {
 			const results = [false, true].map(chosen => {
 				const { list, triggers, harness } = renderList([createTestSession('Active').session], instantiationService => {
 					if (chosen) {
@@ -3999,11 +4002,13 @@ suite('Sessions - SessionsList', () => {
 					}
 				});
 				const container = harness.createContainer();
-				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
-				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportFilterMenuShown());
-				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
+				harness.store.add(harness.instantiationService.createInstance(SessionsFilterChips, container, () => {
+					list.reportFilterMenuShown();
+					return [];
+				}, () => { }));
+				const filter = container.querySelector<HTMLElement>('[aria-label="Filter Sessions"]');
 				const beforeShow = [...triggers];
-				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				filter?.click();
 				return { found: !!filter, beforeShow, afterShow: triggers };
 			});
 
@@ -8361,6 +8366,43 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('desktop find survives navigation and close restores the filtered list', async () => {
+			const matching = createTestSession('Needlex').session;
+			const other = createTestSession('Other').session;
+			const filtered = createTestSession('Needle archived', { isArchived: true }).session;
+			const harness = createListHarness(disposables, [matching, other, filtered]);
+			const container = harness.createContainer();
+			const findWidgetContainer = append(container, $('div'));
+			const list: TestSessionsList = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				findWidgetContainer, keepFindOpenOnNavigation: () => true,
+				openSearchOnType: text => list.openFind(text),
+			}));
+			list.layout(400, 320);
+			list.setExcludeArchived(true);
+			const findInput = () => findWidgetContainer.querySelector<HTMLInputElement>('.monaco-tree-type-filter:not(.disabled) input');
+			const snapshot = () => ({ query: findInput()?.value, sessions: list.getVisibleSessions().map(session => session.sessionId).sort() });
+			list.openFind('needle');
+			const open = snapshot();
+			list.focus();
+			list.reveal(other.resource);
+			list.focusAutomations();
+			const navigating = snapshot();
+			list.focus();
+			mainWindow.document.activeElement?.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+			const input = findInput();
+			const typed = { ...snapshot(), selection: [input?.selectionStart, input?.selectionEnd] };
+			list.closeFind();
+			const closed = snapshot();
+			await retry(async () => assert.strictEqual(findWidgetContainer.querySelector('.monaco-tree-type-filter'), null), 25, 30);
+			assert.deepStrictEqual({ open, navigating, typed, closed }, {
+				open: { query: 'needle', sessions: ['Needlex'] },
+				navigating: { query: 'needle', sessions: ['Needlex'] },
+				typed: { query: 'needlex', sessions: ['Needlex'], selection: [7, 7] },
+				closed: { query: undefined, sessions: ['Needlex', 'Other'] },
+			});
+		});
 
 		for (const status of [SessionStatus.Completed, SessionStatus.InProgress]) {
 			test(`inbox search refreshes membership and counts after renaming (${status})`, async () => {

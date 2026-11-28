@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { defaultGenerator } from '../../../../../base/common/idGenerator.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getOrSet } from '../../../../../base/common/map.js';
@@ -50,11 +51,11 @@ import { SessionsWindowScopeController } from './sessionsWindowScopeController.j
 import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, IMenuService, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { agentsBackground } from '../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -77,7 +78,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionWorkspacesEn
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_FILTER_CHIPS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -86,6 +87,7 @@ import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 import { ISessionsListUndoService } from '../sessionsListUndoService.js';
 import { SessionsInboxScope } from './sessionsInboxScope.js';
+import { ISessionsFilterChip, SessionsFilterChips } from './sessionsFilterChips.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
@@ -363,7 +365,7 @@ export const SessionsViewSortingContext = new RawContextKey<string>('sessionsVie
 /** Whether the Chat view shows the shared sessions list, whose actions contribute to the title of the Chat view. */
 export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewSessionsList', false);
 /** The `when` of the actions of the shared sessions list in the title of the Chat view. */
-export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
+export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible, ChatContextKeys.sessionsListSearchOpen.negate())!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 /** Whether Group by Workspace lists the custom groups and the workspaces under headers of their own, as the user chose. */
 export const SessionsViewSeparateGroupsAndWorkspacesContext = new RawContextKey<boolean>('sessionsViewPane.separateGroupsAndWorkspaces', DEFAULT_SEPARATE_GROUPS_AND_WORKSPACES);
@@ -413,8 +415,8 @@ export function renderSessionsHeader(
 	instantiationService: IInstantiationService,
 	contextKeyService: IContextKeyService,
 	disposables: DisposableStore,
-	onDidShowFilters?: () => void,
 	getGrouping: () => SessionsGrouping = () => SessionsGrouping.Workspace,
+	onDidShowFilters?: () => void,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -426,13 +428,19 @@ export function renderSessionsHeader(
 		row.classList.toggle('inbox-layout', inbox);
 		label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
+		const headerToolbar = toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
 			toolbarOptions: { primaryGroup: group => group.startsWith('navigation') },
 			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter
 				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
 				: undefined,
+		}));
+		const filterChipsContextKeys = new Set([`config.${SESSIONS_LIST_FILTER_CHIPS_SETTING}`]);
+		disposables.add(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(filterChipsContextKeys)) {
+				headerToolbar.refresh();
+			}
 		}));
 	} else {
 		row.classList.add('phone-layout-empty');
@@ -441,9 +449,7 @@ export function renderSessionsHeader(
 	return { row, label, actions, toolbar };
 }
 
-/** The Filter Sessions dropdown, which reports whenever it shows. */
 class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
-
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
@@ -464,7 +470,7 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 /** The options of the Sessions view. */
 export interface ISessionsViewOptions extends IViewPaneOptions {
 	/**
-	 * Whether the actions of the sessions header, such as New Session and Filter, show in the title of the view, as in an
+	 * Whether the actions of the sessions header, such as New Session and Grouping, show in the title of the view, as in an
 	 * editor window, rather than in a header row of its own.
 	 */
 	readonly headerInTitle?: boolean;
@@ -508,8 +514,14 @@ export class SessionsView extends ViewPane {
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
+	private findRow: HTMLElement | undefined;
+	private filterChipsEnabled = false;
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
+	private readonly _onDidChangeSearchMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeSearchMode = this._onDidChangeSearchMode.event;
+	get searchOpen(): boolean { return this.filterChipsEnabled && this.isFindWidgetOpen; }
+	private focusBeforeFind: HTMLElement | undefined;
 	sessionsControl: SessionsList | undefined;
 	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
@@ -682,6 +694,9 @@ export class SessionsView extends ViewPane {
 
 	private createControls(parent: HTMLElement): void {
 		const barEnabled = this.windowScope.barShown;
+		const phoneLayout = isPhoneLayout(this.layoutService);
+		const filterChipsSetting = observableConfigValue(SESSIONS_LIST_FILTER_CHIPS_SETTING, false, this.configurationService);
+		const showFilterChips = derived(this, reader => !phoneLayout && filterChipsSetting.read(reader));
 		const repositories = this.workspaceFolderRepositories;
 		const scope = new SessionsInScope(
 			derived(this, reader => this.scoped?.read(reader) && !barEnabled.read(reader) ? repositories.folders.read(reader) : undefined),
@@ -708,15 +723,21 @@ export class SessionsView extends ViewPane {
 		// is hidden in favor of the mobile filter chip row + the (+) button in the
 		// MobileTitlebarPart. We still create the row container because the find
 		// widget mounts inside it.
-		const phoneLayout = isPhoneLayout(this.layoutService);
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
+		const filterRowContainer = !phoneLayout ? DOM.append(sessionsContent, $('.agent-sessions-filter-row-container')) : undefined;
 		const topNoticesContainer = DOM.append(sessionsContent, $('.agent-sessions-top-notices'));
 
-		// Container for the tree's find widget (toggled by the toolbar's Find action)
+		const findRow = this.findRow = filterRowContainer && DOM.append(filterRowContainer, $('.agent-sessions-header-row'));
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
+		if (findRow) {
+			findRow.style.display = 'none';
+		}
+		const searchFilterHint = DOM.append(findRow ?? header.row, $('.sessions-search-filter-hint'));
+		searchFilterHint.id = defaultGenerator.nextId();
+		searchFilterHint.hidden = true;
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
 		// The actual widget is created after sessionsControl is available.
@@ -778,7 +799,11 @@ export class SessionsView extends ViewPane {
 			sessionScope,
 			pendingSessionScope,
 			scopeBar: barEnabled,
+			scopeChips: showFilterChips,
 			findWidgetContainer,
+			findAriaDescribedBy: searchFilterHint.id,
+			keepFindOpenOnNavigation: () => this.filterChipsEnabled,
+			openSearchOnType: phoneLayout ? undefined : text => this.openFind(text),
 			quickChatsInTimeGrouping: this.quickChatsInTimeGrouping,
 			inboxAutoAdvance: this.inboxAutoAdvance,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
@@ -830,10 +855,13 @@ export class SessionsView extends ViewPane {
 			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds),
 			derived(reader => { scopeChanged.read(reader); return this.grouping === SessionsGrouping.Inbox; })));
 		this.windowScope.setScopeBarFilters(sessionsControl.filters);
-		this._register(autorun(reader => {
+		const scopeVisible = derived(this, reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
-			if (inboxScope.setVisible(barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.windowScope.isScopeBarWindow.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled)))) {
+			return showFilterChips.read(reader) || barEnabled.read(reader) || (this.grouping === SessionsGrouping.Inbox && this.windowScope.isScopeBarWindow.read(reader) && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled));
+		});
+		this._register(autorun(reader => {
+			if (inboxScope.setVisible(scopeVisible.read(reader))) {
 				sessionsControl.focus();
 			}
 		}));
@@ -886,27 +914,39 @@ export class SessionsView extends ViewPane {
 			show: notice => listNotification.show(notice),
 		}));
 
-		// Toggle header label/actions visibility when find widget opens/closes
-		this._register(sessionsControl.onDidChangeFindOpenState(open => {
-			this.isFindWidgetOpen = open;
-			findWidgetContainer.style.display = open ? '' : 'none';
-			this.updateHeaderLayout();
-		}));
-		// Close find widget on Escape
-		this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
+		const filterOptions = this.registerSessionFilters(sessionsControl);
+		this.registerScheduledFilter(sessionsControl);
+		this.registerArchivedFilter(sessionsControl);
+		this.registerResetFiltersAction();
+
+		const scopeChips = derived(this, reader => scopeVisible.read(reader) ? inboxScope.chips.read(reader) : []);
+		const filterRow = filterRowContainer && this._register(this.instantiationService.createInstance(SessionsFilterChips, filterRowContainer,
+			anchor => this.getFilterMenuActions(anchor, scopeChips.get()), () => this.openFind()));
+		this.bindFilterRow(sessionsControl, findWidgetContainer, searchFilterHint, filterRow, scopeChips, filterOptions);
+		this._register(autorun(reader => {
+			const enabled = showFilterChips.read(reader);
+			if (enabled !== this.filterChipsEnabled) {
 				sessionsControl.closeFind();
-				e.stopPropagation();
+				this.filterChipsEnabled = enabled;
+				(enabled ? findRow : header.row)?.appendChild(findWidgetContainer);
+				this.updateHeaderLayout();
 			}
+			inboxScopeContainer.classList.toggle('sessions-scope-chip-source', enabled);
+			if (filterRowContainer) {
+				filterRowContainer.hidden = !enabled;
+			}
+			if (filterRow) {
+				const hadFocus = DOM.isAncestorOfActiveElement(filterRow.element);
+				filterRow.element.hidden = !enabled || this.isFindWidgetOpen;
+				if (!enabled && hadFocus) {
+					sessionsControl.focus();
+				}
+			}
+			this.layoutSidebarSplitView();
 		}));
 
 		// Sync workspace group capped context key with persisted state
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
-
-		this.registerSessionFilters(sessionsControl);
-		this.registerScheduledFilter(sessionsControl);
-		this.registerArchivedFilter(sessionsControl);
-		this.registerResetFiltersAction();
 
 		// Refresh sessions when window gets focus to compensate for missing events: while the list shows, else as it shows
 		let refreshWhenVisible = false;
@@ -1059,7 +1099,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping);
+		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.grouping, () => this.sessionsControl?.reportFilterMenuShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
@@ -1252,7 +1292,7 @@ export class SessionsView extends ViewPane {
 		}));
 	}
 
-	private registerSessionFilters(sessionsControl: SessionsList): void {
+	private registerSessionFilters(sessionsControl: SessionsList) {
 		// The Worktrees filter, of an editor window only, whose picked folder opens a session of it once allowed to, as a click
 		// in the list does
 		const offersWorktrees = this.workspaceContextService.getWorkbenchMode() !== WorkbenchMode.Agents;
@@ -1385,6 +1425,124 @@ export class SessionsView extends ViewPane {
 				}));
 			}
 		}));
+		return menuState;
+	}
+
+	private getFilterMenuActions(anchor: HTMLElement, scopeChips: readonly ISessionsFilterChip[]): IAction[] {
+		this.sessionsControl?.reportFilterMenuShown();
+		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.SessionsViewFilter, this.scopedContextKeyService));
+		return Separator.join(scopeChips.map(chip => toAction({ id: chip.id, label: chip.label, run: () => chip.edit(anchor) })), actions);
+	}
+
+	private bindFilterRow(
+		sessionsControl: SessionsList,
+		findWidgetContainer: HTMLElement,
+		searchFilterHint: HTMLElement,
+		filterRow: SessionsFilterChips | undefined,
+		scopeChips: IObservable<readonly ISessionsFilterChip[]>,
+		filterOptions: IObservable<{ readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[] }>,
+	): void {
+		const updateSearchFilterHint = () => {
+			const count = this.searchOpen ? filterRow?.filterCount ?? 0 : 0;
+			searchFilterHint.hidden = count === 0;
+			searchFilterHint.textContent = count === 0 ? '' : count === 1 ? localize('oneFilterApplied', "1 filter applied") : localize('filtersApplied', "{0} filters applied", count);
+		};
+		if (filterRow) {
+			const changed = observableSignalFromEvent(this, Event.any(sessionsControl.onDidUpdate, sessionsControl.filters.onDidChange,
+				this.configurationService.onDidChangeConfiguration));
+			this._register(autorun(reader => {
+				changed.read(reader);
+				filterRow.setChips(this.getFilterChips(sessionsControl, scopeChips.read(reader), filterOptions.read(reader).options));
+				updateSearchFilterHint();
+			}));
+		}
+
+		this._register(sessionsControl.onDidChangeFindOpenState(open => {
+			this.isFindWidgetOpen = open;
+			if (filterRow) {
+				filterRow.element.hidden = !this.filterChipsEnabled || open;
+			}
+			findWidgetContainer.style.display = open ? '' : 'none';
+			if (this.findRow) {
+				this.findRow.style.display = this.searchOpen ? '' : 'none';
+			}
+			this.updateHeaderLayout();
+			updateSearchFilterHint();
+			if (this.filterChipsEnabled) {
+				this._onDidChangeSearchMode.fire(open);
+			}
+			this.layoutSidebarSplitView();
+			if (open && !searchFilterHint.hidden && searchFilterHint.textContent) {
+				status(searchFilterHint.textContent);
+			}
+			if (!open) {
+				const previousFocus = this.focusBeforeFind;
+				this.focusBeforeFind = undefined;
+				if (previousFocus?.isConnected && previousFocus.getClientRects().length > 0) {
+					previousFocus.focus();
+				}
+			}
+		}));
+		this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				sessionsControl.closeFind();
+				e.stopPropagation();
+			}
+		}));
+	}
+
+	private getFilterChips(sessionsControl: SessionsList, scopeChips: readonly ISessionsFilterChip[], options: readonly (ISessionFilterOption & { readonly checked: boolean })[]): ISessionsFilterChip[] {
+		const chips = [...scopeChips];
+		const { filters } = sessionsControl;
+		for (const option of options) {
+			const filter = option.filter;
+			const checkedByDefault = filter.kind !== 'worktree' && !filters.isExcludedByDefault(filter);
+			if (option.checked === checkedByDefault) {
+				continue;
+			}
+			const menu = filter.kind === 'worktree' ? Menus.SessionsViewWorktree : filter.kind === 'environment' ? Menus.SessionsViewEnvironment
+				: filter.kind === 'application' ? Menus.SessionsViewSource : Menus.SessionsViewHarness;
+			chips.push({
+				id: sessionFilterKey(filter),
+				label: option.checked ? option.label : localize('hideFilterValue', "Hide {0}", option.label),
+				edit: anchor => this.showFilterMenu(anchor, menu),
+				clear: () => filter.kind === 'worktree' ? filters.setSelectedWorktree(undefined) : filters.clearExclusion(filter),
+			});
+		}
+		if (filters.isScheduledOnly() && this.configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING)) {
+			chips.push({
+				id: 'scheduled',
+				label: localize('scheduledFilterChip', "Scheduled Only"),
+				edit: anchor => this.showFilterMenu(anchor, Menus.SessionsViewShow),
+				clear: () => { filters.setScheduledOnly(false); this.syncFilterContextKeys(sessionsControl); },
+			});
+		}
+		if (!sessionsControl.isExcludeArchived()) {
+			chips.push({
+				id: 'archived',
+				label: getChatSessionArchiveActionWording(this.configurationService) === ChatSessionArchiveActionWording.MarkAsDone
+					? localize('doneFilterChip', "Done") : localize('archivedFilterChip', "Archived"),
+				edit: anchor => this.showFilterMenu(anchor, Menus.SessionsViewShow),
+				clear: () => this.setShowArchived(false),
+			});
+		}
+		return chips;
+	}
+
+	private showFilterMenu(anchor: HTMLElement, menu: MenuId): void {
+		this.hoverService.hideHover(true);
+		anchor.setAttribute('aria-expanded', 'true');
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => getFlatContextMenuActions(this.menuService.getMenuActions(menu, this.scopedContextKeyService)),
+			autoSelectItem: true,
+			onHide: () => {
+				anchor.setAttribute('aria-expanded', 'false');
+				if (anchor.isConnected && anchor.getClientRects().length > 0) {
+					anchor.focus();
+				}
+			},
+		});
 	}
 
 	private registerArchivedFilter(sessionsControl: SessionsList): void {
@@ -1549,14 +1707,23 @@ export class SessionsView extends ViewPane {
 		this.sessionsControl?.refresh();
 	}
 
-	openFind(): void {
+	openFind(initialPattern?: string): void {
+		if (!this.sessionsControl) {
+			return;
+		}
+		if (this.filterChipsEnabled && !this.isFindWidgetOpen) {
+			const focused = DOM.getActiveElement();
+			this.focusBeforeFind = DOM.isHTMLElement(focused) ? focused : undefined;
+		}
 		this.isFindWidgetOpen = true;
 		if (this.findWidgetContainer) {
-			// Show container before opening find so the widget can be focused
 			this.findWidgetContainer.style.display = '';
 		}
+		if (this.searchOpen && this.findRow) {
+			this.findRow.style.display = '';
+		}
 		this.updateHeaderLayout();
-		this.sessionsControl?.openFind();
+		this.sessionsControl.openFind(initialPattern);
 	}
 
 	private updateHeaderLayout(): void {
@@ -1568,8 +1735,7 @@ export class SessionsView extends ViewPane {
 			}
 			header.label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 			if (this.headerInTitle) {
-				// The title shows the label and the actions; the row only shows the find widget while it is open, at its full width
-				header.row.style.display = this.isFindWidgetOpen ? '' : 'none';
+				header.row.style.display = !this.filterChipsEnabled && this.isFindWidgetOpen ? '' : 'none';
 				header.label.style.display = this.isFindWidgetOpen ? 'none' : '';
 				header.actions.style.display = this.isFindWidgetOpen ? 'none' : '';
 				continue;
@@ -1581,6 +1747,7 @@ export class SessionsView extends ViewPane {
 				continue;
 			}
 
+			header.row.style.display = this.searchOpen ? 'none' : '';
 			if (this.isFindWidgetOpen) {
 				header.label.style.display = 'none';
 				header.actions.style.display = 'none';
