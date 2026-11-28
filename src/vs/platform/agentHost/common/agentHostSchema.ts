@@ -13,7 +13,7 @@ import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvi
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
-import { ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
+import { MODEL_ROUTER_DEFAULT_DECISION_MODEL, ModelRouterDecisionModelConfigKey, ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -1186,6 +1186,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
 		description: localize('agentHost.config.modelRouterEnabled.description', "Whether model routers from ~/.agents/model-routers are offered as Copilot models."),
 		default: false,
+	}),
+	[ModelRouterDecisionModelConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.modelRouterDecisionModel.title', "Model Router Decision Model"),
+		description: localize('agentHost.config.modelRouterDecisionModel.description', "The id of the decision model that picks a model router's route for each turn. Empty uses the default decision model."),
+		default: MODEL_ROUTER_DEFAULT_DECISION_MODEL,
 	}),
 	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -21,7 +21,8 @@ import { Comment, CommentInput, CommentThread } from '../../../../../editor/comm
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
@@ -36,10 +37,14 @@ suite('CommentReply', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createReply(hasExistingComments = true, options?: { focus?: boolean; commentController?: ICommentController; floating?: boolean; fontSize?: number; rendered?: boolean }) {
+	/**
+	 * Creates a reply whose comment editor has an Upload File action, which runs `runEditorAction`.
+	 */
+	async function createReply(hasExistingComments = true, options?: { focus?: boolean; commentController?: ICommentController; floating?: boolean; fontSize?: number; rendered?: boolean; runEditorAction?: () => Promise<void> }) {
 		const instantiationService = createCodeEditorServices(store);
 		const model = store.add(createTextModel(''));
 		let editor: ICodeEditor;
+		let editorDomNode: HTMLElement;
 		if (options?.rendered) {
 			const container = dom.append(mainWindow.document.body, dom.$('.monaco-workbench'));
 			store.add(toDisposable(() => container.remove()));
@@ -47,13 +52,15 @@ suite('CommentReply', () => {
 				dimension: { width: 200, height: 200 }, fontSize: options.fontSize, wordWrap: 'on', scrollBeyondLastLine: false,
 			}, { contributions: [] }));
 			editor.setModel(model);
+			editorDomNode = editor.getDomNode()!;
 		} else {
 			editor = store.add(instantiateTestCodeEditor(instantiationService, model, { fontSize: options?.fontSize ?? 14 }));
-			sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
+			// Like a real editor, the editor reports losing focus when focus leaves its DOM node.
+			editorDomNode = dom.$('div');
+			sinon.stub(editor, 'getDomNode').returns(editorDomNode);
+			sinon.stub(editor, 'onDidBlurEditorWidget').value(store.add(dom.trackFocus(editorDomNode)).onDidBlur);
 		}
-		const onDidBlurEditorWidget = store.add(new Emitter<void>());
 		const onDidChangeInput = store.add(new Emitter<CommentInput | undefined>());
-		sinon.stub(editor, 'onDidBlurEditorWidget').value(onDidBlurEditorWidget.event);
 		const focus = sinon.spy(editor, 'focus');
 		const layout = sinon.spy(editor, 'layout');
 		instantiationService.stubInstance<ICodeEditor>(SimpleCommentEditor, editor);
@@ -70,7 +77,14 @@ suite('CommentReply', () => {
 			setActiveEditingCommentThread: () => { },
 			setActiveCommentAndThread: async () => { }
 		});
-		instantiationService.stub(IMenuService, new TestMenuService());
+		instantiationService.stub(ICommandService, { executeCommand: async () => { await options?.runEditorAction?.(); } });
+		const uploadAction = instantiationService.createInstance(MenuItemAction, { id: 'test.uploadFile', title: 'Upload File' }, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				const menu = super.createMenu(id, contextKeyService);
+				return id === MenuId.CommentEditorActions ? { ...menu, getActions: () => [['inline', [uploadAction]]] } : menu;
+			}
+		});
 		instantiationService.stub(IContextMenuService, {});
 		const thread = new class extends mock<CommentThread<IRange>>() {
 			override comments: ReadonlyArray<Comment> | undefined = hasExistingComments ? [existingComment] : [];
@@ -86,8 +100,22 @@ suite('CommentReply', () => {
 			{ submitComment: async () => { }, collapse: () => { } }, !!options?.focus, null
 		));
 		await reply.whenInitialized;
+		if (!options?.rendered) {
+			// The real comment editor is created in the reply's form.
+			container.querySelector('.comment-form')!.appendChild(editorDomNode);
+		}
 
-		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread, editor, focus, layout };
+		return { reply, container, editorDomNode, onDidChangeInput, model, thread, editor, focus, layout };
+	}
+
+	/**
+	 * Dispatches the focus events of focus moving from one element to another, and lets focus tracking catch up, as it
+	 * reports focus leaving on the next turn.
+	 */
+	async function moveFocus(from: HTMLElement | undefined, to: HTMLElement | undefined): Promise<void> {
+		from?.dispatchEvent(new FocusEvent('blur'));
+		to?.dispatchEvent(new FocusEvent('focus'));
+		await timeout(0);
 	}
 
 	test('preserves the configured font size and wraps proportional text in floating replies', async () => {
@@ -170,13 +198,15 @@ suite('CommentReply', () => {
 	});
 
 	test('collapses an empty reply on blur and can expand it again', async () => {
-		const { container, onDidBlurEditorWidget } = await createReply();
+		const { container, editorDomNode } = await createReply();
 		const formContainer = container.querySelector('.comment-form-container')!;
 		const button = container.querySelector<HTMLButtonElement>('.review-thread-reply-button')!;
 		const expanded = [formContainer.classList.contains('expand')];
-		button.dispatchEvent(new FocusEvent('focus'));
+		await moveFocus(undefined, button);
 		expanded.push(formContainer.classList.contains('expand'));
-		onDidBlurEditorWidget.fire();
+		// Expanding the reply moves focus to its editor, which focus then leaves.
+		await moveFocus(button, editorDomNode);
+		await moveFocus(editorDomNode, undefined);
 		expanded.push(formContainer.classList.contains('expand'));
 		button.click();
 		expanded.push(formContainer.classList.contains('expand'));
@@ -185,15 +215,49 @@ suite('CommentReply', () => {
 	});
 
 	test('preserves a nonempty reply on blur', async () => {
-		const { reply, container, onDidBlurEditorWidget, model } = await createReply();
+		const { reply, container, editorDomNode, model } = await createReply();
 		reply.expandReplyAreaAndFocusCommentEditor();
+		await moveFocus(undefined, editorDomNode);
 		model.setValue('Draft reply');
-		onDidBlurEditorWidget.fire();
+		await moveFocus(editorDomNode, undefined);
 
 		assert.deepStrictEqual({
 			expanded: container.querySelector('.comment-form-container')!.classList.contains('expand'),
 			value: model.getValue()
 		}, { expanded: true, value: 'Draft reply' });
+	});
+
+	test('keeps an empty reply expanded while focus moves to its actions', async () => {
+		const { container, editorDomNode } = await createReply();
+		const formContainer = container.querySelector('.comment-form-container')!;
+		const uploadButton = container.querySelector<HTMLElement>('.editor-actions .monaco-button')!;
+		container.querySelector<HTMLElement>('.review-thread-reply-button')!.click();
+		await moveFocus(undefined, editorDomNode);
+		await moveFocus(editorDomNode, uploadButton);
+		const expanded = [formContainer.classList.contains('expand')];
+		await moveFocus(uploadButton, undefined);
+		expanded.push(formContainer.classList.contains('expand'));
+
+		assert.deepStrictEqual(expanded, [true, false]);
+	});
+
+	test('keeps an empty reply expanded while one of its actions runs, such as to show a file dialog', async () => {
+		const upload = new DeferredPromise<void>();
+		const { container, editorDomNode } = await createReply(true, { runEditorAction: () => upload.p });
+		const formContainer = container.querySelector('.comment-form-container')!;
+		container.querySelector<HTMLElement>('.review-thread-reply-button')!.click();
+		await moveFocus(undefined, editorDomNode);
+		container.querySelector<HTMLElement>('.editor-actions .monaco-button')!.click();
+		// The file dialog takes focus.
+		await moveFocus(editorDomNode, undefined);
+		const expanded = [formContainer.classList.contains('expand')];
+		// Focus returns to the reply when the dialog is canceled.
+		await upload.complete();
+		await moveFocus(undefined, editorDomNode);
+		await moveFocus(editorDomNode, undefined);
+		expanded.push(formContainer.classList.contains('expand'));
+
+		assert.deepStrictEqual(expanded, [true, false]);
 	});
 
 	test('collapses when the thread input is cleared', async () => {
@@ -209,12 +273,13 @@ suite('CommentReply', () => {
 	});
 
 	test('keeps an empty new thread expanded on blur and when the input is cleared', async () => {
-		const { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread } = await createReply(false);
+		const { reply, container, editorDomNode, onDidChangeInput, model, thread } = await createReply(false);
 		// Updating the thread creates the reply button (and its blur listener) even for a new thread
 		reply.updateCommentThread(thread);
 		const formContainer = container.querySelector('.comment-form-container')!;
 		const expanded = [formContainer.classList.contains('expand')];
-		onDidBlurEditorWidget.fire();
+		await moveFocus(undefined, editorDomNode);
+		await moveFocus(editorDomNode, undefined);
 		expanded.push(formContainer.classList.contains('expand'));
 		model.setValue('Draft comment');
 		onDidChangeInput.fire({ uri: model.uri, value: '' });

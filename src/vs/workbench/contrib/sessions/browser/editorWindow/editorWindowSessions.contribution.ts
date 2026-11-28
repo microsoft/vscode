@@ -51,6 +51,7 @@ import { EditorWindowSessionsHostLayout } from './editorWindowSessionsHostLayout
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { GitHubService, IGitHubService } from '../github/githubService.js';
 import '../sessionAttentionService.js';
+import '../workspaceEditor/sessionWorkspaceEditor.contribution.js';
 import { FocusedSessionHostService, SessionHostService } from '../sessionHostService.js';
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditor } from '../sessionInputBanners/sessionWorktreeCleanupEditor.js';

@@ -146,6 +146,8 @@ tools:
         allowed-repos: ["microsoft/vscode"]
 safe-outputs:
     needs: [check_issue]
+    # Use each job's scoped token rather than a separately configured token.
+    github-token: ${{ secrets.GITHUB_TOKEN }}
     # Reports would be public issues and comments in this repository. Failures show in the Actions runs instead.
     report-failure-as-issue: false
     report-failed-jobs: false

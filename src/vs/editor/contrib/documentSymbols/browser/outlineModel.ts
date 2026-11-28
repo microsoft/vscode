@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace, equals } from '../../../../base/common/arrays.js';
+import { binarySearch, equals } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -161,15 +161,22 @@ export class OutlineGroup extends TreeElement {
 		const myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
+		const first = start;
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
-			// remove markers intersecting with this outline element
-			// and store them in a 'private' array.
+			// markers intersecting with this outline element
+			// are stored in a 'private' array.
 			const marker = markers[start];
 			myMarkers.push(marker);
-			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
+		}
+
+		// remove them from the shared array, they are one contiguous run.
+		// Elements without markers leave the array alone, so that siblings
+		// before the markers don't each pay a pass over all markers.
+		if (myMarkers.length > 0) {
+			markers.splice(first, myMarkers.length);
 		}
 
 		// Recurse into children and let them match markers that have matched
@@ -186,8 +193,6 @@ export class OutlineGroup extends TreeElement {
 				topSev: myTopSev
 			};
 		}
-
-		coalesceInPlace(markers);
 	}
 }
 

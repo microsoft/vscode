@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
-import { WorkspaceService } from '../../configuration/browser/configurationService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IAgentsModeService } from '../../agentsMode/common/agentsMode.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -31,7 +31,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditableWorkspaceContextService, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -41,7 +41,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService contextService: WorkspaceService,
+		@IWorkspaceContextService contextService: IEditableWorkspaceContextService,
 		@INativeHostService private nativeHostService: INativeHostService,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IStorageService private storageService: IStorageService,
@@ -65,6 +65,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@ILogService logService: ILogService,
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
+		@IAgentsModeService private readonly agentsModeService: IAgentsModeService,
 	) {
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
@@ -178,17 +179,44 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		return true; // OK
 	}
 
+	/**
+	 * Leaves Agents mode, if the window is in it, and returns how to go back into it
+	 * when the window does not enter the new workspace after all. Going back uses the
+	 * id of the workspace the window left: entering initializes the configuration with
+	 * the new workspace before the main process can decline it.
+	 */
+	private async leaveAgentsMode(): Promise<() => Promise<void>> {
+		if (!this.agentsModeService.isActive) {
+			return async () => { };
+		}
+		const workspaceId = this.contextService.getWorkspace().id;
+		await this.agentsModeService.setActive(false);
+		return async () => {
+			try {
+				await this.agentsModeService.setActive(true, workspaceId);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		};
+	}
+
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
 		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
 		if (!stopped) {
 			return;
 		}
 
+		let restoreAgentsMode: (() => Promise<void>) | undefined;
+		let entered = false;
 		try {
+			// The window serves the empty workspace again before it enters the new one
+			restoreAgentsMode = await this.leaveAgentsMode();
+
 			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 			const enterWorkspace = async () => {
 				const result = await this.doEnterWorkspace(workspaceUri);
 				if (result) {
+					entered = true;
 
 					// Migrate storage to new workspace
 					await this.storageService.switch(result.workspace, true /* preserve data */);
@@ -208,8 +236,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			if (result) {
 				// Fire event to allow participants to join
 				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
+			} else {
+				await restoreAgentsMode(); // the window stays in its workspace
 			}
 		} catch (error) {
+			// Once the main process entered the new workspace, the window must not go back into the mode of the old one
+			if (!entered) {
+				await restoreAgentsMode?.();
+			}
 			try {
 				await this.extensionService.startExtensionHosts();
 			} catch (restartError) {

@@ -82,7 +82,7 @@ import { resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js'
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
 import { DecisionsGate } from '../../common/decisionsGate.js';
 import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
-import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
+import { ModelRouterDecisionModelConfigKey, ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
 import { CopilotModelRouterGuidance } from './copilotModelRouterGuidance.js';
 import { CopilotModelRouterCatalog, describeSkippedModelRoutes, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
@@ -4736,7 +4736,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			models,
 			previousTurns: request.previousTurns,
 			situation: { ...request.situation, ...(customAgentName ? { agent: customAgentName } : {}) },
-			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
+			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token), this._configurationService.getRootValue(platformRootSchema, ModelRouterDecisionModelConfigKey)),
 		});
 		if (file?.router && resolution.routed) {
 			this._modelRouterGuidance.routeTurn(chatKey, request.turnId, resolveModelRouterGuidance(file.router, resolution.routed, models), request.previousTurns.length > 0);
