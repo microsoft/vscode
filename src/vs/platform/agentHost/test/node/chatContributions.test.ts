@@ -60,6 +60,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { IFolderIsolationService } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
@@ -995,6 +996,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	});
 	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { observed?.push('scheduledChatMoves'); } } satisfies IAgentHostScheduledChatMoves);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
+	services.set(IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false, isRequested: () => false } satisfies IFolderIsolationService);
 	const queueAgent = new MockAgent();
 	const providerService = createTestAgentHostProviderService(() => queueAgent);
 	services.set(IAgentHostProviderService, providerService);

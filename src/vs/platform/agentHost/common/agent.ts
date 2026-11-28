@@ -2135,6 +2135,13 @@ export interface IAgentTurnModelResolution {
 	readonly notices: readonly string[];
 }
 
+/** How {@link IAgent.setChatWorkingDirectory} changes a chat's folders. */
+export interface IAgentChatWorkingDirectoryOptions {
+	readonly replaceSessionWorkspace?: boolean;
+	/** The chat's other folders, which it keeps after its new working directory. */
+	readonly additionalDirectories?: readonly URI[];
+}
+
 export interface IAgent {
 	/** Host-internal opt-in to client-backed, non-file working directories. */
 	readonly supportsVirtualWorkspaces?: true;
@@ -2346,8 +2353,12 @@ export interface IAgent {
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
-	/** Changes the addressed chat's backing. Shared roots may change only under the host's single-chat catalog lock. */
-	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: { readonly replaceSessionWorkspace: boolean }): Promise<void>;
+	/**
+	 * Changes the addressed chat's backing. Shared roots may change only under the host's single-chat catalog lock.
+	 * With `additionalDirectories`, the chat keeps those other folders, after `workingDirectory`; otherwise it works
+	 * in `workingDirectory` only. Never with `replaceSessionWorkspace`.
+	 */
+	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: IAgentChatWorkingDirectoryOptions): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

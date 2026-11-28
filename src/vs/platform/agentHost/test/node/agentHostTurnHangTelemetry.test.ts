@@ -61,6 +61,7 @@ import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '.
 import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { IFolderIsolationService } from '../../node/chatContributions/folderIsolation/folderIsolation.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -210,6 +211,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostAuthenticationService, authenticationService],
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
+			[IFolderIsolationService, { _serviceBrand: undefined, request: () => { }, onTurnEnd: () => { }, isMoving: () => false, isRequested: () => false } satisfies IFolderIsolationService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, checkpointService],
