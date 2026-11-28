@@ -7,23 +7,31 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Event } from '../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenuItem, IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from '../../browser/notebookBrowser.js';
+import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookViewCellsUpdateEvent } from '../../browser/notebookBrowser.js';
+import { NotebookOptions } from '../../browser/notebookOptions.js';
 import { CellTitleToolbarPart } from '../../browser/view/cellParts/cellToolbars.js';
+import { ListTopCellToolbar } from '../../browser/viewParts/notebookTopCellToolbar.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { NotebookSetting } from '../../common/notebookCommon.js';
 import { setupInstantiationService } from './testNotebookEditor.js';
 
 suite('Notebook cell toolbars', () => {
@@ -118,6 +126,60 @@ suite('Notebook cell toolbars', () => {
 			}));
 		}
 	}
+
+	test('top insertion toolbar tracks an empty notebook across cell edits and model detach', () => {
+		const instantiationService = setupInstantiationService(disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [NotebookSetting.insertToolbarLocation]: 'betweenCells' }));
+		instantiationService.stub(IMenuService, {});
+		instantiationService.stub(IContextMenuService, {});
+		instantiationService.stubInstance(MenuWorkbenchToolBar, { dispose() { } });
+		const options = disposables.add(instantiationService.createInstance(NotebookOptions, mainWindow, false, undefined));
+		const modelChanged = disposables.add(new Emitter<NotebookTextModel | undefined>());
+		const viewModelAttached = disposables.add(new Emitter<void>());
+		const viewCellsChanged = disposables.add(new Emitter<INotebookViewCellsUpdateEvent>());
+		const zoneHost = $('div');
+		const cells: ICellViewModel[] = [];
+		let model: NotebookTextModel | undefined;
+		const editor = upcastPartial<INotebookEditorDelegate>({
+			onDidChangeModel: modelChanged.event,
+			onDidAttachViewModel: viewModelAttached.event,
+			onDidChangeViewCells: viewCellsChanged.event,
+			get textModel() { return model; },
+			hasModel(): this is IActiveNotebookEditorDelegate { return model !== undefined; },
+			getLength: () => model?.length ?? 0,
+			isDisposed: false,
+			creationOptions: { menuIds: upcastPartial<INotebookEditorCreationOptions['menuIds']>({ cellTopInsertToolbar: MenuId.NotebookCellListTop }) },
+			changeViewZones: callback => callback({
+				addZone: zone => {
+					zoneHost.appendChild(zone.domNode);
+					return 'top';
+				},
+				layoutZone() { },
+				removeZone() { zoneHost.replaceChildren(); }
+			})
+		});
+		disposables.add(instantiationService.createInstance(ListTopCellToolbar, editor, options));
+
+		model = upcastPartial<NotebookTextModel>({ viewType: 'notebook', get length() { return cells.length; } });
+		modelChanged.fire(model);
+		viewModelAttached.fire();
+		const toolbar = zoneHost.querySelector('.cell-list-top-cell-toolbar-container');
+		assert.ok(toolbar);
+		const hasEmptyMarker = () => toolbar.classList.contains('emptyNotebook');
+		const markers = [hasEmptyMarker()];
+
+		cells.push(upcastPartial<ICellViewModel>({}));
+		viewCellsChanged.fire({ synchronous: true, splices: [[0, 0, cells.slice()]] });
+		markers.push(hasEmptyMarker());
+		cells.pop();
+		viewCellsChanged.fire({ synchronous: true, splices: [[0, 1, []]] });
+		markers.push(hasEmptyMarker());
+		model = undefined;
+		modelChanged.fire(undefined);
+		markers.push(hasEmptyMarker());
+
+		assert.deepStrictEqual(markers, [true, false, true, false]);
+	});
 
 	for (const menu of ['title', 'delete'] as const) {
 		test(`${menu} overflow menu escapes the notebook clipping container`, () => {
