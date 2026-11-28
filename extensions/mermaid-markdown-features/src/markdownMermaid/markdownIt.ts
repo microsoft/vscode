@@ -121,9 +121,7 @@ export function extendMarkdownItWithMermaid(md: MarkdownIt, config: { languageId
 			alt: ['paragraph', 'reference', 'blockquote', 'list']
 		});
 		md.renderer.rules[containerTokenName] = (tokens: MarkdownIt.Token[], idx: number) => {
-			const token = tokens[idx];
-			const src = token.content;
-			return `<div class="${mermaidLanguageId}">${preProcess(src)}</div>`;
+			return renderMermaidBlock('div', '', tokens[idx].content);
 		};
 	});
 
@@ -131,11 +129,24 @@ export function extendMarkdownItWithMermaid(md: MarkdownIt, config: { languageId
 	md.options.highlight = (code: string, lang: string, attrs: string) => {
 		const reg = new RegExp('\\b(' + config.languageIds().map(escapeRegExp).join('|') + ')\\b', 'i');
 		if (lang && reg.test(lang)) {
-			return `<pre class="${mermaidLanguageId}" style="all: unset;">${preProcess(code)}</pre>`;
+			// The result has to be a `pre` element: markdown-it wraps anything else in `<pre><code>`.
+			return renderMermaidBlock('pre', ' style="all: unset;"', code);
 		}
 		return highlight?.(code, lang, attrs) ?? code;
 	};
 	return md;
+}
+
+/**
+ * Renders the block for a diagram: a plain element that holds the `.mermaid` element the webview renders the diagram into.
+ *
+ * The webview gives the `.mermaid` element an id and wraps it in other elements. The Markdown preview updates its content
+ * in place and only pairs an existing element with its new version when both have the same tag name and id. Without the
+ * plain element around it, a rendered diagram would no longer pair with its block, and the preview would discard or move
+ * the content that follows the diagram on every update, which makes the preview's scroll position jump.
+ */
+function renderMermaidBlock(tagName: 'div' | 'pre', attributes: string, source: string): string {
+	return `<${tagName}${attributes}><div class="${mermaidLanguageId}">${preProcess(source)}</div></${tagName}>`;
 }
 
 function preProcess(source: string): string {
