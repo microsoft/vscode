@@ -240,10 +240,13 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
 			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
-			minIndent = Math.min(minIndent, endIndent);
+			if (endIndent > 0) { // blank lines (0) don't limit the indentation
+				minIndent = Math.min(minIndent, endIndent);
+			}
 		}
 
-		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+		// Only spaces and tabs: `\s` would also remove the line breaks of blank lines
+		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^[ \\t]{${Math.max(0, minIndent - 1)}}`, 'gm'), '').trim();
 		return previewValue;
 	}
 
