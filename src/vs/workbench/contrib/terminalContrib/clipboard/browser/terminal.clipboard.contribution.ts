@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Disposable, toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { addDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -40,6 +41,8 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	private _overrideCopySelection: boolean | undefined = undefined;
+
+	private readonly _middleMouseUpListener = this._register(new MutableDisposable());
 
 	private readonly _onWillPaste = this._register(new Emitter<string>());
 	readonly onWillPaste = this._onWillPaste.event;
@@ -127,6 +130,24 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 		switch (event.button) {
 			case 1: { // Middle click
 				if (this._terminalConfigurationService.config.middleClickBehavior === 'paste') {
+					// On Linux Chromium pastes the selection clipboard on mouseup unless it is
+					// default prevented, block that so the click only pastes the clipboard.
+					const targetWindow = getWindow(event);
+					this._middleMouseUpListener.value = combinedDisposable(
+						addDisposableListener(targetWindow, 'mouseup', e => {
+							if (e.button === 1) {
+								e.preventDefault();
+								this._middleMouseUpListener.clear();
+							}
+						}, true),
+						// A new middle press means the release of this one was missed (e.g. it happened
+						// outside the window), stop so an unrelated middle click still pastes elsewhere.
+						addDisposableListener(targetWindow, 'mousedown', e => {
+							if (e.button === 1) {
+								this._middleMouseUpListener.clear();
+							}
+						}, true)
+					);
 					this.paste();
 					return { handled: true };
 				}
