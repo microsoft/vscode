@@ -262,6 +262,8 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 				return [localize('mcpMigrationServerEnvironmentVariableInName', "Variables ('${env:...}', '${input:...}' or '${config:...}') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName:
 				return [localize('mcpMigrationServerInvalidEnvironmentVariableName', "The destination MCP configuration only supports environment variable names made of letters, digits and underscores that do not start with a digit. Rename the variable to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidServerName:
+				return [localize('mcpMigrationServerInvalidName', "The destination MCP configuration only supports server names containing alphanumeric characters, underscores, and hyphens. Rename the server in the source configuration to migrate it.")];
 			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong:
 				return [localize('mcpMigrationServerEnvironmentVariableValueTooLong', "A value that references an environment variable is too long for the destination to expand it. Shorten the value to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl:

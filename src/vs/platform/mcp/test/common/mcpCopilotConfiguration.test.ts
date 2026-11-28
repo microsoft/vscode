@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { fromCopilotMcpServerConfiguration, toCopilotMcpServerConfiguration } from '../../common/mcpCopilotConfiguration.js';
-import { getCopilotGlobalMcpConfigurationResource } from '../../common/mcpCopilotGlobalConfiguration.js';
+import { getCopilotGlobalMcpConfigurationError, getCopilotGlobalMcpConfigurationResource, isValidCopilotGlobalMcpServerName } from '../../common/mcpCopilotGlobalConfiguration.js';
 import { McpServerType } from '../../common/mcpPlatformTypes.js';
 
 suite('McpCopilotConfiguration', () => {
@@ -67,5 +67,24 @@ suite('McpCopilotConfiguration', () => {
 			URI.parse('vscode-remote://ssh-remote+test/c:/Users/remote/.copilot/mcp-config.json').toString(),
 			URI.parse('vscode-remote://ssh-remote+test/custom/copilot/mcp-config.json').toString(),
 		]);
+	});
+
+	test('validates server names for Copilot global configuration', () => {
+		assert.strictEqual(isValidCopilotGlobalMcpServerName('valid-server_1'), true);
+		assert.strictEqual(isValidCopilotGlobalMcpServerName('Azure-MCP-Server'), true);
+		assert.strictEqual(isValidCopilotGlobalMcpServerName('Azure MCP Server'), false);
+		assert.strictEqual(isValidCopilotGlobalMcpServerName('server@name'), false);
+		assert.strictEqual(isValidCopilotGlobalMcpServerName('server.name'), false);
+		assert.strictEqual(isValidCopilotGlobalMcpServerName(''), false);
+
+		assert.strictEqual(getCopilotGlobalMcpConfigurationError({
+			name: 'Azure-MCP-Server',
+			config: { type: McpServerType.LOCAL, command: 'node' },
+		}), undefined);
+
+		assert.ok(getCopilotGlobalMcpConfigurationError({
+			name: 'Azure MCP Server',
+			config: { type: McpServerType.LOCAL, command: 'node' },
+		})?.includes('Azure MCP Server'));
 	});
 });

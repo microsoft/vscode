@@ -14,11 +14,20 @@ export function getCopilotGlobalMcpConfigurationResource({ copilotHome, homedir 
 	return URI.joinPath(copilotHome ?? URI.joinPath(homedir, '.copilot'), 'mcp-config.json');
 }
 
+export const copilotGlobalMcpServerNamePattern = /^[a-zA-Z0-9_-]+$/;
+
+export function isValidCopilotGlobalMcpServerName(name: string): boolean {
+	return copilotGlobalMcpServerNamePattern.test(name);
+}
+
 const supportedLocalProperties = new Set(['type', 'command', 'args', 'env', 'cwd']);
 const supportedRemoteProperties = new Set(['type', 'url', 'headers', 'transport', 'oauth']);
 
 /** Rejects configuration that cannot be written without losing VS Code-only behavior. */
-export function getCopilotGlobalMcpConfigurationError({ config, inputs }: IInstallableMcpServer): string | undefined {
+export function getCopilotGlobalMcpConfigurationError({ config, inputs, name }: IInstallableMcpServer): string | undefined {
+	if (name !== undefined && !isValidCopilotGlobalMcpServerName(name)) {
+		return localize('invalidCopilotGlobalMcpServerName', "The server name '{0}' contains invalid characters. Only alphanumeric characters, underscores, and hyphens are allowed in Copilot Global MCP configuration.", name);
+	}
 	if (inputs !== undefined && (!Array.isArray(inputs) || inputs.length > 0)) {
 		return localize('unsupportedCopilotGlobalMcpInputs', "Interactive inputs are not supported in Copilot Global MCP configuration. Use environment variable references instead.");
 	}

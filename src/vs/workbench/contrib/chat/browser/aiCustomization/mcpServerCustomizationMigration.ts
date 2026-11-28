@@ -23,7 +23,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { hasEnvVarReferences, MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../platform/mcp/common/envVarResolution.js';
 import { toCopilotMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpCopilotConfiguration.js';
-import { parseCopilotGlobalMcpConfiguration } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
+import { isValidCopilotGlobalMcpServerName, parseCopilotGlobalMcpConfiguration } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
@@ -137,6 +137,10 @@ export class McpServerCustomizationMigrator {
 					error,
 				});
 			};
+			if (isUser && !isValidCopilotGlobalMcpServerName(server.name)) {
+				excluded(McpServerCustomizationMigrationFailureReason.InvalidServerName);
+				continue;
+			}
 			if (!isMcpServerMigrationDeliverable(server)) {
 				excluded(McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 				continue;
@@ -348,6 +352,10 @@ async function migrateGroup(
 	};
 
 	for (const candidate of group.candidates) {
+		if (group.storage === PromptsStorage.user && !isValidCopilotGlobalMcpServerName(candidate.name)) {
+			reject(candidate, McpServerCustomizationMigrationFailureReason.InvalidServerName);
+			continue;
+		}
 		if (!isConfigurationRepresentable(candidate.projectedConfiguration) || !isConfigurationRepresentable(getMigratedConfiguration(candidate))) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;

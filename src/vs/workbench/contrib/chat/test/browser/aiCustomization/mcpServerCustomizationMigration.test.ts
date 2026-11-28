@@ -467,6 +467,37 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
+	test('excludes and rejects user server names with invalid characters for Copilot global configuration', async () => {
+		const fileService = createFileService();
+		const selected = userCandidate('Azure MCP Server');
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' };
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString('{"servers":{"Azure MCP Server":{"command":"node"}}}'));
+		const server = support(URI.file('/unused'), selected.name, { projectedConfiguration });
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{
+				...server,
+				source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: selected.sourceUri },
+			}],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan(snapshot, [], CancellationToken.None, selected.targetUri);
+		const result = await migrator.migrate([{ ...selected, projectedConfiguration }], { userTarget: selected.targetUri });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			result: { migratedCount: result.migratedCount, failures: result.failures.map(failure => [failure.name, failure.reason]) },
+			targetExists: await fileService.exists(selected.targetUri),
+		}, {
+			candidates: [],
+			exclusions: [['Azure MCP Server', McpServerCustomizationMigrationFailureReason.InvalidServerName]],
+			result: { migratedCount: 0, failures: [['Azure MCP Server', McpServerCustomizationMigrationFailureReason.InvalidServerName]] },
+			targetExists: false,
+		});
+	});
+
 	for (const target of [
 		{ content: '{"metadata":true}', reason: undefined },
 		{ content: '{"mcpServers":{"demo":{"type":"local","command":"node"}},"metadata":true}', reason: undefined },
