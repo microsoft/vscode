@@ -45,7 +45,7 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 			continue;
 		}
 
-		const accelerator = resolved.getElectronAccelerator('globalShortcut');
+		const accelerator = resolved.getElectronAccelerator();
 		if (!accelerator) {
 			unsupported.push({
 				commandId: item.command,

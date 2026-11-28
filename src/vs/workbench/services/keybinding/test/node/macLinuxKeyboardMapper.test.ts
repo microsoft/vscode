@@ -48,10 +48,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 		const unshifted = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Minus)]))[0];
 		const shifted = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Minus)]))[0];
 		assert.deepStrictEqual({
-			unshiftedMenu: unshifted.getElectronAccelerator(),
-			unshiftedGlobal: unshifted.getElectronAccelerator('globalShortcut'),
-			shiftedMenu: shifted.getElectronAccelerator(),
-			shiftedGlobal: shifted.getElectronAccelerator('globalShortcut'),
+			unshiftedMenu: unshifted.getElectronMenuAccelerator(),
+			unshiftedGlobal: unshifted.getElectronAccelerator(),
+			shiftedMenu: shifted.getElectronMenuAccelerator(),
+			shiftedGlobal: shifted.getElectronAccelerator(),
 			shiftedDispatch: shifted.getDispatchChords(),
 		}, {
 			unshiftedMenu: 'Cmd+\'',
@@ -1879,15 +1879,14 @@ suite('keyboardMapper - MAC layout-dependent accelerators', () => {
 		test(name, () => {
 			const keybinding = resolve(mapping, modifiers);
 			assert.deepStrictEqual({
-				menu: keybinding.getElectronAccelerator(),
-				explicitMenu: keybinding.getElectronAccelerator('menu'),
-				global: keybinding.getElectronAccelerator('globalShortcut'),
-			}, { menu: expected, explicitMenu: expected, global: null });
+				menu: keybinding.getElectronMenuAccelerator(),
+				global: keybinding.getElectronAccelerator(),
+			}, { menu: expected, global: null });
 		});
 	}
 
 	test('does not enable the character fallback on Linux', () => {
-		assert.strictEqual(resolve({}, {}, OperatingSystem.Linux).getElectronAccelerator(), null);
+		assert.strictEqual(resolve({}, {}, OperatingSystem.Linux).getElectronMenuAccelerator(), null);
 	});
 });
 
@@ -1906,8 +1905,8 @@ suite('keyboardMapper - MAC pt_pt', () => {
 	test('Portuguese Zoom In keeps physical dispatch and uses a menu-only plus', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
-			menu: binding.getElectronAccelerator(),
-			global: binding.getElectronAccelerator('globalShortcut'),
+			menu: binding.getElectronMenuAccelerator(),
+			global: binding.getElectronAccelerator(),
 			dispatch: binding.getDispatchChords(),
 			settings: binding.getUserSettingsLabel(),
 			label: binding.getLabel(),
@@ -1923,8 +1922,8 @@ suite('keyboardMapper - MAC pt_pt', () => {
 	test('shifted physical plus remains unsupported', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
-			menu: binding.getElectronAccelerator(),
-			global: binding.getElectronAccelerator('globalShortcut'),
+			menu: binding.getElectronMenuAccelerator(),
+			global: binding.getElectronAccelerator(),
 			dispatch: binding.getDispatchChords(),
 		}, { menu: null, global: null, dispatch: ['shift+meta+[Equal]'] });
 	});
@@ -1932,16 +1931,16 @@ suite('keyboardMapper - MAC pt_pt', () => {
 	test('Option plus keeps its menu modifiers without enabling a global shortcut', () => {
 		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, true, true, ScanCode.Equal)]))[0];
 		assert.deepStrictEqual({
-			menu: binding.getElectronAccelerator(),
-			global: binding.getElectronAccelerator('globalShortcut'),
+			menu: binding.getElectronMenuAccelerator(),
+			global: binding.getElectronAccelerator(),
 			dispatch: binding.getDispatchChords(),
 		}, { menu: 'Alt+Cmd+Plus', global: null, dispatch: ['alt+meta+[Equal]'] });
 	});
 
-	test('stable keys preserve all modifier combinations for both purposes', () => {
+	test('stable keys preserve all modifier combinations for menus and global shortcuts', () => {
 		for (let mask = 0; mask < 16; mask++) {
 			const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(!!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8), ScanCode.KeyA)]))[0];
-			assert.strictEqual(binding.getElectronAccelerator('globalShortcut'), binding.getElectronAccelerator('menu'));
+			assert.strictEqual(binding.getElectronAccelerator(), binding.getElectronMenuAccelerator());
 		}
 	});
 });

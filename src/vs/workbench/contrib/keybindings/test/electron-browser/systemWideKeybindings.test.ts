@@ -113,7 +113,7 @@ suite('SystemWideKeybindings selection', () => {
 			}
 		}, false, OperatingSystem.Macintosh);
 		const physicalPlus = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Equal)]))[0];
-		assert.strictEqual(physicalPlus.getElectronAccelerator(), 'Cmd+Plus');
+		assert.strictEqual(physicalPlus.getElectronMenuAccelerator(), 'Cmd+Plus');
 
 		const selection = selectSystemWideKeybindings([
 			item(physicalPlus, 'unsupported.physicalPlus', { systemWide: true }),
