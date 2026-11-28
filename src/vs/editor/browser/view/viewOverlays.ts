@@ -20,6 +20,9 @@ export class ViewOverlays extends ViewPart {
 	protected readonly domNode: FastDomNode<HTMLElement>;
 	private _dynamicOverlays: DynamicViewOverlay[] = [];
 	private _isFocused: boolean = false;
+	/** See {@link omitLinesWhileEmpty}. */
+	private _omitLinesWhileEmpty = false;
+	private _linesOmitted = false;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -67,6 +70,16 @@ export class ViewOverlays extends ViewPart {
 
 	public addDynamicOverlay(overlay: DynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);
+	}
+
+	/**
+	 * Keep no DOM node per visible line while every overlay renders nothing on
+	 * every visible line, instead of empty ones that scrolling adds and removes.
+	 * For layers whose overlays usually have nothing to draw, such as the
+	 * content overlays of the editorView GPU editor, which paints them itself.
+	 */
+	public omitLinesWhileEmpty(): void {
+		this._omitLinesWhileEmpty = true;
 	}
 
 	// ----- event handlers
@@ -126,7 +139,27 @@ export class ViewOverlays extends ViewPart {
 	}
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+		if (this._omitLinesWhileEmpty && this._rendersNothing(ctx.viewportData)) {
+			if (!this._linesOmitted) {
+				this._visibleLines.onFlushed(new viewEvents.ViewFlushedEvent(), true);
+				this._linesOmitted = true;
+			}
+			return;
+		}
+		// After omitting, the collection is empty and renders every line.
+		this._linesOmitted = false;
 		this._visibleLines.renderLines(ctx.viewportData);
+	}
+
+	private _rendersNothing(viewportData: ViewportData): boolean {
+		for (let lineNumber = viewportData.startLineNumber; lineNumber <= viewportData.endLineNumber; lineNumber++) {
+			for (const overlay of this._dynamicOverlays) {
+				if (overlay.render(viewportData.startLineNumber, lineNumber) !== '') {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }
 
