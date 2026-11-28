@@ -1106,7 +1106,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async isRunningUnderARM64Translation(): Promise<boolean> {
-		if (isLinux || isWindows) {
+		if (isLinux) {
 			return false;
 		}
 
