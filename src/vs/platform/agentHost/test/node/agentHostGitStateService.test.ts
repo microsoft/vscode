@@ -3191,7 +3191,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
-	test('two folders that are each their own repository list no repositories, so clients take each folder as its root', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('two folders that are each their own repository list their roots, so that clients know they are not one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const app = 'file:///app';
 		const lib = 'file:///lib';
@@ -3203,7 +3203,10 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState(SESSION, undefined, { force: true });
 		await timeout(1_000);
 
-		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), undefined);
+		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), {
+			[getWorkingDirectoryKey(app)]: [{ root: app, kind: 'folder' }],
+			[getWorkingDirectoryKey(lib)]: [{ root: lib, kind: 'folder' }],
+		});
 	}));
 
 	test('a scan that finishes after the session\'s folders changed records nothing, and the latest folders are found once it settles', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3363,17 +3366,18 @@ suite('AgentHostGitStateService', () => {
 			return { inRepository, repositoryRemoved, repositoryCreated };
 		};
 
-		const expected = (target: string) => ({
-			inRepository: { scans: 0, repositories: undefined },
+		// With two folders in repositories, the session lists each folder's own repository
+		const expected = (target: string, listsOwnRoots: boolean) => ({
+			inRepository: { scans: 0, repositories: listsOwnRoots ? [target] : undefined },
 			repositoryRemoved: { scans: 1, repositories: [`${target}/app`] },
-			repositoryCreated: { scans: 1, repositories: undefined },
+			repositoryCreated: { scans: 1, repositories: listsOwnRoots ? [target] : undefined },
 		});
 		assert.deepStrictEqual({
 			first: await transitions(WORKING_DIRECTORY),
 			chatFolder: await transitions('file:///other'),
 		}, {
-			first: expected(WORKING_DIRECTORY),
-			chatFolder: expected('file:///other'),
+			first: expected(WORKING_DIRECTORY, false),
+			chatFolder: expected('file:///other', true),
 		});
 	}));
 

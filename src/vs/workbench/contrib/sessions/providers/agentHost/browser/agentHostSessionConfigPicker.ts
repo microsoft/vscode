@@ -554,21 +554,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._isolationPresentation = options?.isolationPresentation;
 		this._workspacesEnabled = observableSessionWorkspacesEnabled(this._configurationService, productService);
 		this._hasSeveralGitRepositories = derived(this, reader => {
-			// The roots of the folders' own repositories, as the host found them: folders in one repository share its root.
-			// A host that lists no repositories found each folder in a repository to be its root.
+			// The roots of the folders' own repositories, once the host has found them: folders in one repository share its
+			// root. Until then, which folders share a repository is not known.
 			const roots = new ResourceSet(uri => this._uriIdentityService.extUri.getComparisonKey(uri));
-			const workspace = this._session.read(reader)?.workspace.read(reader);
-			if (workspace?.repositories) {
-				for (const repository of workspace.repositories) {
-					if (repository.kind === SessionRepositoryKind.Folder) {
-						roots.add(repository.root);
-					}
-				}
-			} else {
-				for (const folder of workspace?.folders ?? []) {
-					if (folder.gitRepository?.isRepository?.read(reader)) {
-						roots.add(folder.root);
-					}
+			for (const repository of this._session.read(reader)?.workspace.read(reader)?.repositories ?? []) {
+				if (repository.kind === SessionRepositoryKind.Folder) {
+					roots.add(repository.root);
 				}
 			}
 			return roots.size > 1;

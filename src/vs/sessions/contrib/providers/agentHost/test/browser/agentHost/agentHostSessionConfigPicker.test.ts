@@ -135,10 +135,10 @@ function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' =
  * A workspace of one folder per entry, each in the Git repository at the given root, or in no repository for
  * `undefined`. Like the provider's, each folder's own repository is the folder itself, until the host reads it:
  * - `reported`: the host lists the repositories it found, by their roots;
- * - `ownRoots`: the host read each folder's Git state and lists no repositories, as each folder is its own root;
+ * - `gitStateOnly`: the host read each folder's Git state, but has not listed its repositories yet;
  * - `unread`: the host has not read the folders yet.
  */
-function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[], state: 'reported' | 'ownRoots' | 'unread' = 'reported'): ISessionWorkspace {
+function makeMultiFolderWorkspace(repositories: readonly (string | undefined)[], state: 'reported' | 'gitStateOnly' | 'unread' = 'reported'): ISessionWorkspace {
 	const workspace = makeWorkspace(undefined);
 	const folders = repositories.map((repository, index) => {
 		const root = URI.file(`/folder${index}`);
@@ -770,20 +770,26 @@ suite('Agent Host Session Config Picker', () => {
 		services.provider.config = makeWorktreeFoldersConfig('worktree', 'all');
 		const { container } = renderPicker(store, services);
 		const labels = [isolationSlot(container)?.textContent];
+		const offered: boolean[] = [];
 		for (const workspace of [
 			// A second folder the host has not looked into yet
 			makeMultiFolderWorkspace(['/repo', '/other'], 'unread'),
-			// Each folder is its own repository, which the host does not list
-			makeMultiFolderWorkspace(['/repo', '/other'], 'ownRoots'),
-			makeMultiFolderWorkspace(['/repo', '/other']),
+			// A subfolder of the first's repository whose Git state the host read before finding the repositories
+			makeMultiFolderWorkspace(['/repo', '/repo'], 'gitStateOnly'),
 			// The second folder is a subfolder of the first's repository
 			makeMultiFolderWorkspace(['/repo', '/repo']),
+			// Two repositories, each a folder's own
+			makeMultiFolderWorkspace(['/repo', '/other']),
 		]) {
 			services.workspaceObs.set(workspace, undefined);
 			labels.push(isolationSlot(container)?.textContent);
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			offered.push(services.actionWidget.items.some(item => item.item?.value === 'worktree:allFolders'));
 		}
-		assert.deepStrictEqual({ labels, writes: services.provider.setSessionConfigValueArguments }, {
-			labels: ['New Worktree', 'New Worktree', 'New Worktree for All Folders', 'New Worktree for All Folders', 'New Worktree'],
+		assert.deepStrictEqual({ labels, offered, writes: services.provider.setSessionConfigValueArguments }, {
+			labels: ['New Worktree', 'New Worktree', 'New Worktree', 'New Worktree', 'New Worktree for All Folders'],
+			offered: [false, false, false, true],
 			writes: [],
 		});
 	});
