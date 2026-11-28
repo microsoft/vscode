@@ -4654,38 +4654,45 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('a send waiting for its draft\'s replacement sends nothing to a workspace the user picks meanwhile', async () => {
-		const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
-		const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
-		const session = observableValue<ISession | undefined>('session', draft('a'));
-		const replacing = new DeferredPromise<void>();
-		const picker = { selectionId: 1, validateSelectedWorkspace: async () => true, showPicker: () => { } };
-		const sent: string[] = [];
-		const composer = upcastPartial<ISendHarness & { _workspaceFoldersReconciliation: Promise<void> | undefined }>({
-			_session: session,
-			_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
-			_workspaceFoldersReconciliation: replacing.p,
-			notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
-			logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
-			sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
-			_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
-			_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
-			_hasSelectionFollowedFrom: () => false,
+	for (const meanwhile of ['otherWorkspace', 'otherAgent'] as const) {
+		test(`a send waiting for its draft's replacement sends nothing to ${meanwhile === 'otherWorkspace' ? 'a workspace' : 'another agent\'s draft in the same workspace'} the user picks meanwhile, keeping the input`, async () => {
+			const reconcileDraftBeforeSend = Reflect.get(NewChatWidget.prototype, '_reconcileDraftBeforeSend') as ISendHarness['_reconcileDraftBeforeSend'];
+			const draft = (sessionId: string) => upcastPartial<ISession>({ sessionId, ...withCreatedStatus(constObservable(false)) });
+			const session = observableValue<ISession | undefined>('session', draft('a'));
+			const replacing = new DeferredPromise<void>();
+			const consumed: string[] = [];
+			const picker = { selectionId: 1, validateSelectedWorkspace: async () => true, showPicker: () => { }, clearAttachedContext: () => consumed.push('attachments') };
+			const sent: string[] = [];
+			const composer = upcastPartial<ISendHarness & { _workspaceFoldersReconciliation: Promise<void> | undefined }>({
+				_session: session,
+				_workspacePicker: upcastPartial<ISendHarness['_workspacePicker']>(picker),
+				_workspaceFoldersReconciliation: replacing.p,
+				notificationService: upcastPartial<ISendHarness['notificationService']>({ error: () => { }, warn: () => { } }),
+				logService: upcastPartial<ISendHarness['logService']>({ error: () => { } }),
+				newSessionComposerService: { notifyWillSendRequest: () => consumed.push('prompt') },
+				agentFeedbackService: { removeFeedback: () => consumed.push('feedback') },
+				sessionsManagementService: upcastPartial<ISendHarness['sessionsManagementService']>({ onDidSendRequest: Event.None, sendNewChatRequest: async (sentTo: ISession) => { sent.push(sentTo.sessionId); } }),
+				_reconcileDraftBeforeSend: reconcileDraftBeforeSend,
+				_isCurrentSendTarget: Reflect.get(NewChatWidget.prototype, '_isCurrentSendTarget') as ISendHarness['_isCurrentSendTarget'],
+				_hasSelectionFollowedFrom: () => false,
+			});
+			Object.assign(composer, {
+				_workspaceFoldersReplacements: new WeakMap<ISession, ISession>(),
+				_isDraftInSelectedWorkspaceFolders: () => true,
+				_handleSelectedWorkspaceFoldersChange: async () => { },
+			});
+			const sending = send.call(composer, 'fix the bug');
+			await timeout(0);
+			// While the draft is replaced the user picks another workspace, or another agent, whose draft is not its replacement
+			if (meanwhile === 'otherWorkspace') {
+				picker.selectionId++;
+			}
+			session.set(draft('b'), undefined);
+			composer._workspaceFoldersReconciliation = undefined;
+			replacing.complete();
+			assert.deepStrictEqual({ result: await sending, sent, consumed }, { result: false, sent: [], consumed: [] });
 		});
-		Object.assign(composer, {
-			_workspaceFoldersReplacements: new WeakMap<ISession, ISession>(),
-			_isDraftInSelectedWorkspaceFolders: () => true,
-			_handleSelectedWorkspaceFoldersChange: async () => { },
-		});
-		const sending = send.call(composer, 'fix the bug');
-		await timeout(0);
-		// The user picks another workspace while the draft is replaced
-		picker.selectionId++;
-		session.set(draft('b'), undefined);
-		composer._workspaceFoldersReconciliation = undefined;
-		replacing.complete();
-		assert.deepStrictEqual({ result: await sending, sent }, { result: false, sent: [] });
-	});
+	}
 
 	for (const followed of ['replaced', 'unrelated', 'unchanged'] as const) {
 		test(`a send ${followed === 'replaced' ? 'validates the folder its workspace follows to when the former one went stale' : followed === 'unrelated' ? 'that followed its workspace sends nothing to a draft that is not its replacement' : 'is refused when its unchanged folder is not valid'}`, async () => {
@@ -4755,6 +4762,32 @@ suite('NewChatWidget', () => {
 			}[followed]);
 		});
 	}
+
+	test('records as the replacement of its draft only the draft a folder change created, while it is shown', async () => {
+		const handleFoldersChange = Reflect.get(NewChatWidget.prototype, '_handleSelectedWorkspaceFoldersChange') as (this: object) => Promise<void>;
+		const draft = (sessionId: string) => upcastPartial<ITestSessionWithChat>({ sessionId, ...withCreatedStatus(constObservable(false)) });
+		const alpha = draft('alpha');
+		const created = draft('created');
+		const results: (string | undefined)[] = [];
+		for (const shown of [created, draft('otherAgent')]) {
+			const session = observableValue<ITestSessionWithChat | undefined>('session', alpha);
+			const replacements = new WeakMap<ITestSessionWithChat, ITestSessionWithChat>();
+			await handleFoldersChange.call({
+				_session: session,
+				_workspacePicker: { selectedFolderUri: URI.file('/beta'), selectionId: 1 },
+				uriIdentityService: { extUri },
+				_workspaceFoldersReplacements: replacements,
+				_isCurrentWorkspaceSelection: () => false,
+				// It creates its draft, while the user picks another agent, whose draft is shown when it returns
+				_onWorkspaceSelected: async () => {
+					session.set(shown, undefined);
+					return { session: created, trustDeclined: false };
+				},
+			});
+			results.push(replacements.get(alpha)?.sessionId);
+		}
+		assert.deepStrictEqual(results, ['created', undefined]);
+	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());

@@ -3482,10 +3482,11 @@ export class NewChatWidget extends Disposable {
 		}
 		// What is sent goes to the selection it was sent for, or a draft that replaced its own as its workspace's folders changed
 		const selectionId = this._workspacePicker.selectionId;
+		// The draft sent is the one shown as Send is pressed: another taken only as its replacement
+		let session = this._session.get();
 		while (this._workspaceFoldersReconciliation) {
 			await this._workspaceFoldersReconciliation.catch(() => undefined);
 		}
-		let session = this._session.get();
 		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
 		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
 			await this._pendingWorkspaceCreation;
@@ -3933,10 +3934,10 @@ export class NewChatWidget extends Disposable {
 				host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'background');
 			}
 			const selectionId = this._workspacePicker.selectionId;
-			await this._onWorkspaceSelected(folderUri);
-			const replacement = this._session.get();
-			// Its replacement only while the selection is the same: another selection's draft is not
-			if (replacement && replacement !== session && selectionId === this._workspacePicker.selectionId) {
+			const replacement = (await this._onWorkspaceSelected(folderUri))?.session;
+			// Its replacement is the draft it created, while it is shown for the same selection: not another, such as one the user
+			// created meanwhile for another agent
+			if (replacement && replacement !== session && replacement === this._session.get() && selectionId === this._workspacePicker.selectionId) {
 				this._workspaceFoldersReplacements.set(session, replacement);
 			}
 		})();
