@@ -700,6 +700,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			})),
 		});
 
+		const repositoryRoots = new ResourceMap<Promise<URI | undefined>>();
 		for (const instruction of instructionDiscovery.sources) {
 			let uri: URI;
 			if (isAbsolute(instruction.sourcePath)) {
@@ -709,7 +710,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 				// it to (`projectPath` disambiguates same-named files across multiple roots).
 				// Fall back to the primary root for sources without an attributed project.
 				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
-				uri = joinPath(anchor, instruction.sourcePath);
+				uri = await this._resolveRelativeInstructionPath(anchor, instruction, repositoryRoots);
+				throwIfCancelled(token);
 			}
 			const isPlugin = instruction.type === 'plugin' || instruction.location === 'plugin';
 			const uriString = uri.toString();
@@ -749,6 +751,60 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 
 		return rules;
+	}
+
+	/**
+	 * Resolves an SDK-relative instruction path against the folder the SDK made it relative
+	 * to. When the workspace folder is in a git repository, the SDK reports VS Code
+	 * `.instructions.md` files it found under the workspace folder (`location:
+	 * 'working-directory'`) relative to the workspace folder, and every other source,
+	 * including nested agent files such as `extensions/AGENTS.md` and sources from the
+	 * parent repository (as with `chat.useCustomizationsInParentRepositories`), relative to
+	 * the repository root. Outside a repository, or when the file doesn't exist at that
+	 * origin, falls back to the workspace folder.
+	 */
+	private async _resolveRelativeInstructionPath(anchor: URI, instruction: InstructionSource, repositoryRoots: ResourceMap<Promise<URI | undefined>>): Promise<URI> {
+		const fallback = joinPath(anchor, instruction.sourcePath);
+		if (instruction.location === 'working-directory' && instruction.type === 'vscode') {
+			return fallback;
+		}
+		let repositoryRoot = repositoryRoots.get(anchor);
+		if (!repositoryRoot) {
+			repositoryRoot = this._findRepositoryRoot(anchor);
+			repositoryRoots.set(anchor, repositoryRoot);
+		}
+		const root = await repositoryRoot;
+		if (!root) {
+			return fallback;
+		}
+		const candidate = joinPath(root, instruction.sourcePath);
+		return await this._fileService.exists(candidate) ? candidate : fallback;
+	}
+
+	/**
+	 * Walks up from `folder` to the nearest folder with a `.git` entry. Gives up when a
+	 * `.git` entry can't be read for a reason other than it not existing, and before
+	 * ascending into the filesystem root's parent or the user's home folder: home is only
+	 * checked when the walk starts there, so a dotfiles repository in it doesn't contain
+	 * every folder in the home folder.
+	 */
+	private async _findRepositoryRoot(folder: URI): Promise<URI | undefined> {
+		for (let current = folder; ; current = uriDirname(current)) {
+			try {
+				const stat = await this._fileService.stat(joinPath(current, '.git'));
+				if (stat.isDirectory || stat.isFile) {
+					return current;
+				}
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					return undefined;
+				}
+			}
+			const parent = uriDirname(current);
+			if (extUriBiasedIgnorePathCase.isEqual(parent, current) || extUriBiasedIgnorePathCase.isEqual(current, this._osUserHome) || extUriBiasedIgnorePathCase.isEqual(parent, this._osUserHome)) {
+				return undefined;
+			}
+		}
 	}
 
 	private _isAgentInstructionSource(instruction: InstructionSource): boolean {
