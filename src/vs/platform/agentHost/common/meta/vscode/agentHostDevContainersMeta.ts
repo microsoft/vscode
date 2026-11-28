@@ -10,6 +10,7 @@ export const AgentHostDevContainersCapabilityMetaKey = 'vscode.devContainers';
 export const AgentHostDevContainerEnvironmentsCapabilityMetaKey = 'vscode.devContainerEnvironments';
 
 export const AgentHostDevContainerFolderContainersCapabilityMetaKey = 'vscode.devContainerFolderContainers';
+export const AgentHostDevContainerEnginesCapabilityMetaKey = 'vscode.devContainerEngines';
 
 /** Whether the host supports launching and relaying Dev Container Agent Hosts. */
 export function supportsAgentHostDevContainers(result: InitializeResult | undefined): boolean {
@@ -24,4 +25,9 @@ export function supportsAgentHostDevContainerEnvironments(result: InitializeResu
 /** Whether the host lists the folder Dev Containers on its Docker engine and connects to them only while they run on request. */
 export function supportsAgentHostDevContainerFolderContainers(result: InitializeResult | undefined): boolean {
 	return supportsAgentHostDevContainers(result) && result?._meta?.[AgentHostDevContainerFolderContainersCapabilityMetaKey] === true;
+}
+
+/** Whether the host reports its container engines and accepts an engine other than Docker when connecting. */
+export function supportsAgentHostDevContainerEngines(result: InitializeResult | undefined): boolean {
+	return supportsAgentHostDevContainers(result) && result?._meta?.[AgentHostDevContainerEnginesCapabilityMetaKey] === true;
 }

@@ -13,6 +13,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DevContainerEngine, isDevContainerEngine } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -70,8 +71,8 @@ interface IDevContainerHost {
  */
 export class CreateDevContainerTool implements IToolImpl {
 
-	/** The host that the user approved for each tool call, so a changed default cannot move the container elsewhere. */
-	private readonly approvedHosts = new LRUCache<string, string>(100);
+	/** The host and engine that the user approved for each tool call, so a changed default cannot move the container elsewhere. */
+	private readonly approvedCalls = new LRUCache<string, { readonly hostId: string; readonly engine: DevContainerEngine | undefined }>(100);
 
 	constructor(
 		@IDevContainerAgentHostService private readonly devContainerService: IDevContainerAgentHostService,
@@ -89,7 +90,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			toolReferenceName: 'create_dev_container',
 			displayName: localize('createDevContainer.displayName', "Create Dev Container"),
 			userDescription: localize('createDevContainer.userDescription', "Create a Dev Container with an agent host running inside"),
-			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
+			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker or WSL containers. Use when work should continue in an isolated container. The container persists, keeps its files in a container volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. `engine` is the container engine that runs it, `docker` or `wslc` (WSL containers), whose CLI on that host lists and inspects it. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remoteExplorer,
 			when: ContextKeyExpr.and(
@@ -108,6 +109,7 @@ export class CreateDevContainerTool implements IToolImpl {
 				additionalProperties: false,
 				properties: {
 					host: { type: 'string', description: '`local` for this computer, or the exact ID of an SSH, Tunnel, or WSL host from list_agent_hosts. Omit to use the host this session runs on.' },
+					engine: { type: 'string', enum: ['docker', 'wslc'], description: 'The container engine, `docker` or `wslc` (WSL containers), only when the user asked for one. Omit to use the user\'s configured engine.' },
 				},
 			},
 		};
@@ -116,23 +118,29 @@ export class CreateDevContainerTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const chatResource = context.originatingChatResource ?? context.chatSessionResource;
 		const host = this.resolveHost(context.parameters, chatResource);
-		this.approvedHosts.set(approvalKey(chatResource, context.toolCallId), host.id);
+		const engine = this.resolveEngine(context.parameters);
+		this.approvedCalls.set(approvalKey(chatResource, context.toolCallId), { hostId: host.id, engine });
 		return {
 			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
 			confirmationMessages: {
 				title: localize('createDevContainer.confirmationTitle', "Create Dev Container?"),
-				message: new MarkdownString().appendText(localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a Docker volume until you delete it in Remote Environments.", host.label)),
+				message: new MarkdownString().appendText(engine
+					? localize('createDevContainer.confirmationWithEngine', "Create a Dev Container from the Ubuntu base image on {0} with {1}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label, engine === 'wslc' ? localize('createDevContainer.wslc', "WSL containers") : 'Docker')
+					: localize('createDevContainer.confirmation', "Create a Dev Container from the Ubuntu base image on {0}? It keeps its files in a container volume until you delete it in Remote Environments.", host.label)),
 			},
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const host = this.getApprovedHost(approvalKey(invocation.originatingChatResource ?? invocation.context?.sessionResource, invocation.callId));
+		const { host, engine } = this.getApprovedCall(approvalKey(invocation.originatingChatResource ?? invocation.context?.sessionResource, invocation.callId));
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const environment = await this.devContainerService.createEnvironment(host.address, {
+			// The user is not asked for the engine: the call might run in a background chat, and they confirmed it already.
+			promptForEngine: false,
+			...(engine ? { engine } : {}),
 			// Building the container can take minutes; like the Dev Container session preparation, its message opens the log.
 			onWillConnect: created => progress.report({ message: logLink(created.providerId, creatingMessage(host.label)) }),
 		});
@@ -149,6 +157,8 @@ export class CreateDevContainerTool implements IToolImpl {
 			label: provider.label,
 			workspace: environment.workspaceUri.toString(),
 			createdOn: { id: host.id, label: host.label },
+			// The agent cannot tell the engine when the user's setting or a fallback chose it, e.g. to look with `wslc ps` rather than `docker ps`.
+			...(environment.engine ? { engine: environment.engine } : {}),
 			...(rejections.length ? {
 				reasons: rejections,
 				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',
@@ -177,30 +187,39 @@ export class CreateDevContainerTool implements IToolImpl {
 		return rejections;
 	}
 
-	/** The host that the user approved in the confirmation of the call, if it can still run Dev Containers. */
-	private getApprovedHost(key: string): IDevContainerHost {
-		const approvedHostId = this.approvedHosts.get(key);
-		this.approvedHosts.delete(key);
+	/** The host and engine that the user approved in the confirmation of the call, if the host can still run Dev Containers. */
+	private getApprovedCall(key: string): { readonly host: IDevContainerHost; readonly engine: DevContainerEngine | undefined } {
+		const approvedCall = this.approvedCalls.get(key);
+		this.approvedCalls.delete(key);
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
-		if (approvedHostId === undefined) {
+		if (approvedCall === undefined) {
 			throw new Error(localize('createDevContainer.notPrepared', "The Dev Container was not created because the host of its confirmation is no longer known. Call the tool again."));
 		}
 		const hosts = this.getHosts();
-		const approved = hosts.find(host => host.id === approvedHostId);
+		const approved = hosts.find(host => host.id === approvedCall.hostId);
 		if (!approved) {
-			throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedHostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
+			throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedCall.hostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
 		}
-		return approved;
+		return { host: approved, engine: approvedCall.engine };
+	}
+
+	/** The container engine that the agent passes when the user asked for one. */
+	private resolveEngine(parameters: unknown): DevContainerEngine | undefined {
+		const engine: unknown = typeof parameters === 'object' && parameters !== null ? Reflect.get(parameters, 'engine') : undefined;
+		if (engine !== undefined && !isDevContainerEngine(engine)) {
+			throw new Error(localize('createDevContainer.invalidEngine', "{0} must be {1} or {2}.", 'engine', 'docker', 'wslc'));
+		}
+		return engine;
 	}
 
 	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
-		if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters) || Object.keys(parameters).some(key => key !== 'host')) {
-			throw new Error(localize('createDevContainer.invalidInput', "The input must be an object with an optional {0} string.", 'host'));
+		if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters) || Object.keys(parameters).some(key => key !== 'host' && key !== 'engine')) {
+			throw new Error(localize('createDevContainer.invalidInput', "The input must be an object with optional {0} and {1} strings.", 'host', 'engine'));
 		}
 		const requested: unknown = Reflect.get(parameters, 'host');
 		if (requested !== undefined && (typeof requested !== 'string' || !requested)) {
@@ -208,7 +227,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		}
 		const hosts = this.getHosts();
 		if (!hosts.length) {
-			throw new Error(localize('createDevContainer.noHosts', "No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
+			throw new Error(localize('createDevContainer.noHosts', "No host can run Dev Containers. Start Docker or install WSL containers on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
 		}
 		const sessionHostAddress = requested === undefined ? this.getSessionHostAddress(chatResource) : undefined;
 		const host = requested !== undefined ? hosts.find(host => host.id === requested)
@@ -218,7 +237,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			const available = JSON.stringify(hosts.map(({ id, label }) => ({ id, label })));
 			throw new Error(requested !== undefined
 				? localize('createDevContainer.unknownHost', "Dev Containers cannot be created on {0} now. Available hosts: {1}", requested, available)
-				: localize('createDevContainer.hostRequired', "Docker is not available on this computer. Choose a host: {0}", available));
+				: localize('createDevContainer.hostRequired', "Neither Docker nor WSL containers are available on this computer. Choose a host: {0}", available));
 		}
 		return host;
 	}
