@@ -1594,6 +1594,45 @@ suite('SessionCustomizationDiscovery', () => {
 		].sort());
 	});
 
+	test('discover resolves each instruction against the origin the SDK used, not the first folder where the path exists', async () => {
+		// The SDK reports nested agent files relative to the repository root and working-directory
+		// `.instructions.md` files relative to the workspace folder, even when a same-named file
+		// exists relative to the other folder.
+		const nestedWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/repo/extensions' });
+		await seed('/repo/.git/HEAD', 'ref: refs/heads/main');
+		const nestedAgents = await seed('/repo/extensions/AGENTS.md', 'nested agents');
+		await seed('/repo/extensions/extensions/AGENTS.md', 'unrelated file at the same path below the workspace');
+		const localRule = await seed('/repo/extensions/.github/instructions/local.instructions.md', 'local');
+		await seed('/repo/.github/instructions/local.instructions.md', 'unrelated file at the same path below the repository root');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [nestedWorkspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
+				mcp: { discover: async () => ({ servers: [] }) },
+				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						sources: [
+							{ id: 'nestedAgents', label: 'extensions/AGENTS.md', sourcePath: 'extensions/AGENTS.md', type: 'repo', location: 'working-directory', projectPath: nestedWorkspace.fsPath },
+							{ id: 'localRule', label: 'Local', sourcePath: '.github/instructions/local.instructions.md', applyTo: ['**'], type: 'vscode', location: 'working-directory', projectPath: nestedWorkspace.fsPath },
+						],
+					}),
+				},
+				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const ruleUris = customizations
+			.filter(customization => customization.contents === 'rule')
+			.flatMap(customization => (customization.children ?? []).map(child => child.uri))
+			.sort();
+
+		assert.deepStrictEqual(ruleUris, [nestedAgents.toString(), localRule.toString()].sort());
+	});
+
 	test('discover stops the repository-root search at an unreadable .git and at the user home', async () => {
 		const lockedGit = URI.from({ scheme: Schemas.inMemory, path: '/outer/locked/.git' });
 		class LockedGitFileService extends FileService {

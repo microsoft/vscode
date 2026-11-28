@@ -700,6 +700,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			})),
 		});
 
+		const repositoryRoots = new ResourceMap<Promise<URI | undefined>>();
 		for (const instruction of instructionDiscovery.sources) {
 			let uri: URI;
 			if (isAbsolute(instruction.sourcePath)) {
@@ -709,7 +710,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				// it to (`projectPath` disambiguates same-named files across multiple roots).
 				// Fall back to the primary root for sources without an attributed project.
 				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
-				uri = await this._resolveRelativeInstructionPath(anchor, instruction);
+				uri = await this._resolveRelativeInstructionPath(anchor, instruction, repositoryRoots);
 				throwIfCancelled(token);
 			}
 			const isPlugin = instruction.type === 'plugin' || instruction.location === 'plugin';
@@ -753,40 +754,42 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * Resolves an SDK-relative instruction path. The SDK reports sources it found in
-	 * the repository that contains the workspace folder (`location: 'repository'`,
-	 * as with `chat.useCustomizationsInParentRepositories`) relative to the repository
-	 * root, and other sources relative to the workspace folder, except for nested
-	 * agent files such as `extensions/AGENTS.md`, which stay relative to the repository
-	 * root. Falls back to the workspace folder when no candidate exists.
+	 * Resolves an SDK-relative instruction path against the folder the SDK made it relative
+	 * to. When the workspace folder is in a git repository, the SDK reports VS Code
+	 * `.instructions.md` files it found under the workspace folder (`location:
+	 * 'working-directory'`) relative to the workspace folder, and every other source,
+	 * including nested agent files such as `extensions/AGENTS.md` and sources from the
+	 * parent repository (as with `chat.useCustomizationsInParentRepositories`), relative to
+	 * the repository root. Outside a repository, or when the file doesn't exist at that
+	 * origin, falls back to the workspace folder.
 	 */
-	private async _resolveRelativeInstructionPath(anchor: URI, instruction: InstructionSource): Promise<URI> {
+	private async _resolveRelativeInstructionPath(anchor: URI, instruction: InstructionSource, repositoryRoots: ResourceMap<Promise<URI | undefined>>): Promise<URI> {
 		const fallback = joinPath(anchor, instruction.sourcePath);
-		const folders: URI[] = [];
-		const repositoryRoot = await this._findRepositoryRoot(anchor, folders);
-		if (!repositoryRoot) {
+		if (instruction.location === 'working-directory' && instruction.type === 'vscode') {
 			return fallback;
 		}
-		const candidates = instruction.location === 'repository' ? [repositoryRoot] : folders;
-		for (const folder of candidates) {
-			const candidate = joinPath(folder, instruction.sourcePath);
-			if (await this._fileService.exists(candidate)) {
-				return candidate;
-			}
+		let repositoryRoot = repositoryRoots.get(anchor);
+		if (!repositoryRoot) {
+			repositoryRoot = this._findRepositoryRoot(anchor);
+			repositoryRoots.set(anchor, repositoryRoot);
 		}
-		return fallback;
+		const root = await repositoryRoot;
+		if (!root) {
+			return fallback;
+		}
+		const candidate = joinPath(root, instruction.sourcePath);
+		return await this._fileService.exists(candidate) ? candidate : fallback;
 	}
 
 	/**
-	 * Walks up from `folder` to the nearest folder with a `.git` entry, adding each folder
-	 * it checks to `visited`. Gives up when a `.git` entry can't be read for a reason other
-	 * than it not existing, and before ascending into the filesystem root's parent or the
-	 * user's home folder: home is only checked when the walk starts there, so a dotfiles
-	 * repository in it doesn't contain every folder in the home folder.
+	 * Walks up from `folder` to the nearest folder with a `.git` entry. Gives up when a
+	 * `.git` entry can't be read for a reason other than it not existing, and before
+	 * ascending into the filesystem root's parent or the user's home folder: home is only
+	 * checked when the walk starts there, so a dotfiles repository in it doesn't contain
+	 * every folder in the home folder.
 	 */
-	private async _findRepositoryRoot(folder: URI, visited: URI[]): Promise<URI | undefined> {
+	private async _findRepositoryRoot(folder: URI): Promise<URI | undefined> {
 		for (let current = folder; ; current = uriDirname(current)) {
-			visited.push(current);
 			try {
 				const stat = await this._fileService.stat(joinPath(current, '.git'));
 				if (stat.isDirectory || stat.isFile) {
