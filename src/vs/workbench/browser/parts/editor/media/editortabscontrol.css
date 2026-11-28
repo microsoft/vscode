@@ -5,6 +5,11 @@
 
 /* Editor Label */
 
+.monaco-workbench .monaco-drag-image.editor-new-window-drag-image {
+	max-width: 360px;
+	white-space: pre;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
 	cursor: pointer;
 }
