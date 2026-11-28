@@ -19925,6 +19925,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('a draft lets its chat add folders as its agent can, but not a quick chat or outside the Agents window', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const draft = provider.createNewSession(api, provider.sessionTypes[0].id);
+			const quickChat = provider.createQuickChat(provider.sessionTypes[0].id);
+			const editorWindowDraft = createProvider(disposables, agentHost, undefined, { isSessionsWindow: false }).createNewSession(api, provider.sessionTypes[0].id);
+			const supported = () => [draft, quickChat, editorWindowDraft].map(session => session.capabilities.get().supportsChatFolders === true);
+			const withAgent = supported();
+			setAgentWorkingDirectories(false);
+			assert.deepStrictEqual({ withAgent, withoutAgent: supported() }, { withAgent: [true, false, false], withoutAgent: [false, false, false] });
+		});
+
 		test('does not create a draft whose other folder is untrusted', async () => {
 			const provider = createProvider(disposables, agentHost, undefined, { untrustedUris: [web] });
 			provider.createNewSession(api, provider.sessionTypes[0].id, { folders: [api, web] });

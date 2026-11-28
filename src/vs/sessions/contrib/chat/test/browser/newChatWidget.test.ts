@@ -1142,7 +1142,7 @@ suite('NewChatWidget', () => {
 
 		const savedWorkspaceUri = URI.file('/product.code-workspace');
 		const savedFolders = [requested, URI.file('/added'), URI.file('/more')];
-		const restoreCases: { readonly name: string; readonly resolved: 'file' | 'folder' | 'renamed' | 'missing' | 'other' | undefined; readonly created: boolean; readonly draftFolders?: readonly URI[]; readonly draftWorkspaceFile?: URI; readonly pickerFolders?: readonly URI[]; readonly savesFolders?: false; readonly restored: boolean }[] = [
+		const restoreCases: { readonly name: string; readonly resolved: 'file' | 'fileWithAddedFolders' | 'folder' | 'renamed' | 'missing' | 'other' | undefined; readonly created: boolean; readonly draftFolders?: readonly URI[]; readonly draftWorkspaceFile?: URI; readonly pickerFolders?: readonly URI[] | null; readonly savesFolders?: false; readonly restored: boolean }[] = [
 			{ name: 'workspace file', resolved: 'file', created: true, restored: true },
 			// A workspace of one folder has no file, so no configuration
 			{ name: 'workspace of one folder', resolved: 'folder', created: true, restored: true },
@@ -1155,6 +1155,8 @@ suite('NewChatWidget', () => {
 			{ name: 'another workspace', resolved: 'other', created: true, restored: false },
 			// The workspace's folders were reordered after the draft was saved
 			{ name: 'workspace folders reordered since saving', resolved: 'file', created: true, pickerFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
+			// The folders added to the draft were added to its workspace since: the picker no longer has added folders
+			{ name: 'added folders added to the workspace since saving', resolved: 'fileWithAddedFolders', created: true, pickerFolders: null, restored: true },
 			{ name: 'existing draft of the same session', resolved: 'file', created: false, restored: true },
 			// The same folders, its folder still first
 			{ name: 'existing draft with the same folders in another order', resolved: 'file', created: false, draftFolders: [requested, savedFolders[2], savedFolders[1]], restored: true },
@@ -1165,8 +1167,9 @@ suite('NewChatWidget', () => {
 			test(`restores the workspace and the added folders of a draft's session, or keeps its content when they are unavailable (${restoreCase.name})`, async () => {
 				const renamedWorkspaceUri = URI.file('/renamed.code-workspace');
 				const workspaceConfig = restoreCase.resolved === 'file' ? { uri: savedWorkspaceUri, name: 'Product', folders: [requested] }
-					: restoreCase.resolved === 'renamed' ? { uri: renamedWorkspaceUri, name: 'Product', folders: [requested] }
-						: undefined;
+					: restoreCase.resolved === 'fileWithAddedFolders' ? { uri: savedWorkspaceUri, name: 'Product', folders: savedFolders }
+						: restoreCase.resolved === 'renamed' ? { uri: renamedWorkspaceUri, name: 'Product', folders: [requested] }
+							: undefined;
 				const draftFolders = restoreCase.draftFolders ?? savedFolders;
 				const session = upcastPartial<ISession>({
 					sessionId: 'restored', providerId: 'provider', sessionType: 'agent',
@@ -1188,11 +1191,12 @@ suite('NewChatWidget', () => {
 							case 'missing': return { uri: savedWorkspaceUri, name: 'Product', folders: [requested], missing: true };
 							case 'other': return { uri: URI.file('/other.code-workspace'), name: 'Other', folders: [requested] };
 							case undefined: return undefined;
+							case 'fileWithAddedFolders': return { uri: savedWorkspaceUri, name: 'Product', folders: savedFolders };
 							default: return { uri: savedWorkspaceUri, name: 'Product', folders: [requested] };
 						}
 					},
 					get selectedWorkspaceConfig() { return workspaceConfig; },
-					get sessionFolderUris() { return restoreCase.pickerFolders ?? selected.at(-1)?.sessionFolders; },
+					get sessionFolderUris() { return restoreCase.pickerFolders === null ? undefined : restoreCase.pickerFolders ?? selected.at(-1)?.sessionFolders; },
 				};
 				Reflect.set(fixture.harness, '_workspacePicker', picker);
 				Reflect.set(fixture.harness.sessionsService, 'openNewSession', async (options: ICreateNewSessionOptions) => { opened.push(options); return { session, created: restoreCase.created }; });
@@ -1202,7 +1206,7 @@ suite('NewChatWidget', () => {
 				assert.deepStrictEqual({ error, configured: fixture.configured.length, opened: opened.map(options => ({ workspaceConfig: options.workspaceConfig, folders: options.folders })) }, {
 					error: restoreCase.restored ? undefined : 'The saved draft\'s workspace is unavailable. Its content has been kept.',
 					configured: restoreCase.restored ? 1 : 0,
-					opened: restoreCase.resolved === undefined || restoreCase.resolved === 'other' || restoreCase.resolved === 'missing' ? [] : [{ workspaceConfig, folders: restoreCase.pickerFolders ?? savedFolders }],
+					opened: restoreCase.resolved === undefined || restoreCase.resolved === 'other' || restoreCase.resolved === 'missing' ? [] : [{ workspaceConfig, folders: restoreCase.pickerFolders === null ? undefined : restoreCase.pickerFolders ?? savedFolders }],
 				});
 			});
 		}

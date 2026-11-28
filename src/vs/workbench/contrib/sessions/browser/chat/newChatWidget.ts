@@ -1717,8 +1717,10 @@ export class NewChatWidget extends Disposable {
 			// A workspace whose file can no longer be read keeps only its last known folders: it is not restored
 			const isSavedWorkspace = !!sessionWorkspace && !sessionWorkspace.missing && !!target.sessionWorkspaceUri
 				&& [sessionWorkspace.uri, ...sessionWorkspace.previousUris ?? []].some(uri => extUri.isEqual(uri, target.sessionWorkspaceUri));
+			// Folders added to the draft that its workspace now lists are the workspace's own, and no longer added
+			const restoredFolders = folders ?? (isSavedWorkspace ? sessionWorkspace.folders : undefined) ?? [];
 			if ((target.folderUri && target.sessionWorkspaceUri && !isSavedWorkspace)
-				|| (target.folderUri && target.sessionFolders?.length && !isSameFolderSet(folders ?? [], target.sessionFolders))) {
+				|| (target.folderUri && target.sessionFolders?.length && !isSameFolderSet(restoredFolders, target.sessionFolders))) {
 				throw workspaceUnavailable();
 			}
 			const opened = target.folderUri
