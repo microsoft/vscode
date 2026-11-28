@@ -27,6 +27,8 @@ export interface INewSplitButtonOptions {
 	 * variants of the primary action that have no keybinding of their own.
 	 */
 	readonly keybindingActionId?: string;
+	/** Whether the dropdown menu shows the keybinding of each of its actions. Defaults to `false`. */
+	readonly showMenuKeybindings?: boolean;
 }
 
 /**
@@ -80,7 +82,8 @@ export class NewSplitButtonActionViewItem extends ActionWithDropdownActionViewIt
 	 * @param menu The menu the button stands for, whose actions its dropdown opens.
 	 * @param _primaryAction The menu item action the label runs, whose keybinding the button shows.
 	 * @param options The options the toolbar gives its action view items.
-	 * @param _buttonOptions The label of the button, and where to find a keybinding when the primary action has none.
+	 * @param _buttonOptions The label of the button, where to find a keybinding when the primary action has none, and whether
+	 * its dropdown menu shows the keybindings of its actions.
 	 */
 	constructor(
 		menu: SubmenuItemAction,
@@ -99,7 +102,7 @@ export class NewSplitButtonActionViewItem extends ActionWithDropdownActionViewIt
 			menuActionsOrProvider: { getActions: () => menu.actions },
 			menuActionClassNames: [NewSplitButtonActionViewItem.FILLED_LABEL_CLASS],
 			menuActionRunner,
-			keybindingProvider: action => _keybindingService.lookupKeybinding(action.id),
+			keybindingProvider: _buttonOptions?.showMenuKeybindings ? action => _keybindingService.lookupKeybinding(action.id) : undefined,
 			filledSplitButton: true,
 		}, contextMenuService);
 		this._register(menuActionRunner);

@@ -1877,7 +1877,7 @@ export class NewSessionSplitButtonActionViewItem extends NewSplitButtonActionVie
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(menu, newSessionAction, options, undefined, contextMenuService, keybindingService, notificationService);
+		super(menu, newSessionAction, options, { showMenuKeybindings: true }, contextMenuService, keybindingService, notificationService);
 	}
 
 	override render(container: HTMLElement): void {

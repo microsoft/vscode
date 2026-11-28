@@ -161,11 +161,20 @@ suite('Sessions - New split button', () => {
 		});
 	});
 
-	test('shows the keybindings of the menu actions in the ▾ menu', () => {
+	test('shows the keybindings of the menu actions in the ▾ menu only when asked to', () => {
 		const cmdO = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyO)], OS);
-		const inFolder = store.add(new Action('newInFolder', 'New in Folder...'));
-		const { openMenu, menus } = render(true, { [PRIMARY_ID]: cmdN, newInFolder: cmdO }, [inFolder]);
-		openMenu();
-		assert.deepStrictEqual(menus[0].getActions().map(action => menus[0].getKeyBinding?.(action)?.getLabel() ?? null), [cmdN.getLabel(), null, null, cmdO.getLabel()]);
+		const menuKeybindings = (buttonOptions: INewSplitButtonOptions | undefined) => {
+			const inFolder = store.add(new Action('newInFolder', 'New in Folder...'));
+			const { openMenu, menus } = render(true, { [PRIMARY_ID]: cmdN, newInFolder: cmdO }, [inFolder], MenuId.ChatNewMenu, buttonOptions);
+			openMenu();
+			return menus[0].getActions().map(action => menus[0].getKeyBinding?.(action)?.getLabel() ?? null);
+		};
+		assert.deepStrictEqual({
+			shown: menuKeybindings({ showMenuKeybindings: true }),
+			byDefault: menuKeybindings(undefined),
+		}, {
+			shown: [cmdN.getLabel(), null, null, cmdO.getLabel()],
+			byDefault: [null, null, null, null],
+		});
 	});
 });
