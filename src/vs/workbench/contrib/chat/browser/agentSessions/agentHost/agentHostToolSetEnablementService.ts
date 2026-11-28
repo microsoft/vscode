@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -24,7 +25,7 @@ export const AGENT_HOST_COPILOT_CLI_SESSION_TYPE = 'agent-host-copilotcli';
  * Whether a session type runs the Copilot CLI harness, locally or on a remote agent host.
  */
 export function isCopilotCliSessionType(sessionType: string): boolean {
-	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
+	return sessionType === COPILOT_CLI_AGENT_PROVIDER_ID || sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
 }
 
 /**
